@@ -9,7 +9,7 @@ import MembershipCard from "./components/MembershipCard";
 import MembershipHistoryRow from "./components/MembershipHistoryRow";
 import PauseMembershipModal from "./components/PauseMembershipModal";
 import ResumeMembershipModal from "./components/ResumeMembershipModal";
-import { useMemberMemberships } from "./useMemberMemberships";
+import { useMemberMemberships } from "@/stores/memberships";
 
 const HISTORY_PAGE_SIZE = 3;
 

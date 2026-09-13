@@ -9,15 +9,22 @@ export const BOOKING_STEPS: { id: BookingStepId; label: string }[] = [
 ];
 
 export const MAX_SEATS = 20;
+export const MAX_HOURS = 8;
+export const HALF_DAY_HOURS = 4;
 
-// One control covers what "Duration" and "Booking Type" previously split
-// between them with overlapping options.
-export const BOOKING_TYPE_OPTIONS: SelectOption[] = [
+// Two rows of one control: a pass is a single visit, a membership reserves
+// the space for a whole period.
+export const PASS_TYPE_OPTIONS: SelectOption[] = [
   { label: "Hourly", value: "hourly" },
   { label: "Half day", value: "half-day" },
   { label: "Full day", value: "full-day" },
-  { label: "Weekly", value: "weekly" },
-  { label: "Monthly", value: "monthly" },
+];
+
+export const MEMBERSHIP_TYPE_OPTIONS: SelectOption[] = [
+  { label: "1 Week", value: "weekly" },
+  { label: "1 Month", value: "monthly" },
+  { label: "3 Months", value: "quarterly" },
+  { label: "6 Months", value: "half-yearly" },
 ];
 
 export const PREFERENCE_OPTIONS: SelectOption[] = [

@@ -11,7 +11,7 @@ import {
 import { cn } from "@/utils";
 import BookingRow from "./components/BookingRow";
 import BookingQrModal from "./components/BookingQrModal";
-import { useMemberBookings } from "./useMemberBookings";
+import { useMemberBookings } from "@/stores/bookings";
 
 const TABS = Object.keys(BOOKING_STATUS_LABELS) as BookingStatus[];
 

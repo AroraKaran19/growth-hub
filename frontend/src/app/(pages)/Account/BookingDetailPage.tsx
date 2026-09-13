@@ -24,7 +24,7 @@ import {
 import { cn } from "@/utils";
 import BookingQrModal from "./components/BookingQrModal";
 import RescheduleModal from "./components/RescheduleModal";
-import { useMemberBookings } from "./useMemberBookings";
+import { useMemberBookings } from "@/stores/bookings";
 
 const STATUS_STYLE: Record<MemberBooking["status"], string> = {
   upcoming: "bg-green-500/12 text-green-700",
