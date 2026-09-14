@@ -5,6 +5,11 @@ export type EmailSettings = {
   otpTemplateId: string;
 };
 
+export type RazorpaySettings = {
+  keyId: string;
+  keySecret: string;
+};
+
 export type AppEnv = {
   nodeEnv: string;
   isProduction: boolean;
@@ -15,6 +20,7 @@ export type AppEnv = {
   authRelaySecret: string;
   msg91AuthKey: string | null;
   email: EmailSettings | null;
+  razorpay: RazorpaySettings | null;
   trustProxy: number | boolean | string | null;
   authTestPhone: string | null;
 };
@@ -75,6 +81,13 @@ export const loadEnv = (source: NodeJS.ProcessEnv = process.env): AppEnv => {
       : null;
   const authTestPhone = read("AUTH_TEST_PHONE");
 
+  const razorpayKeyId = read("RAZORPAY_KEY_ID");
+  const razorpayKeySecret = read("RAZORPAY_KEY_SECRET");
+  const razorpay =
+    razorpayKeyId && razorpayKeySecret
+      ? { keyId: razorpayKeyId, keySecret: razorpayKeySecret }
+      : null;
+
   const result: AppEnv = {
     nodeEnv,
     isProduction,
@@ -85,6 +98,7 @@ export const loadEnv = (source: NodeJS.ProcessEnv = process.env): AppEnv => {
     authRelaySecret: secret("AUTH_RELAY_SECRET"),
     msg91AuthKey,
     email,
+    razorpay,
     trustProxy: parseTrustProxy(read("TRUST_PROXY")),
     authTestPhone,
   };
@@ -96,6 +110,9 @@ export const loadEnv = (source: NodeJS.ProcessEnv = process.env): AppEnv => {
       errors.push(
         "MSG91_EMAIL_DOMAIN, MSG91_EMAIL_FROM, MSG91_EMAIL_FROM_NAME and MSG91_EMAIL_OTP_TEMPLATE_ID are required in production",
       );
+    }
+    if (!razorpay) {
+      errors.push("RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET are required in production");
     }
   }
 

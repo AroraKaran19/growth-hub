@@ -30,7 +30,10 @@ export const callBackend = async (
   path: string,
   payload: unknown,
 ): Promise<BackendResult> => {
-  const apiUrl = process.env.API_URL;
+  // One variable is enough. API_URL is an optional override for deployments
+  // where this server should reach the backend by a private address, such as
+  // loopback when both processes sit on the same VPS.
+  const apiUrl = process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL;
   const relaySecret = process.env.AUTH_RELAY_SECRET;
   if (!apiUrl || !relaySecret) return unavailable("RELAY_UNCONFIGURED", "Sign-in is not configured.");
 

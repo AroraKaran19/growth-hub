@@ -11,6 +11,8 @@ import {
   X,
 } from "lucide-react";
 import PhoneSignIn from "@/app/components/shared/PhoneSignIn";
+import { useRazorpay, type RazorpayFailure } from "@/hooks/useRazorpay";
+import { memberApi } from "@/libs/api/client";
 import { useCoupons } from "@/stores/coupons";
 import { useMemberBookings } from "@/stores/bookings";
 import { useMemberMemberships, venueMembership } from "@/stores/memberships";
@@ -97,6 +99,7 @@ const PaymentPage = ({ venue: listing }: { venue: Venue }) => {
   const { addBooking } = useMemberBookings();
   const { coupons, findCoupon, redeem, markUsed } = useCoupons();
   const { session, isReady: isSessionReady } = useSession();
+  const razorpay = useRazorpay();
 
   const membership = venueMembership(memberships, venue.slug);
   const isMembership = isMembershipType(selection.bookingType);
@@ -189,6 +192,71 @@ const PaymentPage = ({ venue: listing }: { venue: Venue }) => {
     }
 
     if (appliedCoupon && couponCheck?.ok) markUsed(appliedCoupon.code, today);
+  };
+
+  const failWith = (code: string, title: string, detail: string) => {
+    setFailure({ code, title, detail, retryable: true });
+    setStatus("failed");
+  };
+
+  /**
+   * Order is priced and created on the backend, then Razorpay collects the
+   * money. The booking is only written once the backend has checked the
+   * signature, so a dismissed or forged payment leaves nothing behind.
+   */
+  const payNow = async () => {
+    setStatus("processing");
+    try {
+      const { data } = await memberApi.post("/payments/orders", {
+        amount: Math.round(total * 100),
+        currency: "INR",
+        receipt: `gh_${bookingReference()}`,
+      });
+      const order = data.data as { orderId: string; amount: number; currency: string };
+
+      razorpay.open(
+        {
+          amount: order.amount,
+          currency: order.currency,
+          order_id: order.orderId,
+          name: "Growth Hub",
+          description: venue.name,
+          prefill: {
+            name: session?.name,
+            contact: session?.phone,
+            email: session?.email,
+          },
+          theme: { color: "#ec2024" },
+          handler: async (response) => {
+            try {
+              await memberApi.post("/payments/verify", response);
+              completeOrder();
+              setStatus("idle");
+            } catch {
+              failWith(
+                "VERIFICATION_FAILED",
+                "We could not confirm that payment",
+                "Your money may still have been taken. Do not pay again: contact support with your payment id and we will sort it out.",
+              );
+            }
+          },
+          modal: { ondismiss: () => setStatus("idle") },
+        },
+        (failed: RazorpayFailure) => {
+          failWith(
+            failed.error?.code ?? "PAYMENT_FAILED",
+            "Payment failed",
+            failed.error?.description ?? "The payment did not go through. Try again.",
+          );
+        },
+      );
+    } catch {
+      failWith(
+        "ORDER_CREATE_FAILED",
+        "We could not start the payment",
+        "Something went wrong before the payment began. No money has left your account.",
+      );
+    }
   };
 
   const simulate = (outcome: "success" | "failed", reason?: PaymentFailure) => {
@@ -457,7 +525,7 @@ const PaymentPage = ({ venue: listing }: { venue: Venue }) => {
               )}
 
               <p className="rounded-lg bg-tertiary/4 px-3 py-2 text-xs text-tertiary/55">
-                Payment is simulated. No gateway is connected yet.
+                Payments run through Razorpay in test mode, so use a test card.
                 {session ? ` Signed in as ${session.name}.` : ""}
               </p>
 
@@ -474,15 +542,21 @@ const PaymentPage = ({ venue: listing }: { venue: Venue }) => {
 
               <button
                 type="button"
-                onClick={() => simulate("success")}
-                disabled={status === "processing" || !session}
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-5 py-3 text-sm font-semibold text-secondary transition-opacity hover:opacity-90 disabled:opacity-50"
+                onClick={payNow}
+                disabled={
+                  status === "processing" || !session || razorpay.status !== "ready"
+                }
+                className="cta-gradient inline-flex items-center justify-center gap-2 rounded-lg px-5 py-3 text-sm font-semibold text-secondary transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <CircleCheck aria-hidden="true" className="size-4" />
-                {status === "processing"
-                  ? "Processing..."
-                  : `Simulate success, pay ${rupees(total)}`}
+                {status === "processing" ? "Processing..." : `Pay ${rupees(total)}`}
               </button>
+
+              {razorpay.status === "unavailable" && (
+                <p role="alert" className="text-xs text-primary">
+                  Card payments are unavailable right now. Please try again shortly.
+                </p>
+              )}
 
               <button
                 type="button"
