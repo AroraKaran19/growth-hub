@@ -9,9 +9,15 @@ type DateStripProps = {
   days: DayOption[];
   value: string;
   onChange: (value: string) => void;
+  title?: string;
 };
 
-const DateStrip = ({ days, value, onChange }: DateStripProps) => {
+const DateStrip = ({
+  days,
+  value,
+  onChange,
+  title = "Select Date",
+}: DateStripProps) => {
   const calendarRef = useRef<HTMLInputElement>(null);
   const stripRef = useRef<HTMLDivElement>(null);
 
@@ -37,7 +43,7 @@ const DateStrip = ({ days, value, onChange }: DateStripProps) => {
   return (
     <div className="rounded-2xl border border-tertiary/10 bg-secondary p-5 lg:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-base font-bold text-tertiary">Select Date</h2>
+        <h2 className="text-base font-bold text-tertiary">{title}</h2>
 
         <span className="relative inline-flex">
           <button

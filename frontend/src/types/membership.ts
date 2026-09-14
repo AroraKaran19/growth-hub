@@ -8,6 +8,9 @@ export const MEMBERSHIP_STATUS_LABELS: Record<MembershipStatus, string> = {
 
 export type Allowance = { used: number; included: number };
 
+export type MembershipUnit = "week" | "month" | "3 months" | "6 months";
+
+/** A venue membership: a seat, cabin or office reserved at one partner venue. */
 export type MemberMembership = {
   id: string;
   venueName: string;
@@ -21,7 +24,7 @@ export type MemberMembership = {
   seats: string[];
   status: MembershipStatus;
   price: number;
-  priceUnit: "week" | "month";
+  priceUnit: MembershipUnit;
   autoRenew: boolean;
   /** ISO date the member first joined this venue on a plan. */
   startedOn: string;

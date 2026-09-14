@@ -30,11 +30,11 @@ const MembershipHistoryRow = ({
         </p>
       </div>
 
-      <div className="min-w-0 basis-44">
+      <div className="min-w-0 basis-60">
         <p className="text-sm text-tertiary">
           {membership.plan}, {membership.workspace}
         </p>
-        <p className="text-sm text-tertiary/60">
+        <p className="whitespace-nowrap text-sm text-tertiary/60">
           {formatDay(membership.cycleStart)} to {formatDay(membership.cycleEnd)}
         </p>
       </div>

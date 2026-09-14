@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { ArrowRight, CircleUserRound, Menu } from "lucide-react";
 import Logo from "@/app/components/ui/Logo";
 import { NAV_LINKS } from "@/data/navigation";
+import { useSession } from "@/stores/session";
 import { cn } from "@/utils";
 import MobileMenuDrawer, {
   MOBILE_MENU_DRAWER_ID,
@@ -16,6 +17,7 @@ const ACTION_BUTTON =
 
 const Navbar = () => {
   const pathname = usePathname();
+  const { session } = useSession();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
 
@@ -62,6 +64,7 @@ const Navbar = () => {
             <li key={link.href}>
               <Link
                 href={link.href}
+                aria-current={pathname === link.href ? "page" : undefined}
                 className="text-sm font-medium text-secondary/90 transition-colors hover:text-secondary"
               >
                 {link.label}
@@ -72,17 +75,17 @@ const Navbar = () => {
 
         <div className="hidden items-center gap-3 lg:flex lg:justify-self-end">
           <Link
-            href="/login"
+            href={session ? "/account" : "/login"}
             className={cn(
               ACTION_BUTTON,
               "border border-secondary/40 text-secondary hover:bg-secondary/10",
             )}
           >
             <CircleUserRound className="size-4" />
-            Login
+            {session ? "My Account" : "Login"}
           </Link>
           <Link
-            href="/book"
+            href="/workspaces"
             className={cn(
               ACTION_BUTTON,
               "bg-primary text-secondary hover:bg-accent",

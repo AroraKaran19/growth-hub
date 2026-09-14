@@ -3,18 +3,22 @@
 import { Minus, Plus } from "lucide-react";
 import {
   ADDON_OPTIONS,
-  BOOKING_TYPE_OPTIONS,
+  MAX_HOURS,
   MAX_SEATS,
+  MEMBERSHIP_TYPE_OPTIONS,
   PARKING_OPTIONS,
+  PASS_TYPE_OPTIONS,
   PREFERENCE_OPTIONS,
 } from "@/data/bookingOptions";
-import type { BookingSelection } from "@/types/booking";
+import {
+  isMembershipType,
+  type BookingSelection,
+  type BookingType,
+} from "@/types/booking";
 import { SEAT_TYPE_LABELS, type SeatType } from "@/types/seat";
 import ChipGroup from "./ChipGroup";
 
-const SPACE_TYPE_OPTIONS = (Object.keys(SEAT_TYPE_LABELS) as SeatType[]).map(
-  (value) => ({ value, label: SEAT_TYPE_LABELS[value] }),
-);
+const SPACE_TYPES = Object.keys(SEAT_TYPE_LABELS) as SeatType[];
 
 type ConfigureFormProps = {
   selection: BookingSelection;
@@ -22,18 +26,75 @@ type ConfigureFormProps = {
     key: K,
     value: BookingSelection[K],
   ) => void;
-  /** Relative so rapid clicks don't all read the same stale seat count. */
+  /** Relative so rapid clicks don't all read the same stale count. */
   onAdjustSeats: (delta: number) => void;
+  onAdjustHours: (delta: number) => void;
 };
 
 const STEP_BUTTON =
   "flex size-9 items-center justify-center rounded-lg border border-tertiary/15 text-tertiary transition-colors hover:border-tertiary/35 disabled:cursor-not-allowed disabled:opacity-40";
 
+type StepperProps = {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  noun: string;
+  onAdjust: (delta: number) => void;
+};
+
+const Stepper = ({ label, value, min, max, noun, onAdjust }: StepperProps) => (
+  <fieldset>
+    <legend className="text-sm font-medium text-tertiary">{label}</legend>
+    <div className="mt-2 flex items-center gap-3">
+      <button
+        type="button"
+        onClick={() => onAdjust(-1)}
+        disabled={value <= min}
+        aria-label={`Remove a ${noun}`}
+        className={STEP_BUTTON}
+      >
+        <Minus aria-hidden="true" className="size-4" />
+      </button>
+      <span
+        aria-live="polite"
+        className="w-10 text-center text-lg font-semibold text-tertiary"
+      >
+        {value}
+      </span>
+      <button
+        type="button"
+        onClick={() => onAdjust(1)}
+        disabled={value >= max}
+        aria-label={`Add a ${noun}`}
+        className={STEP_BUTTON}
+      >
+        <Plus aria-hidden="true" className="size-4" />
+      </button>
+    </div>
+  </fieldset>
+);
+
 const ConfigureForm = ({
   selection,
   onChange,
   onAdjustSeats,
+  onAdjustHours,
 }: ConfigureFormProps) => {
+  const isMembership = isMembershipType(selection.bookingType);
+  const isDesk = selection.spaceType === "desk";
+
+  // A membership reserves a desk, cabin or office; meeting rooms stay hourly.
+  const spaceOptions = SPACE_TYPES.filter(
+    (type) => !isMembership || type !== "meeting-room",
+  ).map((value) => ({
+    value,
+    label:
+      isMembership && value === "desk"
+        ? "Dedicated desk"
+        : SEAT_TYPE_LABELS[value],
+  }));
+
   const toggleAddOn = (value: string) =>
     onChange(
       "addOns",
@@ -42,56 +103,70 @@ const ConfigureForm = ({
         : [...selection.addOns, value],
     );
 
+  const setBookingType = (value: string) =>
+    onChange("bookingType", value as BookingType);
+
   return (
     <div className="flex flex-col gap-6 rounded-2xl border border-tertiary/10 bg-secondary p-5 lg:p-6">
-      <ChipGroup
-        label="What are you booking?"
-        options={SPACE_TYPE_OPTIONS}
-        value={selection.spaceType}
-        onChange={(value) => onChange("spaceType", value as SeatType)}
-      />
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <ChipGroup
+          label="Pass"
+          hint="(one visit)"
+          options={PASS_TYPE_OPTIONS}
+          value={selection.bookingType}
+          onChange={setBookingType}
+        />
+        <ChipGroup
+          label="Membership"
+          hint="(your seat reserved for the whole plan)"
+          options={MEMBERSHIP_TYPE_OPTIONS}
+          value={selection.bookingType}
+          onChange={setBookingType}
+        />
+      </div>
 
       <div className="border-t border-tertiary/8" />
 
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-[auto_1fr] sm:gap-10">
-        <fieldset>
-          <legend className="text-sm font-medium text-tertiary">
-            {selection.spaceType === "desk" ? "Seats required" : "People"}
-          </legend>
-          <div className="mt-2 flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => onAdjustSeats(-1)}
-              disabled={selection.seats <= 1}
-              aria-label="Remove a seat"
-              className={STEP_BUTTON}
-            >
-              <Minus aria-hidden="true" className="size-4" />
-            </button>
-            <span
-              aria-live="polite"
-              className="w-10 text-center text-lg font-semibold text-tertiary"
-            >
-              {selection.seats}
-            </span>
-            <button
-              type="button"
-              onClick={() => onAdjustSeats(1)}
-              disabled={selection.seats >= MAX_SEATS}
-              aria-label="Add a seat"
-              className={STEP_BUTTON}
-            >
-              <Plus aria-hidden="true" className="size-4" />
-            </button>
-          </div>
-        </fieldset>
-
+      <div>
         <ChipGroup
-          label="Booking type"
-          options={BOOKING_TYPE_OPTIONS}
-          value={selection.bookingType}
-          onChange={(value) => onChange("bookingType", value)}
+          label="What are you booking?"
+          options={spaceOptions}
+          value={selection.spaceType}
+          onChange={(value) => onChange("spaceType", value as SeatType)}
         />
+        {isMembership && (
+          <p className="mt-2 text-xs text-tertiary/55">
+            Meeting rooms are booked by the hour, so they are not part of a
+            membership. Members get included meeting room hours instead.
+          </p>
+        )}
+      </div>
+
+      <div className="flex flex-wrap gap-x-12 gap-y-6">
+        <Stepper
+          label={
+            isDesk
+              ? isMembership
+                ? "Desks to reserve"
+                : "Seats required"
+              : "People"
+          }
+          value={selection.seats}
+          min={1}
+          max={MAX_SEATS}
+          noun={isDesk ? "seat" : "person"}
+          onAdjust={onAdjustSeats}
+        />
+        {selection.bookingType === "hourly" && (
+          <Stepper
+            label="Hours"
+            value={selection.hours}
+            min={1}
+            max={MAX_HOURS}
+            noun="hour"
+            onAdjust={onAdjustHours}
+          />
+        )}
       </div>
 
       <div className="border-t border-tertiary/8" />
@@ -128,6 +203,8 @@ const ConfigureForm = ({
         </span>
         <input
           type="text"
+          name="companyName"
+          autoComplete="organization"
           value={selection.companyName}
           onChange={(event) => onChange("companyName", event.target.value)}
           placeholder="For your invoice"

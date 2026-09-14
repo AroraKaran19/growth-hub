@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
 import BookingDetailPage from "../../../(pages)/Account/BookingDetailPage";
 import { MEMBER_BOOKINGS } from "@/data/memberBookings";
 
@@ -18,11 +17,8 @@ export const metadata: Metadata = {
 
 export default async function BookingRoute({ params }: BookingRouteProps) {
   const { bookingId } = await params;
-  const booking = MEMBER_BOOKINGS.find(
-    (item) => item.bookingId === bookingId,
-  );
+  // Bookings made in the browser are not known here; the page looks them up.
+  const booking = MEMBER_BOOKINGS.find((item) => item.bookingId === bookingId);
 
-  if (!booking) notFound();
-
-  return <BookingDetailPage booking={booking} />;
+  return <BookingDetailPage bookingId={bookingId} issuedBooking={booking} />;
 }

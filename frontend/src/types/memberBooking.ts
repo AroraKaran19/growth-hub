@@ -29,6 +29,9 @@ export type MemberBooking = {
   type: string;
   seats: string[];
   total: number;
+  /** Set once cancelled: what goes back to the member, and when. */
+  refund?: number;
+  cancelledOn?: string;
 };
 
 /** The part of a booking a reschedule is allowed to change. */

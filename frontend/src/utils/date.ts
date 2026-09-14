@@ -38,6 +38,12 @@ export const formatDay = (iso: string) => {
   return `${day} ${SHORT_MONTHS[month - 1]} ${year}`;
 };
 
+/** "2026-10-06" to "Oct 6", the short form bookings use. */
+export const formatMonthDay = (iso: string) => {
+  const [, month, day] = parts(iso);
+  return `${SHORT_MONTHS[month - 1]} ${day}`;
+};
+
 /** "2025-03-01" to "March 2025". */
 export const formatMonthYear = (iso: string) => {
   const [year, month] = parts(iso);

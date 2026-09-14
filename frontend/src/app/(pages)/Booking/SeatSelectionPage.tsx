@@ -3,16 +3,22 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
+import { useMemberMemberships, venueMembership } from "@/stores/memberships";
+import { useVenueCatalog } from "@/stores/venues";
+import { isMembershipType } from "@/types/booking";
 import type { Venue } from "@/types/venue";
 import BookingStepper from "./components/BookingStepper";
 import BookingFooter from "./components/BookingFooter";
 import SeatMap from "./components/SeatMap";
-import { calculateSubtotal } from "./pricing";
+import { reservedSeatIdsFor } from "./membershipBooking";
+import { quoteBooking, rateSummary } from "./pricing";
 import { toggleSeatSelection } from "./seatRules";
 import { useBookingSelection } from "./useBookingSelection";
 
-const SeatSelectionPage = ({ venue }: { venue: Venue }) => {
+const SeatSelectionPage = ({ venue: listing }: { venue: Venue }) => {
   const router = useRouter();
+  const { venueFor, seatsFor } = useVenueCatalog();
+  const venue = venueFor(listing);
   const {
     selection,
     setSelection,
@@ -21,10 +27,10 @@ const SeatSelectionPage = ({ venue }: { venue: Venue }) => {
     isSeatingComplete,
   } = useBookingSelection(venue.slug);
 
-  const { subtotal, amount, unit, quantity } = calculateSubtotal(
-    venue,
-    selection,
-  );
+  const { memberships } = useMemberMemberships();
+  const membership = venueMembership(memberships, venue.slug);
+  const yourSeatIds = reservedSeatIdsFor(memberships, venue.slug);
+  const quote = quoteBooking(venue, selection, membership);
 
   return (
     <div className="bg-surface pt-28 lg:pt-32">
@@ -40,7 +46,9 @@ const SeatSelectionPage = ({ venue }: { venue: Venue }) => {
             <ChevronLeft aria-hidden="true" className="size-5" />
           </Link>
           <h1 className="text-2xl font-bold text-tertiary">
-            Select Your Workstation
+            {isMembershipType(selection.bookingType)
+              ? "Choose Your Reserved Seat"
+              : "Select Your Workstation"}
           </h1>
         </div>
 
@@ -52,6 +60,8 @@ const SeatSelectionPage = ({ venue }: { venue: Venue }) => {
               selectedSeats={selection.seatIds}
               requiredSeats={selection.seats}
               spaceType={selection.spaceType}
+              yourSeatIds={yourSeatIds}
+              seats={seatsFor(venue.slug)}
               onToggleSeat={(seat) =>
                 setSelection((current) => toggleSeatSelection(current, seat))
               }
@@ -61,8 +71,8 @@ const SeatSelectionPage = ({ venue }: { venue: Venue }) => {
       </div>
 
       <BookingFooter
-        subtotal={subtotal}
-        rateSummary={`₹${amount}/${unit}${quantity > 1 ? ` x ${quantity}` : ""}`}
+        subtotal={quote.total}
+        rateSummary={rateSummary(quote)}
         actionLabel={
           remainingPicks > 0
             ? `Pick ${remainingPicks} more`

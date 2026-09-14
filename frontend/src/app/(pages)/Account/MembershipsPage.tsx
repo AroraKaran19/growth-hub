@@ -3,24 +3,27 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ArrowRight, ChevronDown, CircleCheck } from "lucide-react";
+import { useMemberMemberships } from "@/stores/memberships";
 import type { MemberMembership } from "@/types/membership";
 import { formatDay } from "@/utils/date";
+import MemberPassModal from "./components/MemberPassModal";
 import MembershipCard from "./components/MembershipCard";
 import MembershipHistoryRow from "./components/MembershipHistoryRow";
 import PauseMembershipModal from "./components/PauseMembershipModal";
 import ResumeMembershipModal from "./components/ResumeMembershipModal";
-import { useMemberMemberships } from "@/stores/memberships";
 
 const HISTORY_PAGE_SIZE = 3;
 
 type Dialog =
   | { kind: "pause"; membership: MemberMembership }
-  | { kind: "resume"; membership: MemberMembership };
+  | { kind: "resume"; membership: MemberMembership }
+  | { kind: "pass"; membership: MemberMembership };
 
 type Notice = { kind: "paused" | "resumed"; id: string };
 
 const MembershipsPage = () => {
-  const { memberships, pause, resume } = useMemberMemberships();
+  const { memberships, isHydrated, pause, resume, setAutoRenew } =
+    useMemberMemberships();
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [historyShown, setHistoryShown] = useState(HISTORY_PAGE_SIZE);
@@ -56,10 +59,8 @@ const MembershipsPage = () => {
   const noticed = notice && memberships.find((item) => item.id === notice.id);
   const remainingHistory = history.length - historyShown;
 
-  const openPause = (membership: MemberMembership) =>
-    setDialog({ kind: "pause", membership });
-  const openResume = (membership: MemberMembership) =>
-    setDialog({ kind: "resume", membership });
+  const openDialog = (kind: Dialog["kind"]) => (membership: MemberMembership) =>
+    setDialog({ kind, membership });
 
   const groups = [
     { title: "Active", items: active },
@@ -72,8 +73,8 @@ const MembershipsPage = () => {
         <div>
           <h1 className="text-2xl font-bold text-tertiary">My Memberships</h1>
           <p className="mt-1 text-sm text-tertiary/60">
-            Your regular desks and cabins, what each plan includes, and when it
-            renews.
+            Your reserved desks and cabins, what each plan includes, and when
+            it renews.
           </p>
         </div>
         <Link
@@ -105,11 +106,29 @@ const MembershipsPage = () => {
           >
             <dt className="text-sm text-tertiary/60">{stat.label}</dt>
             <dd className="mt-1 text-xl font-bold text-tertiary">
-              {stat.value}
+              {isHydrated ? stat.value : " "}
             </dd>
           </div>
         ))}
       </dl>
+
+      {isHydrated && active.length === 0 && paused.length === 0 && (
+        <div className="mt-7 rounded-2xl border border-tertiary/10 px-6 py-14 text-center">
+          <p className="text-base font-semibold text-tertiary">
+            No active memberships
+          </p>
+          <p className="mx-auto mt-2 max-w-sm text-sm text-tertiary/60">
+            A membership reserves your desk or cabin at a venue for the whole
+            plan, with meeting room hours and guest passes included.
+          </p>
+          <Link
+            href="/memberships"
+            className="cta-gradient mt-5 inline-flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-medium text-secondary"
+          >
+            See membership plans
+          </Link>
+        </div>
+      )}
 
       {groups.map(
         (group) =>
@@ -121,8 +140,12 @@ const MembershipsPage = () => {
                   <MembershipCard
                     key={membership.id}
                     membership={membership}
-                    onPause={openPause}
-                    onResume={openResume}
+                    onPause={openDialog("pause")}
+                    onResume={openDialog("resume")}
+                    onShowPass={openDialog("pass")}
+                    onToggleAutoRenew={(item) =>
+                      setAutoRenew(item, !item.autoRenew)
+                    }
                   />
                 ))}
               </div>
@@ -171,11 +194,7 @@ const MembershipsPage = () => {
                   : "Show less"}
                 <ChevronDown
                   aria-hidden="true"
-                  className={
-                    remainingHistory > 0
-                      ? "size-4"
-                      : "size-4 rotate-180"
-                  }
+                  className={remainingHistory > 0 ? "size-4" : "size-4 rotate-180"}
                 />
               </button>
             </div>
@@ -204,6 +223,13 @@ const MembershipsPage = () => {
             setNotice({ kind: "resumed", id: dialog.membership.id });
             setDialog(null);
           }}
+        />
+      )}
+
+      {dialog?.kind === "pass" && (
+        <MemberPassModal
+          membership={dialog.membership}
+          onClose={() => setDialog(null)}
         />
       )}
     </>

@@ -4,8 +4,8 @@ import { useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { SlidersHorizontal, X } from "lucide-react";
 import VenueCard from "@/app/components/ui/VenueCard";
-import { VENUES } from "@/data/venues";
 import { PRICE_BANDS } from "@/data/searchOptions";
+import { useVenueCatalog } from "@/stores/venues";
 import FilterSidebar, { type Filters } from "./FilterSidebar";
 
 const parseList = (value: string | null) =>
@@ -16,6 +16,8 @@ const WorkspaceBrowser = () => {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  // Listings with admin changes applied; hidden venues never show here.
+  const { venues } = useVenueCatalog();
 
   const filters: Filters = useMemo(
     () => ({
@@ -67,7 +69,8 @@ const WorkspaceBrowser = () => {
   const results = useMemo(() => {
     const band = PRICE_BANDS.find((item) => item.value === filters.price);
 
-    return VENUES.filter((venue) => {
+    return venues.filter((venue) => {
+      if (!venue.published) return false;
       if (
         filters.locality.length &&
         !filters.locality.includes(venue.localityId)
@@ -100,7 +103,7 @@ const WorkspaceBrowser = () => {
       }
       return true;
     });
-  }, [filters]);
+  }, [filters, venues]);
 
   const sidebarProps = {
     filters,

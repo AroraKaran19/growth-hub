@@ -21,14 +21,14 @@ const CtaBannerSection = () => {
 
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3.5">
             <Link
-              href="/book"
+              href="/workspaces"
               className={`${CTA_BUTTON} bg-primary text-secondary`}
             >
               Book Your Workspace
               <ArrowRight aria-hidden="true" className="size-3.5" />
             </Link>
             <Link
-              href="/workspaces"
+              href="/locations"
               className={`${CTA_BUTTON} bg-secondary text-tertiary`}
             >
               Explore Spaces

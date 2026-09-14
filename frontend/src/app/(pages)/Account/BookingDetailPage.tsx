@@ -7,6 +7,7 @@ import {
   ArrowLeft,
   CalendarCheck,
   CalendarDays,
+  CircleX,
   Clock,
   Download,
   MapPin,
@@ -16,15 +17,18 @@ import {
 } from "lucide-react";
 import DirectionsLink from "@/app/components/ui/DirectionsLink";
 import { findVenue } from "@/data/venues";
+import { useMemberBookings } from "@/stores/bookings";
 import {
   BOOKING_STATUS_LABELS,
   type BookingSchedule,
   type MemberBooking,
 } from "@/types/memberBooking";
 import { cn } from "@/utils";
+import { formatDay, todayIso } from "@/utils/date";
 import BookingQrModal from "./components/BookingQrModal";
+import CancelBookingModal from "./components/CancelBookingModal";
 import RescheduleModal from "./components/RescheduleModal";
-import { useMemberBookings } from "@/stores/bookings";
+import { FREE_CANCELLATION_HOURS } from "./cancellation";
 
 const STATUS_STYLE: Record<MemberBooking["status"], string> = {
   upcoming: "bg-green-500/12 text-green-700",
@@ -38,29 +42,61 @@ const ROW_VALUE = "mt-1 text-sm text-tertiary";
 const SECONDARY_ACTION =
   "inline-flex items-center justify-center gap-2 rounded-lg border border-tertiary/20 px-4 py-2.5 text-sm font-medium text-tertiary transition-colors hover:bg-tertiary/5";
 
+type Dialog = "qr" | "reschedule" | "cancel" | null;
+type Notice = "rescheduled" | "cancelled" | null;
+
+type BookingDetailPageProps = {
+  bookingId: string;
+  /** Seed bookings are known at build time; new ones only in the browser. */
+  issuedBooking?: MemberBooking;
+};
+
 const BookingDetailPage = ({
-  booking: issuedBooking,
-}: {
-  booking: MemberBooking;
-}) => {
-  const { bookings, reschedule } = useMemberBookings();
-  const [showQr, setShowQr] = useState(false);
-  const [isRescheduling, setIsRescheduling] = useState(false);
-  const [wasRescheduled, setWasRescheduled] = useState(false);
+  bookingId,
+  issuedBooking,
+}: BookingDetailPageProps) => {
+  const { bookings, isHydrated, reschedule, cancel } = useMemberBookings();
+  const [dialog, setDialog] = useState<Dialog>(null);
+  const [notice, setNotice] = useState<Notice>(null);
 
-  // Picks up a reschedule saved in this browser.
   const booking =
-    bookings.find((item) => item.bookingId === issuedBooking.bookingId) ??
-    issuedBooking;
-  const venue = findVenue(booking.venueSlug);
+    bookings.find((item) => item.bookingId === bookingId) ?? issuedBooking;
 
+  if (!booking) {
+    return isHydrated ? (
+      <div className="rounded-2xl border border-tertiary/10 px-6 py-16 text-center">
+        <p className="text-base font-semibold text-tertiary">
+          We couldn&apos;t find that booking
+        </p>
+        <p className="mx-auto mt-2 max-w-sm text-sm text-tertiary/60">
+          It may belong to another account, or the link is incomplete.
+        </p>
+        <Link
+          href="/account/bookings"
+          className="cta-gradient mt-5 inline-flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-medium text-secondary"
+        >
+          Back to My Bookings
+        </Link>
+      </div>
+    ) : (
+      <div className="h-96 animate-pulse rounded-2xl border border-tertiary/10 bg-secondary" />
+    );
+  }
+
+  const venue = findVenue(booking.venueSlug);
   const isPast =
     booking.status === "completed" || booking.status === "cancelled";
 
   const handleReschedule = (schedule: BookingSchedule) => {
     reschedule(booking.bookingId, schedule);
-    setIsRescheduling(false);
-    setWasRescheduled(true);
+    setDialog(null);
+    setNotice("rescheduled");
+  };
+
+  const handleCancel = (refund: number) => {
+    cancel(booking.bookingId, refund, todayIso());
+    setDialog(null);
+    setNotice("cancelled");
   };
 
   return (
@@ -88,7 +124,7 @@ const BookingDetailPage = ({
         {booking.bookingId}
       </p>
 
-      {wasRescheduled && (
+      {notice === "rescheduled" && (
         <p
           role="status"
           className="mt-5 flex items-center gap-2 rounded-xl bg-green-500/10 px-4 py-3 text-sm text-green-800"
@@ -96,6 +132,25 @@ const BookingDetailPage = ({
           <CalendarCheck aria-hidden="true" className="size-4 shrink-0" />
           Rescheduled to {booking.dateRange}, {booking.time}. Your check-in QR
           stays the same.
+        </p>
+      )}
+
+      {booking.status === "cancelled" && (
+        <p
+          role={notice === "cancelled" ? "status" : undefined}
+          className="mt-5 flex items-start gap-2 rounded-xl bg-primary/8 px-4 py-3 text-sm text-tertiary/80"
+        >
+          <CircleX
+            aria-hidden="true"
+            className="mt-0.5 size-4 shrink-0 text-primary"
+          />
+          <span>
+            Cancelled
+            {booking.cancelledOn && ` on ${formatDay(booking.cancelledOn)}`}.
+            {booking.refund !== undefined
+              ? ` ₹${booking.refund.toLocaleString("en-IN")} is on its way back to your original payment method, within 5 to 7 working days.`
+              : " No payment was taken for this booking."}
+          </span>
         </p>
       )}
 
@@ -131,9 +186,7 @@ const BookingDetailPage = ({
           </section>
 
           <section className="rounded-2xl border border-tertiary/10 bg-secondary p-5 sm:p-6">
-            <h2 className="text-base font-bold text-tertiary">
-              Reservation
-            </h2>
+            <h2 className="text-base font-bold text-tertiary">Reservation</h2>
 
             <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-3">
               <div>
@@ -190,6 +243,14 @@ const BookingDetailPage = ({
                   ₹{booking.total}
                 </dd>
               </div>
+              {booking.refund !== undefined && (
+                <div className="flex items-center justify-between gap-4">
+                  <dt className="text-sm text-tertiary/60">Refunded</dt>
+                  <dd className="text-sm font-medium text-green-700">
+                    ₹{booking.refund}
+                  </dd>
+                </div>
+              )}
             </dl>
           </section>
         </div>
@@ -209,7 +270,7 @@ const BookingDetailPage = ({
             <>
               <button
                 type="button"
-                onClick={() => setShowQr(true)}
+                onClick={() => setDialog("qr")}
                 className="cta-gradient inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-secondary transition-opacity hover:opacity-90"
               >
                 <QrCode aria-hidden="true" className="size-4" />
@@ -218,39 +279,62 @@ const BookingDetailPage = ({
               {venue && <DirectionsLink url={venue.googleMapsUrl} />}
               <button
                 type="button"
-                onClick={() => setIsRescheduling(true)}
+                onClick={() => setDialog("reschedule")}
                 className={SECONDARY_ACTION}
               >
                 <RefreshCw aria-hidden="true" className="size-4" />
                 Reschedule
               </button>
-              <button type="button" className={SECONDARY_ACTION}>
+              <button
+                type="button"
+                onClick={() => setDialog("cancel")}
+                className={SECONDARY_ACTION}
+              >
                 <XCircle aria-hidden="true" className="size-4" />
                 Cancel booking
               </button>
             </>
           )}
 
-          <button type="button" className={SECONDARY_ACTION}>
+          <Link
+            href={`/invoice/${booking.bookingId}`}
+            target="_blank"
+            className={SECONDARY_ACTION}
+          >
             <Download aria-hidden="true" className="size-4" />
             Download invoice
-          </button>
+          </Link>
 
           <p className="mt-2 text-xs leading-relaxed text-tertiary/50">
-            Free cancellation up to 24 hours before your booking starts.
+            Free cancellation up to {FREE_CANCELLATION_HOURS} hours before your
+            booking starts.{" "}
+            <Link
+              href="/cancellation-policy"
+              className="font-medium text-primary underline underline-offset-2"
+            >
+              Policy
+            </Link>
           </p>
         </aside>
       </div>
 
-      {showQr && (
-        <BookingQrModal booking={booking} onClose={() => setShowQr(false)} />
+      {dialog === "qr" && (
+        <BookingQrModal booking={booking} onClose={() => setDialog(null)} />
       )}
 
-      {isRescheduling && (
+      {dialog === "reschedule" && (
         <RescheduleModal
           booking={booking}
-          onClose={() => setIsRescheduling(false)}
+          onClose={() => setDialog(null)}
           onConfirm={handleReschedule}
+        />
+      )}
+
+      {dialog === "cancel" && (
+        <CancelBookingModal
+          booking={booking}
+          onCancel={() => setDialog(null)}
+          onConfirm={handleCancel}
         />
       )}
     </>

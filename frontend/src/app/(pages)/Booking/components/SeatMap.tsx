@@ -9,6 +9,10 @@ type SeatMapProps = {
   selectedSeats: string[];
   requiredSeats: number;
   spaceType: SeatType;
+  /** Seats the member's own plans already hold at this venue. */
+  yourSeatIds?: string[];
+  /** Seats with admin availability applied; defaults to the demo plan. */
+  seats?: Seat[];
   onToggleSeat: (seat: Seat) => void;
 };
 
@@ -22,11 +26,14 @@ const SeatMap = ({
   selectedSeats,
   requiredSeats,
   spaceType,
+  yourSeatIds = [],
+  seats = DEMO_FLOOR_PLAN.seats,
   onToggleSeat,
 }: SeatMapProps) => {
-  const { seats, image } = DEMO_FLOOR_PLAN;
+  const { image } = DEMO_FLOOR_PLAN;
 
   const isChosenType = (seat: Seat) => seat.type === spaceType;
+  const isYours = (seat: Seat) => yourSeatIds.includes(seat.id);
 
   const isDeskBooking = spaceType === "desk";
   const hasRoomSelected = !isDeskBooking && selectedSeats.length > 0;
@@ -34,6 +41,7 @@ const SeatMap = ({
 
   const disabledReason = (seat: Seat, isSelected: boolean) => {
     if (isSelected) return null;
+    if (isYours(seat)) return "Already reserved for you by your membership";
     if (!isChosenType(seat))
       return `You are booking a ${SEAT_TYPE_LABELS[spaceType].toLowerCase()}`;
     if (!seat.available) return "Unavailable";
@@ -46,17 +54,23 @@ const SeatMap = ({
 
   const seatClass = (seat: Seat, isSelected: boolean, blocked: boolean) => {
     if (isSelected) return "border-orange-600 bg-orange-500/60";
+    if (isYours(seat)) return "border-primary bg-primary/35";
     if (!seat.available) return "border-tertiary/30 bg-tertiary/25";
     if (!isChosenType(seat)) return "border-transparent bg-transparent";
     if (blocked) return "border-tertiary/25 bg-tertiary/10";
     return "border-green-600 bg-green-500/45 hover:bg-green-500/65";
   };
 
+  const legend =
+    yourSeatIds.length > 0
+      ? [...LEGEND, { label: "Your seat", className: "bg-primary" }]
+      : LEGEND;
+
   return (
     <div className="rounded-2xl border border-tertiary/10 bg-secondary p-5 lg:p-6">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <ul className="flex flex-wrap items-center gap-x-5 gap-y-2">
-          {LEGEND.map((item) => (
+          {legend.map((item) => (
             <li
               key={item.label}
               className="flex items-center gap-2 text-xs text-tertiary/65"
@@ -83,6 +97,8 @@ const SeatMap = ({
         {isDeskBooking
           ? `Pick ${requiredSeats} desk${requiredSeats === 1 ? "" : "s"} on the plan.`
           : `Pick one ${SEAT_TYPE_LABELS[spaceType].toLowerCase()} that seats ${requiredSeats} or more.`}
+        {yourSeatIds.length > 0 &&
+          " Seats marked as yours are already held by your membership."}
       </p>
 
       <div className="relative overflow-hidden rounded-xl border border-tertiary/10">
@@ -125,7 +141,10 @@ const SeatMap = ({
                 reason && "cursor-not-allowed",
               )}
             >
-              <span className="sr-only">{seat.label}</span>
+              <span className="sr-only">
+                {seat.label}
+                {isYours(seat) && " (your seat)"}
+              </span>
             </button>
           );
         })}

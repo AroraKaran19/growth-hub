@@ -41,7 +41,7 @@ const CategoryCard = ({
               {category.description}
             </p>
             <Link
-              href={`/book?workspaceType=${category.slug}`}
+              href={`/workspaces?type=${category.slug}`}
               tabIndex={isActive ? undefined : -1}
               className="mt-3 inline-block text-xs font-semibold uppercase tracking-wider text-primary"
             >

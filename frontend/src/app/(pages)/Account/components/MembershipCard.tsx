@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, CirclePause, Play } from "lucide-react";
+import { ArrowRight, CirclePause, Play, QrCode } from "lucide-react";
 import DirectionsLink from "@/app/components/ui/DirectionsLink";
 import { findVenue } from "@/data/venues";
 import {
@@ -72,12 +72,16 @@ type MembershipCardProps = {
   membership: MemberMembership;
   onPause: (membership: MemberMembership) => void;
   onResume: (membership: MemberMembership) => void;
+  onShowPass: (membership: MemberMembership) => void;
+  onToggleAutoRenew: (membership: MemberMembership) => void;
 };
 
 const MembershipCard = ({
   membership,
   onPause,
   onResume,
+  onShowPass,
+  onToggleAutoRenew,
 }: MembershipCardProps) => {
   const venue = findVenue(membership.venueSlug);
   const workspaceHref = `/workspaces/${membership.venueSlug}`;
@@ -208,13 +212,30 @@ const MembershipCard = ({
 
       <div className="mt-5 flex flex-wrap items-center justify-between gap-4 border-t border-tertiary/8 pt-4">
         <p className="text-xs text-tertiary/55">
-          Member here since {formatMonthYear(membership.startedOn)}
+          Member here since {formatMonthYear(membership.startedOn)}. Auto-renew
+          is {membership.autoRenew ? "on" : "off"}.{" "}
+          <button
+            type="button"
+            onClick={() => onToggleAutoRenew(membership)}
+            className="font-medium text-primary underline underline-offset-2 transition-opacity hover:opacity-75"
+          >
+            Turn {membership.autoRenew ? "off" : "on"}
+          </button>
         </p>
 
         <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
           <Link href={workspaceHref} className={TICKET_LINK}>
             View workspace
           </Link>
+
+          <button
+            type="button"
+            onClick={() => onShowPass(membership)}
+            className={SECONDARY_ACTION}
+          >
+            <QrCode aria-hidden="true" className="size-4" />
+            Member pass
+          </button>
 
           {isPaused ? (
             <button

@@ -4,39 +4,16 @@ import Link from "next/link";
 import { QRCodeSVG } from "qrcode.react";
 import { ArrowRight, CalendarDays, Check, Clock, Download } from "lucide-react";
 import DirectionsLink from "@/app/components/ui/DirectionsLink";
-import type { BookingSelection } from "@/types/booking";
+import type { MemberBooking } from "@/types/memberBooking";
 import type { Venue } from "@/types/venue";
-import { DEMO_FLOOR_PLAN } from "@/data/floorPlan";
-import { SEAT_TYPE_LABELS } from "@/types/seat";
+import { formatDay } from "@/utils/date";
 
 type BookingConfirmedProps = {
+  booking: MemberBooking;
   venue: Venue;
-  selection: BookingSelection;
-  bookingId: string;
 };
 
-const formatDate = (iso: string) => {
-  if (!iso) return "Date not set";
-  const date = new Date(`${iso}T00:00:00`);
-  return date.toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-};
-
-const BookingConfirmed = ({
-  venue,
-  selection,
-  bookingId,
-}: BookingConfirmedProps) => {
-  const seatLabels = selection.seatIds
-    .map(
-      (id) =>
-        DEMO_FLOOR_PLAN.seats.find((seat) => seat.id === id)?.label ?? id,
-    )
-    .join(", ");
-
+const BookingConfirmed = ({ booking, venue }: BookingConfirmedProps) => {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-tertiary/50 p-4">
       <div
@@ -57,13 +34,14 @@ const BookingConfirmed = ({
         </h2>
 
         <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
-          <button
-            type="button"
+          <Link
+            href={`/invoice/${booking.bookingId}`}
+            target="_blank"
             className="cta-gradient inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-secondary transition-opacity hover:opacity-90"
           >
             Download PDF
             <Download aria-hidden="true" className="size-4" />
-          </button>
+          </Link>
           <DirectionsLink url={venue.googleMapsUrl} />
         </div>
 
@@ -71,10 +49,10 @@ const BookingConfirmed = ({
         <div className="mt-6 flex overflow-hidden rounded-xl bg-tertiary/4 text-left">
           <div className="flex shrink-0 items-center justify-center p-4">
             <QRCodeSVG
-              value={`growthhub:booking:${bookingId}`}
+              value={`growthhub:booking:${booking.bookingId}`}
               size={96}
               level="M"
-              aria-label={`QR code for booking ${bookingId}`}
+              aria-label={`QR code for booking ${booking.bookingId}`}
             />
           </div>
 
@@ -88,26 +66,28 @@ const BookingConfirmed = ({
               {venue.name}
             </p>
             <p className="mt-0.5 truncate text-sm text-tertiary/60">
-              {SEAT_TYPE_LABELS[selection.spaceType]}
-              {seatLabels && ` - ${seatLabels}`}
+              {booking.type}
+              {booking.seats.length > 0 && ` - ${booking.seats.join(", ")}`}
             </p>
 
-            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-tertiary/70">
+            <div className="mt-2 flex flex-col gap-1 text-sm text-tertiary/70">
               <span className="inline-flex items-center gap-1.5">
                 <CalendarDays
                   aria-hidden="true"
                   className="size-3.5 text-primary"
                 />
-                {formatDate(selection.date)}
+                {formatDay(booking.startDate)}
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <Clock aria-hidden="true" className="size-3.5 text-primary" />
-                {selection.time || "Time not set"}
+                {booking.time}
               </span>
             </div>
 
             <p className="mt-3 text-xs text-tertiary/50">Booking ID</p>
-            <p className="font-mono text-sm text-tertiary">{bookingId}</p>
+            <p className="font-mono text-sm text-tertiary">
+              {booking.bookingId}
+            </p>
           </div>
         </div>
 
@@ -123,7 +103,7 @@ const BookingConfirmed = ({
             Go to Home
           </Link>
           <Link
-            href="/account/bookings"
+            href={`/account/bookings/${booking.bookingId}`}
             className="cta-gradient inline-flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-medium text-secondary transition-opacity hover:opacity-90"
           >
             View Booking

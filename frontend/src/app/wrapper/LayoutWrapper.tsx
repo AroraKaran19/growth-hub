@@ -10,7 +10,13 @@ import { ToastContainer } from "react-toastify";
 // Routes that render standalone, with no navbar or footer. Exact matches in
 // NO_LAYOUT; path prefixes in NO_LAYOUT_PREFIXES (covers dynamic routes).
 const NO_LAYOUT: string[] = [];
-const NO_LAYOUT_PREFIXES: string[] = ["/track", "/dev"];
+const NO_LAYOUT_PREFIXES: string[] = [
+  "/track",
+  "/dev",
+  "/invoice",
+  "/partner",
+  "/admin",
+];
 
 const LayoutWrapper = ({ children }: { children: React.ReactNode }) => {
   const pathname = usePathname();

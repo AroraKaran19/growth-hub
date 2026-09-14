@@ -81,6 +81,9 @@ export const useMemberMemberships = () => {
       },
     });
 
+  const setAutoRenew = (membership: MemberMembership, autoRenew: boolean) =>
+    save(membership.id, { autoRenew });
+
   return {
     memberships,
     isHydrated,
@@ -88,6 +91,7 @@ export const useMemberMemberships = () => {
     pause,
     resume,
     consumeAllowance,
+    setAutoRenew,
   };
 };
 

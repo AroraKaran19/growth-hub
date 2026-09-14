@@ -3,23 +3,39 @@
 import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { CalendarDays, ChevronDown, ChevronRight, MapPin } from "lucide-react";
+import {
+  CalendarDays,
+  ChevronDown,
+  ChevronRight,
+  Crown,
+  MapPin,
+} from "lucide-react";
+import { useMemberMemberships, venueMembership } from "@/stores/memberships";
+import { useVenueCatalog } from "@/stores/venues";
 import type { Venue } from "@/types/venue";
 import { cn } from "@/utils";
+import { formatDay } from "@/utils/date";
+import { rateFor } from "../../Booking/pricing";
 
 const INFO_ROW =
   "flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-tertiary/3";
 const INFO_ICON =
   "flex size-8 shrink-0 items-center justify-center rounded-lg bg-tertiary/5 text-tertiary/70";
 
-const BookingRail = ({ venue }: { venue: Venue }) => {
+const BookingRail = ({ venue: listing }: { venue: Venue }) => {
   const [isOfferOpen, setIsOfferOpen] = useState(false);
   const [areHoursOpen, setAreHoursOpen] = useState(false);
+  const { memberships, isHydrated } = useMemberMemberships();
+  const venue = useVenueCatalog().venueFor(listing);
+  const membership = isHydrated
+    ? venueMembership(memberships, venue.slug)
+    : null;
+  const isBookable = !isHydrated || venue.published;
 
   return (
     <div className="flex flex-col gap-3">
       <div className="overflow-hidden rounded-2xl border border-tertiary/10 bg-secondary">
-        {venue.offer && (
+        {venue.offer && isBookable && (
           <>
             <button
               type="button"
@@ -53,20 +69,83 @@ const BookingRail = ({ venue }: { venue: Venue }) => {
           </>
         )}
 
-        <div className="flex items-center justify-between gap-3 px-4 py-3.5">
-          <div>
-            <p className="text-xs text-tertiary/55">Starting From</p>
-            <p className="text-lg font-bold text-tertiary">
-              ₹{venue.dayPassPrice} Per Day
-            </p>
+        {isBookable ? (
+          <div className="flex items-center justify-between gap-3 px-4 py-3.5">
+            <div>
+              <p className="text-xs text-tertiary/55">Starting From</p>
+              <p className="text-lg font-bold text-tertiary">
+                ₹{venue.dayPassPrice} Per Day
+              </p>
+            </div>
+            <Link
+              href={`/workspaces/${venue.slug}/book`}
+              className="cta-gradient shrink-0 rounded-lg px-4 py-2.5 text-sm font-medium text-secondary transition-opacity hover:opacity-90"
+            >
+              Book Now
+            </Link>
           </div>
-          <Link
-            href={`/workspaces/${venue.slug}/book`}
-            className="cta-gradient shrink-0 rounded-lg px-4 py-2.5 text-sm font-medium text-secondary transition-opacity hover:opacity-90"
-          >
-            Book Now
-          </Link>
-        </div>
+        ) : (
+          <div className="px-4 py-3.5">
+            <p className="text-sm font-semibold text-tertiary">
+              Not taking bookings right now
+            </p>
+            <p className="mt-0.5 text-xs text-tertiary/60">
+              Existing bookings and memberships here are not affected.
+            </p>
+            <Link
+              href="/workspaces"
+              className="mt-2 inline-block text-sm font-medium text-primary"
+            >
+              Browse other workspaces
+            </Link>
+          </div>
+        )}
+
+        {membership ? (
+          <div className="border-t border-tertiary/8 bg-primary/5 px-4 py-3">
+            <p className="flex items-center gap-2 text-sm font-medium text-tertiary">
+              <Crown aria-hidden="true" className="size-4 text-primary" />
+              {membership.status === "paused"
+                ? "Your membership here is paused"
+                : "You're a member here"}
+            </p>
+            <p className="mt-0.5 text-xs text-tertiary/60">
+              {membership.workspace} {membership.seats.join(", ")}{" "}
+              {membership.status === "paused" && membership.resumesOn
+                ? `is held until ${formatDay(membership.resumesOn)}`
+                : `is reserved for you until ${formatDay(membership.cycleEnd)}`}
+              .
+            </p>
+            <Link
+              href="/account/memberships"
+              className="mt-1.5 inline-block text-xs font-medium text-primary transition-opacity hover:opacity-75"
+            >
+              Manage membership
+            </Link>
+          </div>
+        ) : (
+          isBookable && (
+            <Link
+              href={`/workspaces/${venue.slug}/book`}
+              className="flex items-center justify-between gap-3 border-t border-tertiary/8 px-4 py-3 transition-colors hover:bg-tertiary/3"
+            >
+              <span>
+                <span className="block text-sm font-medium text-tertiary">
+                  Work here most days?
+                </span>
+                <span className="text-xs text-tertiary/55">
+                  Reserve your seat from ₹
+                  {rateFor(venue, "monthly").amount.toLocaleString("en-IN")}
+                  /month with a membership
+                </span>
+              </span>
+              <ChevronRight
+                aria-hidden="true"
+                className="size-4 shrink-0 text-tertiary/40"
+              />
+            </Link>
+          )
+        )}
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-tertiary/10 bg-secondary">

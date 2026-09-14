@@ -10,6 +10,7 @@ import {
   LogOut,
   UserRound,
 } from "lucide-react";
+import { useSession } from "@/stores/session";
 import { cn } from "@/utils";
 
 const ACCOUNT_LINKS = [
@@ -22,12 +23,18 @@ const ACCOUNT_LINKS = [
 const AccountSidebar = () => {
   const pathname = usePathname();
   const router = useRouter();
+  const { signOut } = useSession();
 
   // Booking details has its own "All bookings" link, so a second back is noise.
   const showBack = !pathname.startsWith("/account/bookings/");
 
+  const handleSignOut = () => {
+    signOut();
+    router.push("/");
+  };
+
   return (
-    <aside className="flex h-fit flex-col rounded-2xl border border-tertiary/10 bg-surface p-5 lg:min-h-[28rem]">
+    <aside className="flex h-fit flex-col rounded-2xl border border-tertiary/10 bg-surface p-5 lg:min-h-112">
       {showBack && (
         <button
           type="button"
@@ -73,6 +80,7 @@ const AccountSidebar = () => {
 
       <button
         type="button"
+        onClick={handleSignOut}
         className="mt-auto inline-flex w-fit items-center gap-2 pt-8 text-sm font-medium text-primary transition-opacity hover:opacity-75"
       >
         <LogOut aria-hidden="true" className="size-4" />
