@@ -10,6 +10,16 @@ export type RazorpaySettings = {
   keySecret: string;
 };
 
+export type AwsSettings = {
+  region: string;
+  bucket: string;
+  /** Null on EC2 or ECS, where the instance role supplies credentials. */
+  accessKeyId: string | null;
+  secretAccessKey: string | null;
+  /** A CDN origin such as https://cdn.growthhubconnect.in, once one exists. */
+  publicBaseUrl: string | null;
+};
+
 export type AppEnv = {
   nodeEnv: string;
   isProduction: boolean;
@@ -21,6 +31,7 @@ export type AppEnv = {
   msg91AuthKey: string | null;
   email: EmailSettings | null;
   razorpay: RazorpaySettings | null;
+  aws: AwsSettings | null;
   trustProxy: number | boolean | string | null;
   authTestPhone: string | null;
 };
@@ -88,6 +99,19 @@ export const loadEnv = (source: NodeJS.ProcessEnv = process.env): AppEnv => {
       ? { keyId: razorpayKeyId, keySecret: razorpayKeySecret }
       : null;
 
+  const awsRegion = read("AWS_REGION");
+  const awsBucket = read("AWS_S3_BUCKET_NAME");
+  const aws =
+    awsRegion && awsBucket
+      ? {
+          region: awsRegion,
+          bucket: awsBucket,
+          accessKeyId: read("AWS_ACCESS_KEY_ID"),
+          secretAccessKey: read("AWS_SECRET_ACCESS_KEY"),
+          publicBaseUrl: read("AWS_S3_PUBLIC_BASE_URL"),
+        }
+      : null;
+
   const result: AppEnv = {
     nodeEnv,
     isProduction,
@@ -99,6 +123,7 @@ export const loadEnv = (source: NodeJS.ProcessEnv = process.env): AppEnv => {
     msg91AuthKey,
     email,
     razorpay,
+    aws,
     trustProxy: parseTrustProxy(read("TRUST_PROXY")),
     authTestPhone,
   };
@@ -113,6 +138,9 @@ export const loadEnv = (source: NodeJS.ProcessEnv = process.env): AppEnv => {
     }
     if (!razorpay) {
       errors.push("RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET are required in production");
+    }
+    if (!aws) {
+      errors.push("AWS_REGION and AWS_S3_BUCKET_NAME are required in production");
     }
   }
 

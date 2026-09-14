@@ -14,7 +14,12 @@ const PORT = process.env.PORT || 8080;
 const startServer = async () => {
   try {
     await connectDB();
-    // await initializeS3();
+    await initializeS3().catch((error: unknown) => {
+      console.warn(
+        "⚠️  S3 unavailable, image uploads will fail:",
+        error instanceof Error ? error.message : error,
+      );
+    });
 
     const server = app.listen(PORT, () => {
       console.log(`🚀 Growth Hub Backend Server is running on port ${PORT}`);

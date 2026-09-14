@@ -1,20 +1,10 @@
-import { MSG91_TIMEOUT_MS } from "../constants/auth";
-
-const VERIFY_URL = "https://control.msg91.com/api/v5/widget/verifyAccessToken";
-const EMAIL_URL = "https://control.msg91.com/api/v5/email/send";
-const PHONE_MESSAGE = /^\+?\d{8,15}$/;
-
-export type WidgetTokenCheck =
-  | { ok: true; verifiedDigits: string | null }
-  | { ok: false; reason: "rejected" | "unavailable" };
-
-export type TemplateEmailSettings = {
-  authKey: string;
-  domain: string;
-  from: string;
-  fromName: string;
-  templateId: string;
-};
+import {
+  MSG91_EMAIL_URL,
+  MSG91_TIMEOUT_MS,
+  MSG91_VERIFY_URL,
+  PHONE_MESSAGE_PATTERN,
+} from "../constants/msg91";
+import type { TemplateEmailSettings, WidgetTokenCheck } from "../types/msg91";
 
 const readJson = async <T>(response: Response): Promise<T | null> => {
   try {
@@ -31,7 +21,7 @@ export const verifyWidgetToken = async (
 ): Promise<WidgetTokenCheck> => {
   let response: Response;
   try {
-    response = await fetchImpl(VERIFY_URL, {
+    response = await fetchImpl(MSG91_VERIFY_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ authkey: authKey, "access-token": accessToken }),
@@ -49,7 +39,10 @@ export const verifyWidgetToken = async (
   }
 
   const message = typeof body.message === "string" ? body.message.trim() : "";
-  return { ok: true, verifiedDigits: PHONE_MESSAGE.test(message) ? message.replace(/\D/g, "") : null };
+  return {
+    ok: true,
+    verifiedDigits: PHONE_MESSAGE_PATTERN.test(message) ? message.replace(/\D/g, "") : null,
+  };
 };
 
 export const sendTemplateEmail = async (
@@ -58,7 +51,7 @@ export const sendTemplateEmail = async (
   variables: Record<string, string>,
   fetchImpl: typeof fetch = fetch,
 ) => {
-  const response = await fetchImpl(EMAIL_URL, {
+  const response = await fetchImpl(MSG91_EMAIL_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json", authkey: settings.authKey },
     body: JSON.stringify({

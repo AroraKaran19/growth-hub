@@ -1,18 +1,9 @@
 import crypto from "crypto";
 import Razorpay from "razorpay";
 import { env } from "../config/env";
+import { MAX_AMOUNT_PAISE, MIN_AMOUNT_PAISE } from "../constants/payments";
 import { AppError } from "../middlewares/error.middleware";
-
-/** Razorpay rejects anything under one rupee. */
-export const MIN_AMOUNT_PAISE = 100;
-/** A guard against a runaway client, not a business rule. */
-export const MAX_AMOUNT_PAISE = 100_000_000;
-
-export type CreatedOrder = {
-  orderId: string;
-  amount: number;
-  currency: string;
-};
+import type { CreatedOrder } from "../types/payment";
 
 let client: Razorpay | null = null;
 

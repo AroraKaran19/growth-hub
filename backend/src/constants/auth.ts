@@ -28,5 +28,3 @@ export const EMAIL_OTP_LIMITS = {
   maxAttempts: 5,
   bcryptRounds: 10,
 };
-
-export const MSG91_TIMEOUT_MS = 10_000;
