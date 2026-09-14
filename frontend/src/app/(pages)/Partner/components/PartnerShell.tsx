@@ -16,6 +16,7 @@ import {
 import Logo from "@/app/components/ui/Logo";
 import { PARTNER_ACCOUNT } from "@/data/partner";
 import { findVenue } from "@/data/venues";
+import { useAuthBootstrap } from "@/hooks/useAuthBootstrap";
 import { usePartnerSession } from "@/stores/partner";
 import { cn } from "@/utils";
 
@@ -27,13 +28,13 @@ export const PARTNER_LINKS = [
   { label: "Members", href: "/partner/members", icon: Crown },
 ];
 
-const venue = findVenue(PARTNER_ACCOUNT.venueSlug);
-
 /** Signed-in frame for every partner page: sidebar, top bar and guard. */
 const PartnerShell = ({ children }: { children: ReactNode }) => {
   const pathname = usePathname();
   const router = useRouter();
   const { session, isReady, signOut } = usePartnerSession();
+
+  useAuthBootstrap("partner");
 
   useEffect(() => {
     if (isReady && !session) {
@@ -54,8 +55,10 @@ const PartnerShell = ({ children }: { children: ReactNode }) => {
     );
   }
 
-  const handleSignOut = () => {
-    signOut();
+  const venue = findVenue(session.venueSlug ?? PARTNER_ACCOUNT.venueSlug);
+
+  const handleSignOut = async () => {
+    await signOut();
     router.replace("/partner/login");
   };
 

@@ -5,11 +5,10 @@ import Navbar from "@/app/components/shared/Navbar/Navbar";
 import MemberNavbar from "@/app/components/shared/Navbar/MemberNavbar";
 import { MEMBER_NAV_PREFIXES } from "@/data/navigation";
 import Footer from "@/app/components/shared/Footer/Footer";
+import { useAuthBootstrap } from "@/hooks/useAuthBootstrap";
 import { ToastContainer } from "react-toastify";
 
-// Routes that render standalone, with no navbar or footer. Exact matches in
-// NO_LAYOUT; path prefixes in NO_LAYOUT_PREFIXES (covers dynamic routes).
-const NO_LAYOUT: string[] = [];
+const NO_LAYOUT: string[] = ["/login"];
 const NO_LAYOUT_PREFIXES: string[] = [
   "/track",
   "/dev",
@@ -20,6 +19,13 @@ const NO_LAYOUT_PREFIXES: string[] = [
 
 const LayoutWrapper = ({ children }: { children: React.ReactNode }) => {
   const pathname = usePathname();
+
+  // Partner and admin pages run their own bootstrap inside their shells.
+  const isStaffPath = ["/partner", "/admin"].some(
+    (p) => pathname === p || pathname.startsWith(`${p}/`),
+  );
+  useAuthBootstrap("member", !isStaffPath);
+
   const showLayout =
     !NO_LAYOUT.includes(pathname) &&
     !NO_LAYOUT_PREFIXES.some(

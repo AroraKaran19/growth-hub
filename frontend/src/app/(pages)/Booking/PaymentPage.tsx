@@ -10,6 +10,7 @@ import {
   TicketPercent,
   X,
 } from "lucide-react";
+import PhoneSignIn from "@/app/components/shared/PhoneSignIn";
 import { useCoupons } from "@/stores/coupons";
 import { useMemberBookings } from "@/stores/bookings";
 import { useMemberMemberships, venueMembership } from "@/stores/memberships";
@@ -97,7 +98,6 @@ const PaymentPage = ({ venue: listing }: { venue: Venue }) => {
   const { coupons, findCoupon, redeem, markUsed } = useCoupons();
   const { session, isReady: isSessionReady } = useSession();
 
-  const paymentPath = `/workspaces/${venue.slug}/book/payment`;
   const membership = venueMembership(memberships, venue.slug);
   const isMembership = isMembershipType(selection.bookingType);
   const quote = quoteBooking(venue, selection, membership);
@@ -134,14 +134,6 @@ const PaymentPage = ({ venue: listing }: { venue: Venue }) => {
       router.replace(`/workspaces/${venue.slug}/book/seats`);
     }
   }, [isHydrated, canPay, confirmation, router, venue.slug]);
-
-  // Checkout needs an account to hold the booking and its QR.
-  useEffect(() => {
-    if (confirmation) return;
-    if (isSessionReady && !session) {
-      router.replace(`/login?next=${encodeURIComponent(paymentPath)}`);
-    }
-  }, [isSessionReady, session, confirmation, router, paymentPath]);
 
   // Cleared only after the confirmation is committed, so no render ever sees
   // an empty draft without it.
@@ -253,7 +245,7 @@ const PaymentPage = ({ venue: listing }: { venue: Venue }) => {
 
   return (
     <div className="bg-surface pt-28 lg:pt-32">
-      <div className="mx-auto w-full max-w-5xl px-4 pb-20 sm:px-6">
+      <div className="mx-auto w-full max-w-7xl px-4 pb-20 sm:px-6">
         <BookingStepper activeIndex={3} />
 
         <div className="mt-8 flex items-center gap-1.5">
@@ -267,10 +259,10 @@ const PaymentPage = ({ venue: listing }: { venue: Venue }) => {
           <h1 className="text-2xl font-bold text-tertiary">Payment</h1>
         </div>
 
-        {!isHydrated || !session || confirmation ? (
+        {!isHydrated || confirmation ? (
           <div className="mt-5 h-96 animate-pulse rounded-2xl border border-tertiary/10 bg-secondary" />
         ) : (
-          <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-[1fr_320px]">
+          <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-[1fr_380px] xl:gap-6">
             <div className="flex flex-col gap-5">
               <div className="rounded-2xl border border-tertiary/10 bg-secondary p-5 lg:p-6">
                 <h2 className="text-base font-bold text-tertiary">
@@ -465,14 +457,25 @@ const PaymentPage = ({ venue: listing }: { venue: Venue }) => {
               )}
 
               <p className="rounded-lg bg-tertiary/4 px-3 py-2 text-xs text-tertiary/55">
-                Payment is simulated. No gateway is connected yet. Signed in as{" "}
-                {session.name}.
+                Payment is simulated. No gateway is connected yet.
+                {session ? ` Signed in as ${session.name}.` : ""}
               </p>
+
+              {/* Guests price a booking first and verify here, so the summary
+                  and total stay on screen while they do it. */}
+              {isSessionReady && !session && (
+                <div className="rounded-xl border border-tertiary/10 bg-surface p-4">
+                  <PhoneSignIn
+                    title="Verify your number"
+                    subtitle="We text you a code, then your booking and its QR are saved to your account."
+                  />
+                </div>
+              )}
 
               <button
                 type="button"
                 onClick={() => simulate("success")}
-                disabled={status === "processing"}
+                disabled={status === "processing" || !session}
                 className="inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-5 py-3 text-sm font-semibold text-secondary transition-opacity hover:opacity-90 disabled:opacity-50"
               >
                 <CircleCheck aria-hidden="true" className="size-4" />

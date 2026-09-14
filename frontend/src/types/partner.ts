@@ -50,5 +50,4 @@ export type PartnerSession = {
   email: string;
   staffName: string;
   venueSlug: string;
-  signedInAt: string;
 };

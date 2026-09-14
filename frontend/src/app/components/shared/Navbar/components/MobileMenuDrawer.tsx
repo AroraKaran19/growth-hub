@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { ArrowRight, CircleUserRound, X } from "lucide-react";
 import Logo from "@/app/components/ui/Logo";
 import { NAV_LINKS, type NavLink } from "@/data/navigation";
@@ -21,6 +22,7 @@ const MobileMenuDrawer = ({
   onClose,
   links = NAV_LINKS,
 }: MobileMenuDrawerProps) => {
+  const pathname = usePathname();
   const { session } = useSession();
 
   // Lock the page behind the drawer without shifting it.
@@ -102,7 +104,9 @@ const MobileMenuDrawer = ({
 
         <div className="flex flex-col gap-3 border-t border-tertiary/10 px-5 py-5">
           <Link
-            href={session ? "/account" : "/login"}
+            href={
+              session ? "/account" : `/login?next=${encodeURIComponent(pathname)}`
+            }
             onClick={onClose}
             className="inline-flex items-center justify-center gap-2 rounded-lg border border-tertiary/20 px-5 py-3 text-sm font-semibold text-tertiary transition-colors hover:bg-tertiary/5"
           >

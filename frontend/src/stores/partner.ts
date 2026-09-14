@@ -17,11 +17,11 @@ import type { Venue } from "@/types/venue";
 import { todayIso } from "@/utils/date";
 import { readStoredItem, useIsClient, useStoredItem } from "@/utils/storage";
 import { addDays } from "@/app/(pages)/Account/membershipCycle";
+import { useAuthStore } from "./auth";
 import { useMemberBookings } from "./bookings";
 import { useMemberMemberships } from "./memberships";
 import { useVenueCatalog } from "./venues";
 
-const SESSION_KEY = "growth-hub:partner-session";
 const DESK_KEY = "growth-hub:partner-desk";
 
 /** What the front desk recorded today. Resets when the date changes. */
@@ -42,21 +42,17 @@ const parseJson = <T,>(raw: string | null, fallback: T): T => {
   }
 };
 
-/** MOCK partner sign-in, separate from the member session. */
+/** The signed-in staff account, from the partner auth store. */
 export const usePartnerSession = () => {
-  const [saved, write] = useStoredItem(SESSION_KEY);
-  const isReady = useIsClient();
-  const session = useMemo(
-    () => parseJson<PartnerSession | null>(saved, null),
-    [saved],
-  );
+  const status = useAuthStore("partner", (state) => state.status);
+  const account = useAuthStore("partner", (state) => state.account);
+  const signOut = useAuthStore("partner", (state) => state.signOut);
 
-  return {
-    session,
-    isReady,
-    signIn: (next: PartnerSession) => write(JSON.stringify(next)),
-    signOut: () => write(null),
-  };
+  const session: PartnerSession | null = account
+    ? { email: account.email, staffName: account.name, venueSlug: account.venueSlug }
+    : null;
+
+  return { session, account, isReady: status !== "loading", signOut };
 };
 
 const MEMBER_PHONE = `${MEMBER.mobileCountryCode} ${MEMBER.mobile}`;
@@ -64,14 +60,18 @@ const MEMBER_PHONE = `${MEMBER.mobileCountryCode} ${MEMBER.mobile}`;
 /** Everything the partner dashboard shows for its venue today. */
 export const usePartnerDesk = () => {
   const isReady = useIsClient();
+  const { session } = usePartnerSession();
+  const venueSlug = session?.venueSlug ?? PARTNER_ACCOUNT.venueSlug;
   const today = isReady ? todayIso() : "";
   const [deskRaw, writeDesk] = useStoredItem(DESK_KEY);
   const { bookings: memberBookings } = useMemberBookings();
   const { memberships } = useMemberMemberships();
   const { venueFor, seatsFor } = useVenueCatalog();
-  const venue = venueFor(findVenue(PARTNER_ACCOUNT.venueSlug) as Venue);
+  const venue = venueFor(
+    (findVenue(venueSlug) ?? findVenue(PARTNER_ACCOUNT.venueSlug)) as Venue,
+  );
   // Seats the admin panel took out of service show as blocked here too.
-  const seats = seatsFor(PARTNER_ACCOUNT.venueSlug);
+  const seats = seatsFor(venue.slug);
 
   const desk = useMemo<DeskDay>(() => {
     const saved = parseJson<DeskDay | null>(deskRaw, null);

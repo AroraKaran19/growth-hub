@@ -1,11 +1,8 @@
 import type { PartnerBooking, PartnerMember } from "@/types/partner";
 
-// MOCK partner account until partner auth exists. The venue is the one the
-// demo member already books, so both sides of the marketplace line up.
+// The venue the seed bookings and members belong to, used as a fallback when a
+// staff account has no venue yet.
 export const PARTNER_ACCOUNT = {
-  email: "partner@example.com",
-  password: "growthhub2026",
-  staffName: "Front desk team",
   venueSlug: "awfis-coworking-koramangala",
 };
 

@@ -75,7 +75,9 @@ const Navbar = () => {
 
         <div className="hidden items-center gap-3 lg:flex lg:justify-self-end">
           <Link
-            href={session ? "/account" : "/login"}
+            href={
+              session ? "/account" : `/login?next=${encodeURIComponent(pathname)}`
+            }
             className={cn(
               ACTION_BUTTON,
               "border border-secondary/40 text-secondary hover:bg-secondary/10",

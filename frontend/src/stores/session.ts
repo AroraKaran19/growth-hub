@@ -1,39 +1,23 @@
 "use client";
 
-import { useMemo } from "react";
-import { useIsClient, useStoredItem } from "@/utils/storage";
+import { useAuthStore } from "./auth";
 
 export type Session = {
   name: string;
-  method: "phone" | "google";
   phone?: string;
   email?: string;
-  signedInAt: string;
 };
 
-const STORAGE_KEY = "growth-hub:session";
-
-const parseSession = (raw: string | null): Session | null => {
-  if (!raw) return null;
-  try {
-    const value = JSON.parse(raw) as Session;
-    return value && typeof value.name === "string" ? value : null;
-  } catch {
-    return null;
-  }
-};
-
-/** MOCK member sign-in, kept in this browser until the auth API exists. */
+/** The member account as the navbar, account pages and invoice expect it. */
 export const useSession = () => {
-  const [saved, write] = useStoredItem(STORAGE_KEY);
-  const isReady = useIsClient();
-  const session = useMemo(() => parseSession(saved), [saved]);
+  const status = useAuthStore("member", (state) => state.status);
+  const account = useAuthStore("member", (state) => state.account);
+  const signOut = useAuthStore("member", (state) => state.signOut);
 
-  return {
-    session,
-    /** False on the server and during hydration, so guards wait for it. */
-    isReady,
-    signIn: (next: Session) => write(JSON.stringify(next)),
-    signOut: () => write(null),
-  };
+  const phone = account ? `${account.phone.countryCode} ${account.phone.number}` : undefined;
+  const session: Session | null = account
+    ? { name: account.name ?? phone ?? "Member", phone, email: account.email ?? undefined }
+    : null;
+
+  return { session, account, isReady: status !== "loading", signOut };
 };

@@ -28,8 +28,8 @@ const AccountSidebar = () => {
   // Booking details has its own "All bookings" link, so a second back is noise.
   const showBack = !pathname.startsWith("/account/bookings/");
 
-  const handleSignOut = () => {
-    signOut();
+  const handleSignOut = async () => {
+    await signOut();
     router.push("/");
   };
 

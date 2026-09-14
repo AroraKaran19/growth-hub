@@ -14,6 +14,7 @@ import {
   TicketPercent,
 } from "lucide-react";
 import Logo from "@/app/components/ui/Logo";
+import { useAuthBootstrap } from "@/hooks/useAuthBootstrap";
 import { useAdminSession } from "@/stores/admin";
 import { cn } from "@/utils";
 
@@ -31,6 +32,8 @@ const AdminShell = ({ children }: { children: ReactNode }) => {
   const pathname = usePathname();
   const router = useRouter();
   const { session, isReady, signOut } = useAdminSession();
+
+  useAuthBootstrap("admin");
 
   useEffect(() => {
     if (isReady && !session) {
@@ -51,8 +54,8 @@ const AdminShell = ({ children }: { children: ReactNode }) => {
     );
   }
 
-  const handleSignOut = () => {
-    signOut();
+  const handleSignOut = async () => {
+    await signOut();
     router.replace("/admin/login");
   };
 
