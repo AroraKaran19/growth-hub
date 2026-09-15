@@ -53,8 +53,14 @@ export const signInMember = async (
   msg91Token: string,
   device: DeviceInfo,
 ): Promise<IssuedTokens & { account: MemberAccount }> => {
-  const { isProduction, authTestPhone } = env();
-  if (isProduction || authTestPhone !== phone.e164) {
+  const { authTestPhone, authTestOtp } = env();
+  const isReviewLogin = Boolean(authTestPhone) && phone.e164 === authTestPhone;
+
+  if (isReviewLogin) {
+    // Both halves, or nothing: the number is public, the code is not.
+    if (!authTestOtp || msg91Token !== authTestOtp) throw invalidCode();
+    console.warn(`⚠️  Review sign-in used for ${phone.e164}`);
+  } else {
     await confirmPhone(phone, msg91Token);
   }
 

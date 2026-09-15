@@ -166,7 +166,8 @@ const PhoneSignIn = ({
     setBusy(true);
     setError(null);
     try {
-      const msg91Token = isTestPhone ? "" : await widget.verifyOtp(entered);
+      // The review number has no SMS: the backend checks the typed code itself.
+      const msg91Token = isTestPhone ? entered : await widget.verifyOtp(entered);
       const payload = await signInThroughRelay("member", {
         countryCode,
         phoneNumber: mobile,

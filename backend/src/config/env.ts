@@ -34,6 +34,8 @@ export type AppEnv = {
   aws: AwsSettings | null;
   trustProxy: number | boolean | string | null;
   authTestPhone: string | null;
+  /** Required alongside authTestPhone: the number alone must never sign anyone in. */
+  authTestOtp: string | null;
 };
 
 const MIN_SECRET_LENGTH = 32;
@@ -91,6 +93,7 @@ export const loadEnv = (source: NodeJS.ProcessEnv = process.env): AppEnv => {
         }
       : null;
   const authTestPhone = read("AUTH_TEST_PHONE");
+  const authTestOtp = read("AUTH_TEST_OTP");
 
   const razorpayKeyId = read("RAZORPAY_KEY_ID");
   const razorpayKeySecret = read("RAZORPAY_KEY_SECRET");
@@ -126,10 +129,16 @@ export const loadEnv = (source: NodeJS.ProcessEnv = process.env): AppEnv => {
     aws,
     trustProxy: parseTrustProxy(read("TRUST_PROXY")),
     authTestPhone,
+    authTestOtp,
   };
 
+  // The bypass exists for payment gateway review. Allowing it in production is
+  // deliberate, but never on the phone number alone.
+  if (authTestPhone && !authTestOtp) {
+    errors.push("AUTH_TEST_OTP is required whenever AUTH_TEST_PHONE is set");
+  }
+
   if (isProduction) {
-    if (authTestPhone) errors.push("AUTH_TEST_PHONE must not be set in production");
     if (!msg91AuthKey) errors.push("MSG91_AUTH_KEY is required in production");
     if (!email) {
       errors.push(
