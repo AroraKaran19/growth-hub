@@ -132,13 +132,14 @@ export const loadEnv = (source: NodeJS.ProcessEnv = process.env): AppEnv => {
     authTestOtp,
   };
 
-  // The bypass exists for payment gateway review. Allowing it in production is
-  // deliberate, but never on the phone number alone.
+  // A sign-in that skips the SMS is a development convenience, and the code is
+  // required so the phone number alone can never be enough.
   if (authTestPhone && !authTestOtp) {
     errors.push("AUTH_TEST_OTP is required whenever AUTH_TEST_PHONE is set");
   }
 
   if (isProduction) {
+    if (authTestPhone) errors.push("AUTH_TEST_PHONE must not be set in production");
     if (!msg91AuthKey) errors.push("MSG91_AUTH_KEY is required in production");
     if (!email) {
       errors.push(
