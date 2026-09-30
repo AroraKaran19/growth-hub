@@ -194,20 +194,22 @@ export const loadEnv = (source: NodeJS.ProcessEnv = process.env): AppEnv => {
         "MSG91_EMAIL_DOMAIN, MSG91_EMAIL_FROM and MSG91_EMAIL_FROM_NAME are required in production",
       );
     }
-    if (!email?.passwordResetTemplateId) {
-      errors.push("MSG91_EMAIL_PASSWORD_RESET_TEMPLATE_ID is required in production");
-    }
     if (!razorpay) {
       errors.push("RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET are required in production");
     }
     if (!aws) {
       errors.push("AWS_REGION and AWS_S3_BUCKET_NAME are required in production");
     }
-    if (!revalidateSecret) errors.push("REVALIDATE_SECRET is required in production");
-    if (!razorpayWebhookSecret) errors.push("RAZORPAY_WEBHOOK_SECRET is required in production");
-    if (!qrSigningSecret) errors.push("QR_SIGNING_SECRET is required in production");
-    if (!cronSecret) errors.push("CRON_SECRET is required in production");
-    if (!payoutEncryptionKey) errors.push("PAYOUT_ENCRYPTION_KEY is required in production");
+    // Each feature switches itself off without its variable, so these warn instead of stopping the server.
+    const missing = [
+      !email?.passwordResetTemplateId && "MSG91_EMAIL_PASSWORD_RESET_TEMPLATE_ID (password reset emails)",
+      !revalidateSecret && "REVALIDATE_SECRET (instant site updates)",
+      !razorpayWebhookSecret && "RAZORPAY_WEBHOOK_SECRET (payment webhooks and membership renewals)",
+      !qrSigningSecret && "QR_SIGNING_SECRET (check-in QR codes)",
+      !cronSecret && "CRON_SECRET (the daily job)",
+      !payoutEncryptionKey && "PAYOUT_ENCRYPTION_KEY (venue bank details)",
+    ].filter(Boolean);
+    if (missing.length) console.warn(`Running without, so these are off:\n- ${missing.join("\n- ")}`);
   }
 
   if (errors.length) {
