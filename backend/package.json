@@ -12,7 +12,8 @@
     "create-partner-staff": "ts-node --transpile-only src/scripts/createPartnerStaff.ts",
     "migrate-admin-roles": "ts-node --transpile-only src/scripts/migrateAdminRoles.ts",
     "seed-catalogue": "ts-node --transpile-only src/scripts/seedCatalogue.ts",
-    "import-seat-map": "ts-node --transpile-only src/scripts/importSeatMap.ts"
+    "import-seat-map": "ts-node --transpile-only src/scripts/importSeatMap.ts",
+    "reset-data": "ts-node --transpile-only src/scripts/resetData.ts"
   },
   "keywords": [],
   "author": "",
