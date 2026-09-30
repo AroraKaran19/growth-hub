@@ -29,6 +29,8 @@ export type DayOption = {
   weekday: string;
   /** Set on the first day of a run, rendered as a month divider chip */
   monthLabel?: string;
+  /** The venue is shut that day, so it can't be picked. */
+  closed?: boolean;
 };
 
 export type TimeSlot = {
@@ -45,7 +47,7 @@ export type BookingSelection = {
   hours: number;
   bookingType: BookingType;
   preference: string;
-  parking: string;
+  /** Keys of the venue's add-ons picked for a pass. */
   addOns: string[];
   companyName: string;
   /** A pass's day, or a membership's start date. */
@@ -61,7 +63,6 @@ export const DEFAULT_SELECTION: BookingSelection = {
   hours: 1,
   bookingType: "full-day",
   preference: "none",
-  parking: "none",
   addOns: [],
   companyName: "",
   date: "",
@@ -72,17 +73,21 @@ export const DEFAULT_SELECTION: BookingSelection = {
 /** Saved progress can predate a shape change, so coerce what comes back. */
 export const normaliseSelection = (value: unknown): BookingSelection => {
   const saved = (value ?? {}) as Partial<BookingSelection>;
+  const text = (field: unknown, fallback: string) => (typeof field === "string" ? field : fallback);
 
+  // Built field by field, so keys from older versions (such as parking) fall away.
   return {
-    ...DEFAULT_SELECTION,
-    ...saved,
+    spaceType: saved.spaceType ?? "desk",
     seats: Number(saved.seats) > 0 ? Number(saved.seats) : 1,
     hours: Number(saved.hours) > 0 ? Number(saved.hours) : 1,
     bookingType: isBookingType(saved.bookingType)
       ? saved.bookingType
       : DEFAULT_SELECTION.bookingType,
+    preference: text(saved.preference, DEFAULT_SELECTION.preference),
     addOns: Array.isArray(saved.addOns) ? saved.addOns : [],
+    companyName: text(saved.companyName, ""),
+    date: text(saved.date, ""),
+    time: text(saved.time, ""),
     seatIds: Array.isArray(saved.seatIds) ? saved.seatIds : [],
-    spaceType: saved.spaceType ?? "desk",
   };
 };

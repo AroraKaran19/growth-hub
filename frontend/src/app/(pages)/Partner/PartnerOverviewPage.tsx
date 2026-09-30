@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Crown, ScanLine } from "lucide-react";
-import { usePartnerDesk } from "@/stores/partner";
+import useSWR from "swr";
+import { ArrowRight, Crown, ReceiptText, ScanLine } from "lucide-react";
+import { fetchSalesSummary } from "@/libs/api/reports";
+import { usePartnerDesk, usePartnerSession } from "@/stores/partner";
 import { formatDay } from "@/utils/date";
 import { toMinutes } from "@/utils/time";
 import {
@@ -20,6 +22,8 @@ const startMinutes = (time: string) => toMinutes(time.split(" - ")[0] ?? "") ?? 
 
 const PartnerOverviewPage = () => {
   const desk = usePartnerDesk();
+  const { account } = usePartnerSession();
+  const { data: sales } = useSWR(account ? ["partner/sales-summary", account.id] : null, fetchSalesSummary);
   const [notice, setNotice] = useState<string | null>(null);
 
   if (!desk.isReady) return <PartnerSkeleton />;
@@ -50,7 +54,7 @@ const PartnerOverviewPage = () => {
   );
 
   const handleCheckIn = (id: string, name: string) => {
-    desk.checkIn(id);
+    void desk.quickCheckIn(id);
     setNotice(`${name} is checked in.`);
   };
 
@@ -98,6 +102,27 @@ const PartnerOverviewPage = () => {
           hint={`${live.length} bookings`}
         />
       </dl>
+
+      {sales && (
+        <section className="relative mt-6 flex flex-wrap items-center justify-between gap-4 overflow-hidden rounded-2xl bg-tertiary p-5 text-secondary shadow-lg sm:p-6">
+          <div aria-hidden="true" className="cta-banner absolute -right-16 -top-24 size-64 rounded-full opacity-25 blur-3xl" />
+          <div className="relative">
+            <p className="text-xs text-secondary/65">Earned so far in {sales.monthLabel}</p>
+            <p className="mt-1 text-3xl font-bold">₹{(sales.payable / 100).toLocaleString("en-IN")}</p>
+            <p className="mt-1 text-xs text-secondary/65">
+              {sales.items} paid visits and plan periods. {sales.upcomingVisits} visits still to come
+              {sales.openRequests ? `, ${sales.openRequests} cancellation ${sales.openRequests === 1 ? "request" : "requests"} to decide` : ""}.
+            </p>
+          </div>
+          <Link
+            href="/partner/statements"
+            className="relative inline-flex items-center gap-2 rounded-lg bg-secondary px-4 py-2.5 text-sm font-semibold text-tertiary shadow-sm transition-transform hover:-translate-y-0.5"
+          >
+            <ReceiptText aria-hidden="true" className="size-4 text-primary" />
+            Statements
+          </Link>
+        </section>
+      )}
 
       <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
         <section className={`${PARTNER_CARD} p-5 sm:p-6`}>

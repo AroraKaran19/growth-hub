@@ -2,11 +2,9 @@
 
 import { Minus, Plus } from "lucide-react";
 import {
-  ADDON_OPTIONS,
   MAX_HOURS,
   MAX_SEATS,
   MEMBERSHIP_TYPE_OPTIONS,
-  PARKING_OPTIONS,
   PASS_TYPE_OPTIONS,
   PREFERENCE_OPTIONS,
 } from "@/data/bookingOptions";
@@ -15,12 +13,20 @@ import {
   type BookingSelection,
   type BookingType,
 } from "@/types/booking";
+import type { AddonUnit } from "@/types/catalogue";
 import { SEAT_TYPE_LABELS, type SeatType } from "@/types/seat";
+import type { VenueDetail } from "@/types/venue";
+import { spaceTypesFor } from "../selectionRules";
 import ChipGroup from "./ChipGroup";
 
-const SPACE_TYPES = Object.keys(SEAT_TYPE_LABELS) as SeatType[];
+const ADDON_UNIT_SUFFIX: Record<AddonUnit, string> = {
+  "per-booking": "",
+  "per-person": " per person",
+  "per-day": " per day",
+};
 
 type ConfigureFormProps = {
+  venue: VenueDetail;
   selection: BookingSelection;
   onChange: <K extends keyof BookingSelection>(
     key: K,
@@ -76,6 +82,7 @@ const Stepper = ({ label, value, min, max, noun, onAdjust }: StepperProps) => (
 );
 
 const ConfigureForm = ({
+  venue,
   selection,
   onChange,
   onAdjustSeats,
@@ -84,10 +91,8 @@ const ConfigureForm = ({
   const isMembership = isMembershipType(selection.bookingType);
   const isDesk = selection.spaceType === "desk";
 
-  // A membership reserves a desk, cabin or office; meeting rooms stay hourly.
-  const spaceOptions = SPACE_TYPES.filter(
-    (type) => !isMembership || type !== "meeting-room",
-  ).map((value) => ({
+  // Only the spaces this venue sells the chosen plan for; never meeting rooms.
+  const spaceOptions = spaceTypesFor(venue, selection.bookingType).map((value) => ({
     value,
     label:
       isMembership && value === "desk"
@@ -106,6 +111,15 @@ const ConfigureForm = ({
   const setBookingType = (value: string) =>
     onChange("bookingType", value as BookingType);
 
+  const membershipOptions = MEMBERSHIP_TYPE_OPTIONS.filter(
+    (option) => spaceTypesFor(venue, option.value as BookingType).length > 0,
+  );
+
+  const addonOptions = venue.addons.map((addon) => ({
+    value: addon.key,
+    label: `${addon.name} (₹${addon.price.toLocaleString("en-IN")}${ADDON_UNIT_SUFFIX[addon.unit]})`,
+  }));
+
   return (
     <div className="flex flex-col gap-6 rounded-2xl border border-tertiary/10 bg-secondary p-5 lg:p-6">
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -116,13 +130,15 @@ const ConfigureForm = ({
           value={selection.bookingType}
           onChange={setBookingType}
         />
-        <ChipGroup
-          label="Membership"
-          hint="(your seat reserved for the whole plan)"
-          options={MEMBERSHIP_TYPE_OPTIONS}
-          value={selection.bookingType}
-          onChange={setBookingType}
-        />
+        {membershipOptions.length > 0 && (
+          <ChipGroup
+            label="Membership"
+            hint="(your seat reserved for the whole plan)"
+            options={membershipOptions}
+            value={selection.bookingType}
+            onChange={setBookingType}
+          />
+        )}
       </div>
 
       <div className="border-t border-tertiary/8" />
@@ -137,7 +153,7 @@ const ConfigureForm = ({
         {isMembership && (
           <p className="mt-2 text-xs text-tertiary/55">
             Meeting rooms are booked by the hour, so they are not part of a
-            membership. Members get included meeting room hours instead.
+            membership. Members book them as a pass when they need one.
           </p>
         )}
       </div>
@@ -171,28 +187,28 @@ const ConfigureForm = ({
 
       <div className="border-t border-tertiary/8" />
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <ChipGroup
-          label="Seating preference"
-          options={PREFERENCE_OPTIONS}
-          value={selection.preference}
-          onChange={(value) => onChange("preference", value)}
-        />
-        <ChipGroup
-          label="Parking"
-          options={PARKING_OPTIONS}
-          value={selection.parking}
-          onChange={(value) => onChange("parking", value)}
-        />
-      </div>
-
       <ChipGroup
-        label="Add ons"
-        hint="(optional, pick any)"
-        options={ADDON_OPTIONS}
-        value={selection.addOns}
-        onChange={toggleAddOn}
+        label="Seating preference"
+        options={PREFERENCE_OPTIONS}
+        value={selection.preference}
+        onChange={(value) => onChange("preference", value)}
       />
+
+      {!isMembership && addonOptions.length > 0 && (
+        <ChipGroup
+          label="Add ons"
+          hint="(optional, pick any)"
+          options={addonOptions}
+          value={selection.addOns}
+          onChange={toggleAddOn}
+        />
+      )}
+      {isMembership && addonOptions.length > 0 && (
+        <p className="text-xs text-tertiary/55">
+          Add-ons are not part of a membership price. Ask at the front desk on
+          the days you need one.
+        </p>
+      )}
 
       <label className="block max-w-sm">
         <span className="mb-2 block text-sm font-medium text-tertiary">

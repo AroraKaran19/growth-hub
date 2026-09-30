@@ -9,6 +9,8 @@ export type PaymentFailure = {
   detail: string;
   /** False when retrying the same card cannot help. */
   retryable: boolean;
+  /** Replaces the default reassurance when it would not be true. */
+  note?: string;
 };
 
 type PaymentFailedProps = {
@@ -42,7 +44,7 @@ const PaymentFailed = ({ failure, onRetry, venueSlug }: PaymentFailedProps) => {
         </p>
 
         <p className="mt-4 rounded-lg bg-tertiary/4 px-4 py-2.5 text-xs text-tertiary/55">
-          Your seats are still held and you have not been charged. Reference:{" "}
+          {failure.note ?? "Your seats are still held and you have not been charged."} Reference:{" "}
           <span className="font-mono text-tertiary/75">{failure.code}</span>
         </p>
 

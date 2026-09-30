@@ -19,12 +19,18 @@ export const MEMBER_SMS_LIMITS = {
   windowMs: 60 * MINUTE_MS,
 };
 
-export const EMAIL_OTP_LIMITS = {
+export const PASSWORD_RULES = {
+  minLength: 10,
+  // bcrypt ignores everything past 72 bytes.
+  maxBytes: 72,
+  bcryptRounds: 12,
+};
+
+export const SIGN_IN_LIMITS = { maxAttempts: 5, windowMs: 15 * MINUTE_MS };
+
+export const RESET_LIMITS = {
   cooldownSeconds: 60,
   maxSends: 3,
   windowMs: 15 * MINUTE_MS,
-  codeLength: 6,
-  codeTtlMs: 10 * MINUTE_MS,
-  maxAttempts: 5,
-  bcryptRounds: 10,
+  linkTtlMs: 30 * MINUTE_MS,
 };

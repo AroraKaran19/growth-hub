@@ -4,34 +4,42 @@ import { ArrowRight, MapPin } from "lucide-react";
 import PageHero from "@/app/components/shared/PageHero";
 import SectionHeading from "@/app/components/shared/SectionHeading";
 import { CATEGORIES } from "@/data/categories";
-import { LOCATION_OPTIONS } from "@/data/searchOptions";
-import { VENUES } from "@/data/venues";
+import { PLANNED_LOCALITIES } from "@/data/searchOptions";
+import { getPublishedVenues } from "@/libs/api/venues";
 import { cn } from "@/utils";
 import { CONTAINER } from "@/utils/layout";
+import { localitySummaries } from "@/utils/venues";
 import CtaBannerSection from "../Home/sections/CtaBannerSection";
 
-const LOCALITIES = LOCATION_OPTIONS.map((option, index) => {
-  const venues = VENUES.filter((venue) => venue.localityId === option.value);
-  return {
-    ...option,
-    venues,
-    // Localities without venues yet borrow a category photo.
-    image: venues[0]?.image ?? CATEGORIES[index % CATEGORIES.length].image,
-    fromPrice: venues.length
-      ? Math.min(...venues.map((venue) => venue.startingPrice))
-      : null,
-  };
-}).sort((a, b) => b.venues.length - a.venues.length);
+// Areas without a venue photo borrow a category photo.
+const fallbackImage = (index: number) =>
+  CATEGORIES[index % CATEGORIES.length].image;
 
-const LIVE_COUNT = LOCALITIES.filter((item) => item.venues.length > 0).length;
+const LocationsPage = async () => {
+  const venues = await getPublishedVenues();
+  const live = localitySummaries(venues);
+  const liveIds = new Set(live.map((item) => item.value));
 
-const LocationsPage = () => {
+  const localities = [
+    ...live,
+    ...PLANNED_LOCALITIES.filter((option) => !liveIds.has(option.value)).map(
+      (option) => ({ ...option, count: 0, fromPrice: 0, image: "" }),
+    ),
+  ].map((item, index) => ({
+    ...item,
+    image: item.image || fallbackImage(index),
+  }));
+
+  const intro = venues.length
+    ? `${venues.length} partner ${venues.length === 1 ? "venue" : "venues"} in ${live.length} ${live.length === 1 ? "neighbourhood" : "neighbourhoods"}, from startup hubs to quiet residential streets. Pick an area to see what is open.`
+    : "Partner venues are opening across the city, from startup hubs to quiet residential streets. Tell us where you want a space.";
+
   return (
     <>
       <PageHero
         eyebrow="Locations"
         title="Workspaces across Bangalore"
-        description={`${VENUES.length} partner venues in ${LIVE_COUNT} neighbourhoods, from startup hubs to quiet residential streets. Pick an area to see what is open.`}
+        description={intro}
       />
 
       <section className="bg-secondary py-16 lg:py-24">
@@ -42,8 +50,8 @@ const LocationsPage = () => {
           />
 
           <ul className="mt-10 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:mt-14 lg:grid-cols-4">
-            {LOCALITIES.map((locality) => {
-              const isLive = locality.venues.length > 0;
+            {localities.map((locality) => {
+              const isLive = locality.count > 0;
               const href = isLive
                 ? `/workspaces?locality=${locality.value}`
                 : `/contact?topic=location&area=${encodeURIComponent(locality.label)}`;
@@ -82,7 +90,7 @@ const LocationsPage = () => {
                       </h3>
                       <p className="mt-1 text-sm text-secondary/80">
                         {isLive
-                          ? `${locality.venues.length} ${locality.venues.length === 1 ? "workspace" : "workspaces"}, from ₹${locality.fromPrice}/hr`
+                          ? `${locality.count} ${locality.count === 1 ? "workspace" : "workspaces"}, from ₹${locality.fromPrice}/hr`
                           : "Tell us you want a space here"}
                       </p>
                       <span className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-primary">

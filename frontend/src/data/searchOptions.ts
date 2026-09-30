@@ -1,7 +1,8 @@
+import catalogue from "@/config/catalogue-ids.json";
 import type { SelectOption } from "@/types/search";
 
-// MOCK DATA until the venues API exists.
-export const LOCATION_OPTIONS: SelectOption[] = [
+// Areas shown as "coming soon" until a venue opens there. Not a filter list.
+export const PLANNED_LOCALITIES: SelectOption[] = [
   { label: "Koramangala", value: "koramangala" },
   { label: "Mahalaxmi Layout", value: "mahalaxmi-layout" },
   { label: "Indiranagar", value: "indiranagar" },
@@ -46,3 +47,7 @@ export const WORKSPACE_TYPE_OPTIONS: SelectOption[] = [
   { label: "Private cabin", value: "private-cabin" },
   { label: "Meeting room", value: "meeting-room" },
 ];
+
+if (WORKSPACE_TYPE_OPTIONS.map((option) => option.value).join() !== catalogue.workspaceTypes.join()) {
+  throw new Error("WORKSPACE_TYPE_OPTIONS must list the ids in config/catalogue-ids.json, in order");
+}

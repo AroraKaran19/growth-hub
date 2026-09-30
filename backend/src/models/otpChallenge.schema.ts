@@ -1,6 +1,6 @@
 import { Schema, model, type Types } from "mongoose";
 
-export type OtpPurpose = "member_sms" | "partner_email" | "admin_email";
+export type OtpPurpose = "member_sms" | "admin_sign_in" | "partner_sign_in" | "admin_reset" | "partner_reset";
 
 export interface OtpChallengeDoc {
   _id: Types.ObjectId;
@@ -18,7 +18,7 @@ export interface OtpChallengeDoc {
 
 const otpChallengeSchema = new Schema<OtpChallengeDoc>(
   {
-    purpose: { type: String, enum: ["member_sms", "partner_email", "admin_email"], required: true },
+    purpose: { type: String, enum: ["member_sms", "admin_sign_in", "partner_sign_in", "admin_reset", "partner_reset"], required: true },
     identifier: { type: String, required: true },
     codeHash: { type: String, default: null },
     codeExpiresAt: { type: Date, default: null },

@@ -54,6 +54,17 @@ export const authErrorMessage = (info: AuthErrorInfo): string => {
       return "Enter your name.";
     case "ACCOUNT_DISABLED":
       return "This account has been disabled. Contact support.";
+    case "INVALID_CREDENTIALS":
+      return "That email and password don't match.";
+    case "SIGN_IN_LOCKED":
+      return `Too many attempts. Try again in ${count(info.meta, "retryAfterMinutes", 15)} minutes, or reset your password.`;
+    // The server names the exact rule that failed.
+    case "PASSWORD_WEAK":
+      return info.message || "Use at least 10 characters.";
+    case "PASSWORD_REUSED":
+      return "Pick a password different from the temporary one.";
+    case "RESET_LINK_INVALID":
+      return "This link has expired or was already used. Ask for a new one.";
     case "RATE_LIMITED":
       return "Too many requests. Please try again shortly.";
     // The widget's own failure text is more useful than anything generic.

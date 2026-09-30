@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
 import SelectField from "@/app/components/ui/form/SelectField";
 import { usePartnerDesk } from "@/stores/partner";
+import DeskAddonModal, { type DeskAddonSubject } from "./components/DeskAddonModal";
+import TodayAddonsCell from "./components/TodayAddonsCell";
 import {
   PARTNER_BOOKING_STATUS_LABELS,
   type PartnerBookingStatus,
@@ -41,6 +43,7 @@ const PartnerBookingsPage = () => {
   const [range, setRange] = useState<Range>("today");
   const [status, setStatus] = useState("");
   const [query, setQuery] = useState("");
+  const [addonsFor, setAddonsFor] = useState<DeskAddonSubject | null>(null);
 
   const inRange = useMemo(
     () => ({
@@ -178,12 +181,23 @@ const PartnerBookingsPage = () => {
                   </td>
                   <td className="px-5 py-3.5">
                     <BookingStatusBadge status={booking.status} />
+                    {booking.date === desk.today && (booking.status === "upcoming" || booking.status === "checked-in") && (
+                      <div className="mt-2">
+                        <TodayAddonsCell
+                          addons={desk.addonsByTarget[booking.bookingId] ?? []}
+                          name={booking.memberName}
+                          onAdd={() =>
+                            setAddonsFor({ kind: "pass", ref: booking.bookingId, name: booking.memberName, people: booking.people })
+                          }
+                        />
+                      </div>
+                    )}
                   </td>
                   <td className="px-5 py-3.5 text-right">
                     {booking.status === "upcoming" && booking.date === desk.today && (
                       <button
                         type="button"
-                        onClick={() => desk.checkIn(booking.bookingId)}
+                        onClick={() => void desk.quickCheckIn(booking.bookingId)}
                         className={CHECK_IN_BUTTON}
                       >
                         Check in
@@ -197,6 +211,20 @@ const PartnerBookingsPage = () => {
           </table>
         )}
       </div>
+
+      {addonsFor && (
+        <DeskAddonModal
+          subject={addonsFor}
+          offers={desk.venue.addons}
+          openDays={desk.venue.openDays}
+          today={desk.today}
+          existing={desk.addonsByTarget[addonsFor.ref] ?? []}
+          voidable={desk.salesByTarget[addonsFor.ref] ?? []}
+          onRecord={desk.recordAddons}
+          onVoid={desk.voidAddons}
+          onClose={() => setAddonsFor(null)}
+        />
+      )}
     </>
   );
 };

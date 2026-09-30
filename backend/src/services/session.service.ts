@@ -139,3 +139,38 @@ export const isSessionLive = async (sessionId: string, accountType: AccountType)
   });
   return Boolean(found);
 };
+
+export type RevokeReason = "disabled" | "venue-changed" | "password-changed";
+
+export const revokeAccountSessions = async (
+  accountType: AccountType,
+  accountId: Types.ObjectId | string,
+  reason: RevokeReason,
+) => {
+  const sessions = await Session.find({ accountType, accountId, revokedAt: null }, { _id: 1 }).lean<
+    { _id: Types.ObjectId }[]
+  >();
+  const ids = sessions.map((session) => session._id);
+  if (ids.length === 0) return 0;
+
+  await Session.updateMany({ _id: { $in: ids } }, { $set: { revokedAt: new Date(), revokedReason: reason } });
+  await RefreshToken.deleteMany({ sessionId: { $in: ids } });
+  return ids.length;
+};
+
+export const lastActiveAt = async (accountType: AccountType, accountIds: Types.ObjectId[]) => {
+  const now = new Date();
+  const rows = await Session.aggregate<{ _id: Types.ObjectId; lastActiveAt: Date }>([
+    {
+      $match: {
+        accountType,
+        accountId: { $in: accountIds },
+        revokedAt: null,
+        idleExpiresAt: { $gt: now },
+        absoluteExpiresAt: { $gt: now },
+      },
+    },
+    { $group: { _id: "$accountId", lastActiveAt: { $max: "$lastUsedAt" } } },
+  ]);
+  return new Map(rows.map((row) => [row._id.toString(), row.lastActiveAt]));
+};

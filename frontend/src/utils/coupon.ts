@@ -1,69 +1,18 @@
-import {
-  COUPON_SCOPE_LABELS,
-  type Coupon,
-  type CouponScope,
-  type CouponState,
-} from "@/types/coupon";
-import { formatDay } from "./date";
+import type { CouponTerms } from "@/types/coupon";
 
-export const couponState = (coupon: Coupon, today: string): CouponState => {
-  if (coupon.used) return "used";
-  return coupon.validUntil < today ? "expired" : "available";
-};
+const rupees = (paise: number) => `₹${(paise / 100).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 
-export const couponHeadline = (coupon: Coupon) =>
-  coupon.kind === "percent"
-    ? `${coupon.value}% OFF`
-    : `₹${coupon.value.toLocaleString("en-IN")} OFF`;
+export const couponHeadline = (coupon: Pick<CouponTerms, "kind" | "value">) =>
+  coupon.kind === "percent" ? `${coupon.value}% OFF` : `${rupees(coupon.value)} OFF`;
 
-/** Scopes a booking counts as: every booking is "all", plus its own kind. */
-export const scopesFor = (booking: {
-  isMembership: boolean;
-  isMeetingRoom: boolean;
-}): CouponScope[] => {
-  if (booking.isMembership) return ["all", "membership"];
-  if (booking.isMeetingRoom) return ["all", "pass", "meeting-room"];
-  return ["all", "pass"];
-};
+/** "Up to ₹300" for a capped percentage, otherwise null. */
+export const couponCap = (coupon: Pick<CouponTerms, "kind" | "maxDiscount">) =>
+  coupon.kind === "percent" && coupon.maxDiscount ? `Up to ${rupees(coupon.maxDiscount)}` : null;
 
-export type CouponCheck =
-  | { ok: true; discount: number }
-  | { ok: false; reason: string };
+export const minSpendLabel = (minSpend: number) => (minSpend > 0 ? `Min spend ${rupees(minSpend)}` : "No minimum spend");
 
-export const evaluateCoupon = (
-  coupon: Coupon,
-  amount: number,
-  scopes: CouponScope[],
-  today: string,
-): CouponCheck => {
-  const state = couponState(coupon, today);
-  if (state === "used") {
-    return { ok: false, reason: "This coupon has already been used." };
-  }
-  if (state === "expired") {
-    return {
-      ok: false,
-      reason: `This coupon expired on ${formatDay(coupon.validUntil)}.`,
-    };
-  }
-  if (!scopes.includes(coupon.scope)) {
-    return {
-      ok: false,
-      reason: `Only valid on ${COUPON_SCOPE_LABELS[coupon.scope].toLowerCase()}.`,
-    };
-  }
-  if (amount < coupon.minSpend) {
-    return {
-      ok: false,
-      reason: `Spend ₹${coupon.minSpend.toLocaleString("en-IN")} or more to use this coupon.`,
-    };
-  }
+export type OrderScope = "passes" | "meeting-rooms" | "memberships";
 
-  const raw =
-    coupon.kind === "percent"
-      ? Math.round((amount * coupon.value) / 100)
-      : coupon.value;
-  const capped = Math.min(raw, coupon.maxDiscount ?? Infinity, amount);
-
-  return { ok: true, discount: capped };
-};
+/** Mirrors the server: any fits all, and pass coupons fit meeting rooms too. */
+export const fitsOrder = (appliesTo: CouponTerms["appliesTo"], scope: OrderScope) =>
+  appliesTo === "any" || appliesTo === scope || (appliesTo === "passes" && scope === "meeting-rooms");

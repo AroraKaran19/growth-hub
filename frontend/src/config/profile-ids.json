@@ -1,0 +1,15 @@
+{
+  "genders": ["female", "male", "non-binary", "prefer-not-to-say"],
+  "industries": [
+    "technology",
+    "design",
+    "finance",
+    "consulting",
+    "healthcare",
+    "education",
+    "legal",
+    "marketing",
+    "other"
+  ],
+  "workTypes": ["remote", "hybrid", "on-site"]
+}

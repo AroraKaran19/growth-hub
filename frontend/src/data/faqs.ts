@@ -18,8 +18,8 @@ export type FaqCategory = {
   faqs: Faq[];
 };
 
-// Answers mirror the rules the app enforces: 24 hour free cancellation, half
-// refunds inside that window, pauses of up to 5 days.
+// Answers mirror the rules the app enforces: cancellations are requests the
+// venue decides, memberships renew until stopped.
 export const FAQ_CATEGORIES: FaqCategory[] = [
   {
     id: "bookings",
@@ -34,12 +34,12 @@ export const FAQ_CATEGORIES: FaqCategory[] = [
       {
         question: "Can I reschedule a booking?",
         answer:
-          "Yes. Open the booking in My Bookings and choose Reschedule. You can move it to any open date and start time for free; your seats, price and check-in QR stay the same.",
+          "Yes. Open the booking in My Bookings and choose Reschedule. You can move it to any open date and start time up to 60 days ahead for free; your seats, price and check-in QR stay the same.",
       },
       {
         question: "How do I cancel, and will I get a refund?",
         answer:
-          "Cancel from the booking's details page. Cancelling at least 24 hours before the start refunds you in full. Inside 24 hours you get 50% back. Once a booking has started it can no longer be cancelled.",
+          "Open the booking in My Bookings and choose Ask the venue to cancel. The venue decides, and if it agrees it refunds you directly, in the amount it sets. Your booking stays as it is until then, and you can withdraw the request while it waits.",
       },
       {
         question: "Can I book for my team?",
@@ -64,46 +64,56 @@ export const FAQ_CATEGORIES: FaqCategory[] = [
           "Open the booking in My Bookings and choose Download invoice. It opens a printable tax invoice you can save as a PDF.",
       },
       {
-        question: "How long do refunds take?",
+        question: "How are refunds paid?",
         answer:
-          "Refunds go back to your original payment method within 5 to 7 working days of cancelling.",
+          "The venue pays approved refunds directly to you. The amount appears on your booking once the venue approves; how quickly it arrives depends on the venue and your payment method.",
       },
       {
         question: "How do coupons work?",
         answer:
-          "Coupons live in your account under Coupons. Apply one at checkout; each shows what it covers, its minimum spend and when it expires. A coupon can be used once.",
+          "Offers open to everyone appear under Coupons in your account, and you can add a code you were given. Apply one on the payment step; each shows what it covers, its minimum spend and when it ends. Most coupons can be used once, and a use is not returned if the booking is cancelled. On a membership a coupon comes off the first payment only.",
       },
     ],
   },
   {
     id: "memberships",
     title: "Memberships",
-    summary: "Reserved seats, allowances and pausing.",
+    summary: "Reserved seats, renewals and stopping a plan.",
     faqs: [
       {
         question: "What does a membership include?",
         answer:
-          "A desk, cabin or office reserved for you at one venue for the whole plan, access every day the venue is open, meeting room hours and guest passes each cycle, and a member pass to check in.",
+          "A desk, cabin or office reserved for you at one venue, access every day the venue is open, and a member pass to check in. Extras such as lockers or parking are added at the venue's prices.",
+      },
+      {
+        question: "How do I add a locker or parking to my membership?",
+        answer:
+          "Choose Buy add-ons on your plan in My Memberships, pick the days and the extras, and pay once. You can also buy them at the front desk. Online add-ons can be cancelled through a request until their first day; the venue decides and refunds you directly.",
       },
       {
         question: "Do I need to book my seat every day?",
         answer:
-          "No. Your seat is held for you for the length of the plan. Just show your member pass at reception.",
+          "No. Your seat is held for you for as long as the plan runs. Just show your member pass at reception.",
       },
       {
-        question: "Can I pause my membership?",
+        question: "How does renewal work?",
         answer:
-          "Yes, for up to 5 days at a time, from My Memberships. Your seat stays held, and the paused days are added to the end of your cycle so you keep every day you paid for. Resume early whenever you like.",
+          "You pay the first cycle when you join. After that the plan renews on its own through Razorpay, by card, UPI or bank mandate, until you stop it.",
       },
       {
-        question: "How are meeting room hours and guest passes used?",
+        question: "How do I stop my membership?",
         answer:
-          "They are applied automatically when you book a meeting room by the hour or full-day desks for guests at your venue, before anything is charged. They reset every cycle.",
+          "Choose Stop renewing in My Memberships. Nothing more is charged, and your seat stays yours until the end of the time you have paid for. Plans cannot be paused.",
+      },
+      {
+        question: "What if a renewal payment fails?",
+        answer:
+          "Razorpay retries it over the next few days and your seat stays yours meanwhile. If every retry fails, the plan lapses and the seat is released once your paid time runs out.",
       },
       {
         question: "Which plan lengths are available?",
         answer:
-          "1 week, 1 month, 3 months and 6 months. Longer plans cost less per month: 5% off for 3 months and 10% off for 6 months.",
+          "1 week, 1 month, 3 months and 6 months, where the venue offers them. Each venue sets its own plan prices.",
       },
     ],
   },

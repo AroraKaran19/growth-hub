@@ -1,0 +1,13 @@
+{
+  "permissions": [
+    { "key": "overview", "label": "Overview", "description": "Dashboard stats and alerts" },
+    { "key": "venues", "label": "Venues and maps", "description": "Listings, pricing, availability and seat maps" },
+    { "key": "bookings", "label": "Bookings", "description": "Bookings and cancellation requests" },
+    { "key": "memberships", "label": "Memberships", "description": "Members' plans, renewals and stops" },
+    { "key": "coupons", "label": "Coupons", "description": "Coupon codes and limits" },
+    { "key": "addons", "label": "Add-on types", "description": "The add-ons venues can offer" },
+    { "key": "partners", "label": "Partner accounts", "description": "Partner venue admin logins" },
+    { "key": "payouts", "label": "Payouts", "description": "Venue statements and bank details" },
+    { "key": "reports", "label": "Reports", "description": "Sales, bookings and occupancy reports" }
+  ]
+}

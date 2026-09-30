@@ -4,6 +4,8 @@ import { AppError } from "../middlewares/error.middleware";
 import { Member, type MemberDoc } from "../models";
 import { normalizeEmail } from "../utils/email";
 import type { ParsedPhone } from "../utils/phone";
+import { parseBody } from "../utils/validate";
+import { profileFieldsSchema, type ProfileFieldsInput } from "../validators/member";
 import { memberSummary, type MemberAccount } from "./account.service";
 import { verifyWidgetToken } from "./msg91.service";
 import { claimSend, clearChallenge, hasLiveChallenge } from "./otpChallenge.service";
@@ -81,9 +83,11 @@ export const signInMember = async (
 
 export const updateMemberProfile = async (
   memberId: string,
-  input: { name?: unknown; email?: unknown },
+  input: Record<string, unknown>,
 ): Promise<MemberAccount> => {
-  const changes: { name?: string; email?: string | null } = {};
+  const changes: { name?: string; email?: string | null } & ProfileFieldsInput = {
+    ...parseBody(profileFieldsSchema, input),
+  };
 
   if (input.name !== undefined) {
     const name = String(input.name ?? "").trim().replace(/\s+/g, " ");
@@ -95,8 +99,10 @@ export const updateMemberProfile = async (
 
   if (input.email !== undefined) {
     const raw = String(input.email ?? "").trim();
-    const email = raw ? normalizeEmail(raw) : null;
-    if (raw && !email) throw new AppError("Enter a valid email address.", 400, "EMAIL_INVALID");
+    // Notices go by email only, so a member always keeps one.
+    if (!raw) throw new AppError("Enter your email address.", 400, "EMAIL_REQUIRED");
+    const email = normalizeEmail(raw);
+    if (!email) throw new AppError("Enter a valid email address.", 400, "EMAIL_INVALID");
     changes.email = email;
   }
 

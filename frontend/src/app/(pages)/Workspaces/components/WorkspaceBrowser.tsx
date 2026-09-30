@@ -5,19 +5,24 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { SlidersHorizontal, X } from "lucide-react";
 import VenueCard from "@/app/components/ui/VenueCard";
 import { PRICE_BANDS } from "@/data/searchOptions";
-import { useVenueCatalog } from "@/stores/venues";
+import type { SelectOption } from "@/types/search";
+import type { Venue } from "@/types/venue";
 import FilterSidebar, { type Filters } from "./FilterSidebar";
 
 const parseList = (value: string | null) =>
   value ? value.split(",").filter(Boolean) : [];
 
-const WorkspaceBrowser = () => {
+const WorkspaceBrowser = ({
+  venues,
+  locations,
+}: {
+  venues: Venue[];
+  locations: SelectOption[];
+}) => {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isFilterOpen, setIsFilterOpen] = useState(false);
-  // Listings with admin changes applied; hidden venues never show here.
-  const { venues } = useVenueCatalog();
 
   const filters: Filters = useMemo(
     () => ({
@@ -106,6 +111,7 @@ const WorkspaceBrowser = () => {
   }, [filters, venues]);
 
   const sidebarProps = {
+    locations,
     filters,
     onToggle: handleToggle,
     onPriceChange: handlePriceChange,
@@ -148,6 +154,15 @@ const WorkspaceBrowser = () => {
             {results.map((venue) => (
               <VenueCard key={venue.id} venue={venue} />
             ))}
+          </div>
+        ) : activeCount === 0 ? (
+          <div className="rounded-2xl border border-tertiary/10 px-6 py-16 text-center">
+            <p className="text-base font-semibold text-tertiary">
+              No workspaces are listed yet
+            </p>
+            <p className="mx-auto mt-2 max-w-sm text-sm text-tertiary/60">
+              New venues are on the way. Please check back soon.
+            </p>
           </div>
         ) : (
           <div className="rounded-2xl border border-tertiary/10 px-6 py-16 text-center">

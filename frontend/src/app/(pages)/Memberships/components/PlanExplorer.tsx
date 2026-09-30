@@ -4,17 +4,15 @@ import { useState } from "react";
 import Link from "next/link";
 import { Check, Star } from "lucide-react";
 import {
-  MAX_PAUSE_DAYS,
   MEMBERSHIP_LENGTH_DETAILS,
   MEMBERSHIP_SPACES,
   MEMBERSHIP_SPACE_TYPES,
-  allowancesFor,
   type MembershipSpace,
 } from "@/data/membershipPlans";
-import { VENUES } from "@/data/venues";
 import { MEMBERSHIP_LENGTHS, type MembershipLength } from "@/types/booking";
+import type { MembershipLengthKey } from "@/types/catalogue";
 import { cn } from "@/utils";
-import { rateFor } from "../../Booking/pricing";
+import { LENGTH_KEYS } from "../../Booking/pricing";
 
 const FIND_VENUE_HREF: Record<MembershipSpace, string> = {
   desk: "/workspaces?type=dedicated-desk",
@@ -22,12 +20,12 @@ const FIND_VENUE_HREF: Record<MembershipSpace, string> = {
   office: "/workspaces",
 };
 
-// "From" prices start at the most affordable partner venue.
-const CHEAPEST_VENUE = VENUES.reduce((cheapest, venue) =>
-  venue.dayPassPrice < cheapest.dayPassPrice ? venue : cheapest,
-);
+type FromPrices = Record<
+  MembershipSpace,
+  Partial<Record<MembershipLengthKey, number>>
+>;
 
-const PlanExplorer = () => {
+const PlanExplorer = ({ fromPrices }: { fromPrices: FromPrices }) => {
   const [length, setLength] = useState<MembershipLength>("monthly");
   const details = MEMBERSHIP_LENGTH_DETAILS[length];
 
@@ -57,18 +55,6 @@ const PlanExplorer = () => {
                 )}
               >
                 {option.plan}
-                {option.discount > 0 && (
-                  <span
-                    className={cn(
-                      "rounded-full px-1.5 text-xs font-semibold",
-                      isActive
-                        ? "bg-secondary text-tertiary"
-                        : "bg-green-500/15 text-green-700",
-                    )}
-                  >
-                    -{Math.round(option.discount * 100)}%
-                  </span>
-                )}
               </button>
             );
           })}
@@ -78,16 +64,14 @@ const PlanExplorer = () => {
       <div className="mx-auto mt-10 grid max-w-6xl grid-cols-1 gap-6 md:grid-cols-3">
         {MEMBERSHIP_SPACE_TYPES.map((space) => {
           const plan = MEMBERSHIP_SPACES[space];
-          const allowance = allowancesFor(space, length);
-          const price = rateFor(CHEAPEST_VENUE, length).amount;
+          const price = fromPrices[space][LENGTH_KEYS[length]];
           const isPopular = space === "desk";
 
           const includes = [
             `${plan.workspace} reserved for you at one venue`,
             "Access every day the venue is open",
-            `${allowance.meetingRoomHours} meeting room hours per ${details.unit}`,
-            `${allowance.guestPasses} guest passes per ${details.unit}`,
-            `Pause for up to ${MAX_PAUSE_DAYS} days at a time`,
+            `Renews every ${details.unit} until you stop it`,
+            "Pay by card, UPI or bank mandate",
             "Member pass for daily check-in",
           ];
 
@@ -115,16 +99,23 @@ const PlanExplorer = () => {
                 {plan.summary}
               </p>
 
-              <p className="mt-6 flex flex-wrap items-baseline gap-x-1.5 text-sm text-tertiary/65">
-                From
-                <span className="text-3xl font-bold text-tertiary">
-                  ₹{price.toLocaleString("en-IN")}
-                </span>
-                / {details.unit}
-              </p>
-              <p className="mt-1 h-4 text-xs font-medium text-green-700">
-                {details.discount > 0 &&
-                  `Includes ${Math.round(details.discount * 100)}% off the monthly rate`}
+              {price ? (
+                <p className="mt-6 flex flex-wrap items-baseline gap-x-1.5 text-sm text-tertiary/65">
+                  From
+                  <span className="text-3xl font-bold text-tertiary">
+                    ₹{price.toLocaleString("en-IN")}
+                  </span>
+                  / {details.unit}
+                </p>
+              ) : (
+                <p className="mt-6 flex items-baseline text-sm text-tertiary/65">
+                  <span className="text-3xl font-bold text-tertiary">
+                    Ask the venue
+                  </span>
+                </p>
+              )}
+              <p className="mt-1 h-4 text-xs text-tertiary/55">
+                {!price && `No ${details.plan.toLowerCase()} price listed yet`}
               </p>
 
               <ul className="mt-5 flex grow flex-col gap-2.5">

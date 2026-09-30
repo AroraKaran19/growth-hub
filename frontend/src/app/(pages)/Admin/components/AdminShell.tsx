@@ -3,37 +3,28 @@
 import { useEffect, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import {
-  Armchair,
-  Building2,
-  CalendarCheck,
-  ExternalLink,
-  IndianRupee,
-  LayoutDashboard,
-  LogOut,
-  TicketPercent,
-} from "lucide-react";
+import { ExternalLink, LogOut, ShieldQuestion } from "lucide-react";
 import Logo from "@/app/components/ui/Logo";
+import { isPathAllowed, visibleSections } from "@/config/adminPermissions";
 import { useAuthBootstrap } from "@/hooks/useAuthBootstrap";
 import { useAdminSession } from "@/stores/admin";
 import { cn } from "@/utils";
-
-const ADMIN_LINKS = [
-  { label: "Overview", href: "/admin", icon: LayoutDashboard },
-  { label: "Venues", href: "/admin/venues", icon: Building2 },
-  { label: "Pricing", href: "/admin/pricing", icon: IndianRupee },
-  { label: "Availability", href: "/admin/availability", icon: Armchair },
-  { label: "Bookings", href: "/admin/bookings", icon: CalendarCheck },
-  { label: "Coupons", href: "/admin/coupons", icon: TicketPercent },
-];
 
 /** Signed-in frame for every admin page: sidebar, top bar and guard. */
 const AdminShell = ({ children }: { children: ReactNode }) => {
   const pathname = usePathname();
   const router = useRouter();
-  const { session, isReady, signOut } = useAdminSession();
+  const { session, account, isReady, signOut } = useAdminSession();
 
   useAuthBootstrap("admin");
+
+  const links = account ? visibleSections(account) : [];
+  const allowed = account ? isPathAllowed(account, pathname) : false;
+  const fallback = links[0]?.href;
+
+  useEffect(() => {
+    if (account && !allowed && fallback) router.replace(fallback);
+  }, [account, allowed, fallback, router]);
 
   useEffect(() => {
     if (isReady && !session) {
@@ -71,7 +62,7 @@ const AdminShell = ({ children }: { children: ReactNode }) => {
 
         <nav aria-label="Admin" className="mt-8">
           <ul className="flex flex-col gap-1">
-            {ADMIN_LINKS.map((link) => {
+            {links.map((link) => {
               const Icon = link.icon;
               const active = isActive(link.href);
               return (
@@ -145,7 +136,7 @@ const AdminShell = ({ children }: { children: ReactNode }) => {
             aria-label="Admin sections"
             className="flex gap-1 overflow-x-auto border-t border-tertiary/8 px-4 py-2 sm:px-6 lg:hidden"
           >
-            {ADMIN_LINKS.map((link) => {
+            {links.map((link) => {
               const Icon = link.icon;
               const active = isActive(link.href);
               return (
@@ -168,7 +159,26 @@ const AdminShell = ({ children }: { children: ReactNode }) => {
           </nav>
         </header>
 
-        <div className="px-4 py-6 sm:px-6 lg:px-8 lg:py-8">{children}</div>
+        <div className="px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+          {allowed ? (
+            children
+          ) : fallback ? (
+            <p className="text-sm text-tertiary/60" aria-live="polite">
+              Taking you to a section you can open...
+            </p>
+          ) : (
+            <div className="mx-auto mt-10 max-w-md rounded-2xl border border-tertiary/8 bg-secondary p-8 text-center shadow-lg shadow-tertiary/5">
+              <span className="mx-auto flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+                <ShieldQuestion aria-hidden="true" className="size-6" />
+              </span>
+              <h1 className="mt-4 text-lg font-bold text-tertiary">No sections yet</h1>
+              <p className="mt-1.5 text-sm text-tertiary/60">
+                Your account is ready, but no admin sections have been given to you yet. Ask a
+                super admin for access.
+              </p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

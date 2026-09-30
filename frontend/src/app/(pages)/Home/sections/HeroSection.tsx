@@ -1,8 +1,9 @@
 import Image from "next/image";
 import { Gift } from "lucide-react";
+import type { SelectOption } from "@/types/search";
 import HeroSearchBar from "../components/HeroSearchBar";
 
-const HeroSection = () => {
+const HeroSection = ({ locations }: { locations: SelectOption[] }) => {
   return (
     <section className="relative flex min-h-screen items-center justify-center">
       <Image
@@ -36,7 +37,7 @@ const HeroSection = () => {
           </p>
         </div>
 
-        <HeroSearchBar className="mt-10 lg:mt-14" />
+        <HeroSearchBar locations={locations} className="mt-10 lg:mt-14" />
       </div>
     </section>
   );

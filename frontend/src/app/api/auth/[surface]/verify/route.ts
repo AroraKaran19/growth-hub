@@ -11,8 +11,8 @@ import { isAuthSurface, type AuthSurface } from "@/types/auth";
 
 const VERIFY_PATHS: Record<AuthSurface, string> = {
   member: "/auth/member/otp/verify",
-  partner: "/auth/partner/email/verify",
-  admin: "/auth/admin/email/verify",
+  partner: "/auth/partner/password/sign-in",
+  admin: "/auth/admin/password/sign-in",
 };
 
 export async function POST(

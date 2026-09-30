@@ -79,5 +79,35 @@ export const reserveAttempt = async (purpose: OtpPurpose, identifier: string, ma
     : new AppError("That code is incorrect or has expired.", 401, "OTP_INVALID");
 };
 
+/** Counts a password attempt before it is checked; refuses once the window's attempts are spent. */
+export const reserveSignIn = async (
+  purpose: OtpPurpose,
+  identifier: string,
+  limits: { maxAttempts: number; windowMs: number },
+) => {
+  const now = new Date();
+  await OtpChallenge.deleteOne({ purpose, identifier, expiresAt: { $lte: now } });
+  try {
+    await OtpChallenge.findOneAndUpdate(
+      { purpose, identifier, attempts: { $lt: limits.maxAttempts } },
+      {
+        $inc: { attempts: 1 },
+        $setOnInsert: { lastSentAt: now, expiresAt: new Date(now.getTime() + limits.windowMs) },
+      },
+      { upsert: true },
+    );
+  } catch (error) {
+    if (!isDuplicateKey(error)) throw error;
+    const current = await OtpChallenge.findOne({ purpose, identifier }).lean<OtpChallengeDoc>();
+    const retryAfterMinutes = Math.max(1, Math.ceil(((current?.expiresAt.getTime() ?? now.getTime()) - now.getTime()) / 60_000));
+    throw new AppError(
+      `Too many attempts. Try again in ${retryAfterMinutes} minutes.`,
+      429,
+      "SIGN_IN_LOCKED",
+      { retryAfterMinutes },
+    );
+  }
+};
+
 export const consumeChallenge = async (challenge: OtpChallengeDoc) =>
   Boolean(await OtpChallenge.findOneAndDelete({ _id: challenge._id, codeHash: challenge.codeHash }));

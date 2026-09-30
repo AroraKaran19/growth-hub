@@ -53,14 +53,6 @@ export const durationOf = (time: string) => {
   return end - start;
 };
 
-/** A new start only works if the booking's length still ends the same day. */
-export const fitsBeforeMidnight = (time: string, startLabel: string) => {
-  const duration = durationOf(time);
-  const start = toMinutes(startLabel);
-  if (duration == null || start == null) return true;
-  return start + duration <= 24 * 60;
-};
-
 /** Moves a booking to a new first day and start time, keeping its length. */
 export const rescheduleTo = (
   booking: Pick<MemberBooking, "startDate" | "endDate" | "time">,

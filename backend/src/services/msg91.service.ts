@@ -67,3 +67,5 @@ export const sendTemplateEmail = async (
     throw new Error(`MSG91 email send failed with HTTP ${response.status}`);
   }
 };
+
+

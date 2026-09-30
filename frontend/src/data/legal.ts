@@ -23,52 +23,53 @@ export const LEGAL_DOCUMENTS: Record<LegalDocumentId, LegalDocument> = {
     id: "cancellation-policy",
     title: "Cancellation & Refund Policy",
     summary:
-      "When you can cancel or reschedule, what comes back to you, and how long it takes.",
-    updated: "2026-09-01",
+      "How to ask for a cancellation, who decides the refund, and how rescheduling works.",
+    updated: "2026-10-01",
     sections: [
       {
         id: "passes",
         heading: "Hourly, half-day and full-day passes",
         paragraphs: [
-          "You can cancel a pass from its page in My Bookings until the booking starts.",
+          "To cancel a pass, open it in My Bookings and choose Ask the venue to cancel, with a reason. You can ask until the booking ends.",
         ],
         bullets: [
-          "At least 24 hours before the start: a full refund.",
-          "Less than 24 hours before the start: a 50% refund.",
-          "After the booking has started: no refund, and the booking can no longer be cancelled.",
+          "The venue reviews every request and decides whether to cancel and how much to refund.",
+          "Your booking and seat stay exactly as they are until the venue decides.",
+          "You can withdraw a request while it is waiting, and ask again after a decline.",
         ],
       },
       {
         id: "rescheduling",
         heading: "Rescheduling",
         paragraphs: [
-          "Rescheduling is free and can be done any time before a booking starts. The new date keeps your space type, seats, price and check-in QR code. Moving to a time that runs past midnight is not possible.",
+          "Rescheduling is free and can be done any time before a booking starts. The new date keeps your space type, seats, price and check-in QR code. Passes can be booked and moved up to 60 days ahead. Moving to a time that runs past midnight is not possible.",
         ],
       },
       {
         id: "memberships",
         heading: "Memberships",
         paragraphs: [
-          "Memberships renew automatically at the end of each cycle. You can turn off auto-renew at any time from My Memberships, and your plan stays active until the end of the cycle you have paid for.",
-          "Cycles that have already started are not refunded. If a membership has not started yet, contact us and we will cancel it with a full refund.",
+          "Memberships renew automatically at the end of each cycle. You can stop renewing at any time from My Memberships, and your plan stays active until the end of the cycle you have paid for.",
+          "To end a plan early, ask the venue to cancel it from My Memberships. If the venue agrees, the plan ends that day, renewals stop, and the venue decides the refund.",
         ],
         bullets: [
-          "Pause a membership for up to 5 days at a time. Your seat stays held and the paused days are added to the end of your cycle.",
-          "Resume early whenever you like. Unused pause days are taken back off the cycle.",
+          "Memberships cannot be paused.",
+          "Add-ons bought online, such as lockers or parking, can be cancelled through a request until their first day. Add-ons paid at the front desk are handled by the venue.",
+          "If a renewal payment fails, your seat is kept while Razorpay retries. If every retry fails, the plan lapses at the end of the time you have paid for.",
         ],
       },
       {
         id: "venue-changes",
         heading: "If a venue cancels",
         paragraphs: [
-          "If a partner venue cannot honour your booking, for example because of an unplanned closure, we refund you in full or move you to a comparable space nearby, whichever you prefer.",
+          "If a partner venue cannot honour your booking, for example because of an unplanned closure, the venue cancels it and refunds you. Our support team can help you find a comparable space nearby.",
         ],
       },
       {
         id: "refund-timing",
         heading: "How refunds are paid",
         paragraphs: [
-          "Refunds go back to the payment method you used and usually arrive within 5 to 7 working days. Coupons used on a cancelled booking are not reissued.",
+          "Approved refunds are paid by the venue directly to you, in the amount it decides. The amount shows on your booking or membership once the venue approves. Coupons used on a cancelled booking are not reissued.",
         ],
       },
       {
@@ -110,14 +111,14 @@ export const LEGAL_DOCUMENTS: Record<LegalDocumentId, LegalDocument> = {
         bullets: [
           "Use your space only during the booked time.",
           "Desks are booked per person; rooms are booked for the whole party.",
-          "Coupons can be used once and cannot be exchanged for cash.",
+          "Each coupon can be used as many times as it states, usually once, and cannot be exchanged for cash. On a membership a coupon applies to the first payment only.",
         ],
       },
       {
         id: "memberships",
         heading: "Memberships",
         paragraphs: [
-          "A membership reserves a specific desk, cabin or office at one venue for the plan you choose and renews automatically until you turn renewal off. Included meeting room hours and guest passes reset each cycle and do not carry over.",
+          "A membership reserves a specific desk, cabin or office at one venue for the plan you choose and renews automatically until you stop renewing it.",
         ],
       },
       {

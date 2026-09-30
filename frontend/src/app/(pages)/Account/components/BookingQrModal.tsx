@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { X } from "lucide-react";
 import DirectionsLink from "@/app/components/ui/DirectionsLink";
-import { findVenue } from "@/data/venues";
+import { useVenue } from "@/hooks/useVenues";
 import type { MemberBooking } from "@/types/memberBooking";
 
 type BookingQrModalProps = {
@@ -16,7 +16,7 @@ const ROW_LABEL = "text-xs text-tertiary/50";
 const ROW_VALUE = "mt-0.5 text-sm font-medium text-tertiary";
 
 const BookingQrModal = ({ booking, onClose }: BookingQrModalProps) => {
-  const venue = findVenue(booking.venueSlug);
+  const { venue } = useVenue(booking.venueSlug);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -56,17 +56,20 @@ const BookingQrModal = ({ booking, onClose }: BookingQrModalProps) => {
           </p>
         </div>
 
-        <div className="mt-5 flex justify-center rounded-xl bg-tertiary/4 p-5">
-          <QRCodeSVG
-            value={`growthhub:booking:${booking.bookingId}`}
-            size={176}
-            level="M"
-          />
-        </div>
-
-        <p className="mt-3 text-center text-sm text-tertiary/60">
-          Scan this at reception to check in
-        </p>
+        {booking.qrCode ? (
+          <>
+            <div className="mt-5 flex justify-center rounded-xl bg-tertiary/4 p-5">
+              <QRCodeSVG value={booking.qrCode} size={176} level="M" />
+            </div>
+            <p className="mt-3 text-center text-sm text-tertiary/60">
+              Scan this at reception to check in
+            </p>
+          </>
+        ) : (
+          <p className="mt-5 rounded-xl bg-tertiary/4 p-5 text-center text-sm text-tertiary/65">
+            Show your booking ID at reception to check in.
+          </p>
+        )}
 
         <dl className="mt-5 grid grid-cols-2 gap-4 border-t border-tertiary/10 pt-5">
           <div>
@@ -91,7 +94,7 @@ const BookingQrModal = ({ booking, onClose }: BookingQrModalProps) => {
           </div>
         </dl>
 
-        {venue && (
+        {venue?.googleMapsUrl && (
           <DirectionsLink url={venue.googleMapsUrl} className="mt-5 w-full" />
         )}
       </div>

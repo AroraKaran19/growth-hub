@@ -7,6 +7,8 @@ export const metadata: Metadata = {
     "Growth Hub is a coworking marketplace connecting members with partner venues across Bangalore.",
 };
 
+export const revalidate = 300;
+
 export default function About() {
   return <AboutPage />;
 }

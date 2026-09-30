@@ -1,18 +1,17 @@
 "use client";
 
-import { DEMO_FLOOR_PLAN } from "@/data/floorPlan";
 import { SEAT_TYPE_LABELS, type Seat, type SeatType } from "@/types/seat";
 import { cn } from "@/utils";
 import { isRoom, roomFits } from "../seatRules";
 
 type SeatMapProps = {
+  image: string;
+  seats: Seat[];
   selectedSeats: string[];
   requiredSeats: number;
   spaceType: SeatType;
   /** Seats the member's own plans already hold at this venue. */
   yourSeatIds?: string[];
-  /** Seats with admin availability applied; defaults to the demo plan. */
-  seats?: Seat[];
   onToggleSeat: (seat: Seat) => void;
 };
 
@@ -23,15 +22,14 @@ const LEGEND = [
 ];
 
 const SeatMap = ({
+  image,
+  seats,
   selectedSeats,
   requiredSeats,
   spaceType,
   yourSeatIds = [],
-  seats = DEMO_FLOOR_PLAN.seats,
   onToggleSeat,
 }: SeatMapProps) => {
-  const { image } = DEMO_FLOOR_PLAN;
-
   const isChosenType = (seat: Seat) => seat.type === spaceType;
   const isYours = (seat: Seat) => yourSeatIds.includes(seat.id);
 

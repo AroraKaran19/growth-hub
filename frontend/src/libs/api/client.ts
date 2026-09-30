@@ -33,6 +33,13 @@ export const createApiClient = (surface: AuthSurface): AxiosInstance => {
         store.getState().reset();
         return Promise.reject(error);
       }
+      if (surface === "admin" && code === "PERMISSION_DENIED" && !config?.url?.endsWith("/auth/me")) {
+        void client
+          .get("/auth/me")
+          .then(({ data }) => store.getState().setAccount(data.data.account))
+          .catch(() => undefined);
+        return Promise.reject(error);
+      }
       if (error.response?.status !== 401 || !config || config._retried || !code || !RETRYABLE.includes(code)) {
         return Promise.reject(error);
       }

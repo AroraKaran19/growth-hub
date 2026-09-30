@@ -20,6 +20,13 @@ const TimeSlotGrid = ({ slots, value, onChange }: TimeSlotGridProps) => {
     <div className="rounded-2xl border border-tertiary/10 bg-secondary p-5 lg:p-6">
       <h2 className="text-base font-bold text-tertiary">Select Time</h2>
 
+      {slots.length === 0 && (
+        <p className="mt-4 text-sm text-tertiary/60">
+          No start time fits inside the venue&apos;s opening hours. Try a
+          shorter booking.
+        </p>
+      )}
+
       <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {slots.map((slot) => {
           const isSelected = value === slot.id;

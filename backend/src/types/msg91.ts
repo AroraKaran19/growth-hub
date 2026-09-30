@@ -9,3 +9,4 @@ export type TemplateEmailSettings = {
   fromName: string;
   templateId: string;
 };
+

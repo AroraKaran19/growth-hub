@@ -11,6 +11,7 @@ import {
   Wifi,
   type LucideIcon,
 } from "lucide-react";
+import catalogue from "@/config/catalogue-ids.json";
 
 export type Amenity = {
   id: string;
@@ -91,3 +92,7 @@ export const AMENITIES: Amenity[] = [
     icon: Network,
   },
 ];
+
+if (AMENITIES.map((amenity) => amenity.id).join() !== catalogue.amenities.join()) {
+  throw new Error("AMENITIES must list the ids in config/catalogue-ids.json, in order");
+}

@@ -10,27 +10,42 @@ import {
   Crown,
   MapPin,
 } from "lucide-react";
-import { useMemberMemberships, venueMembership } from "@/stores/memberships";
-import { useVenueCatalog } from "@/stores/venues";
+import { MEMBERSHIP_SPACES } from "@/data/membershipPlans";
+import { useVenueMembership } from "@/hooks/useMemberships";
 import type { Venue } from "@/types/venue";
 import { cn } from "@/utils";
 import { formatDay } from "@/utils/date";
-import { rateFor } from "../../Booking/pricing";
+import { lowestMonthlyPrice } from "@/utils/venues";
 
 const INFO_ROW =
   "flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-tertiary/3";
 const INFO_ICON =
   "flex size-8 shrink-0 items-center justify-center rounded-lg bg-tertiary/5 text-tertiary/70";
 
-const BookingRail = ({ venue: listing }: { venue: Venue }) => {
+const BookingRail = ({ venue }: { venue: Venue }) => {
   const [isOfferOpen, setIsOfferOpen] = useState(false);
   const [areHoursOpen, setAreHoursOpen] = useState(false);
-  const { memberships, isHydrated } = useMemberMemberships();
-  const venue = useVenueCatalog().venueFor(listing);
-  const membership = isHydrated
-    ? venueMembership(memberships, venue.slug)
-    : null;
-  const isBookable = !isHydrated || venue.published;
+  const membership = useVenueMembership(venue.slug);
+  const isBookable = venue.published;
+  const monthlyFrom = lowestMonthlyPrice(venue);
+
+  const location = (
+    <>
+      <span className={INFO_ICON}>
+        <MapPin aria-hidden="true" className="size-4" />
+      </span>
+      <span className="min-w-0 grow">
+        <span className="block truncate text-sm font-medium text-tertiary">
+          {venue.locality}, {venue.city}
+        </span>
+        {venue.distanceKm > 0 && (
+          <span className="block text-xs text-tertiary/55">
+            {venue.distanceKm}km Away
+          </span>
+        )}
+      </span>
+    </>
+  );
 
   return (
     <div className="flex flex-col gap-3">
@@ -105,16 +120,14 @@ const BookingRail = ({ venue: listing }: { venue: Venue }) => {
           <div className="border-t border-tertiary/8 bg-primary/5 px-4 py-3">
             <p className="flex items-center gap-2 text-sm font-medium text-tertiary">
               <Crown aria-hidden="true" className="size-4 text-primary" />
-              {membership.status === "paused"
-                ? "Your membership here is paused"
+              {membership.status === "past-due"
+                ? "Your renewal payment failed"
                 : "You're a member here"}
             </p>
             <p className="mt-0.5 text-xs text-tertiary/60">
-              {membership.workspace} {membership.seats.join(", ")}{" "}
-              {membership.status === "paused" && membership.resumesOn
-                ? `is held until ${formatDay(membership.resumesOn)}`
-                : `is reserved for you until ${formatDay(membership.cycleEnd)}`}
-              .
+              {MEMBERSHIP_SPACES[membership.spaceType].workspace}{" "}
+              {membership.seats.map((seat) => seat.label).join(", ")} is reserved for you
+              {membership.paidThrough ? ` until ${formatDay(membership.paidThrough)}` : ""}.
             </p>
             <Link
               href="/account/memberships"
@@ -124,7 +137,8 @@ const BookingRail = ({ venue: listing }: { venue: Venue }) => {
             </Link>
           </div>
         ) : (
-          isBookable && (
+          isBookable &&
+          monthlyFrom !== null && (
             <Link
               href={`/workspaces/${venue.slug}/book`}
               className="flex items-center justify-between gap-3 border-t border-tertiary/8 px-4 py-3 transition-colors hover:bg-tertiary/3"
@@ -135,7 +149,7 @@ const BookingRail = ({ venue: listing }: { venue: Venue }) => {
                 </span>
                 <span className="text-xs text-tertiary/55">
                   Reserve your seat from ₹
-                  {rateFor(venue, "monthly").amount.toLocaleString("en-IN")}
+                  {monthlyFrom.toLocaleString("en-IN")}
                   /month with a membership
                 </span>
               </span>
@@ -149,28 +163,22 @@ const BookingRail = ({ venue: listing }: { venue: Venue }) => {
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-tertiary/10 bg-secondary">
-        <a
-          href={venue.googleMapsUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={INFO_ROW}
-        >
-          <span className={INFO_ICON}>
-            <MapPin aria-hidden="true" className="size-4" />
-          </span>
-          <span className="min-w-0 grow">
-            <span className="block truncate text-sm font-medium text-tertiary">
-              {venue.locality}, {venue.city}
-            </span>
-            <span className="block text-xs text-tertiary/55">
-              {venue.distanceKm}km Away
-            </span>
-          </span>
-          <ChevronRight
-            aria-hidden="true"
-            className="size-4 shrink-0 text-tertiary/40"
-          />
-        </a>
+        {venue.googleMapsUrl ? (
+          <a
+            href={venue.googleMapsUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={INFO_ROW}
+          >
+            {location}
+            <ChevronRight
+              aria-hidden="true"
+              className="size-4 shrink-0 text-tertiary/40"
+            />
+          </a>
+        ) : (
+          <div className={INFO_ROW}>{location}</div>
+        )}
 
         <div className="mx-4 border-t border-tertiary/8" />
 
@@ -178,6 +186,7 @@ const BookingRail = ({ venue: listing }: { venue: Venue }) => {
           type="button"
           onClick={() => setAreHoursOpen((open) => !open)}
           aria-expanded={areHoursOpen}
+          disabled={!venue.hoursNote}
           className={INFO_ROW}
         >
           <span className={INFO_ICON}>
@@ -191,16 +200,18 @@ const BookingRail = ({ venue: listing }: { venue: Venue }) => {
               {venue.openHours}
             </span>
           </span>
-          <ChevronRight
-            aria-hidden="true"
-            className={cn(
-              "size-4 shrink-0 text-tertiary/40 transition-transform duration-200",
-              areHoursOpen && "rotate-90",
-            )}
-          />
+          {venue.hoursNote && (
+            <ChevronRight
+              aria-hidden="true"
+              className={cn(
+                "size-4 shrink-0 text-tertiary/40 transition-transform duration-200",
+                areHoursOpen && "rotate-90",
+              )}
+            />
+          )}
         </button>
 
-        {areHoursOpen && (
+        {areHoursOpen && venue.hoursNote && (
           <p className="border-t border-tertiary/8 px-4 py-3 text-xs leading-relaxed text-tertiary/65">
             {venue.hoursNote}
           </p>

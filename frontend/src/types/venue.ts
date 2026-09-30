@@ -1,32 +1,26 @@
-import type { WorkspaceType } from "./search";
+import type { AddonUnit, ApiVenue, VenueAddonOffer } from "./catalogue";
+import type { Seat } from "./seat";
 
-export type Venue = {
-  id: string;
-  slug: string;
-  name: string;
-  locality: string;
-  localityId: string;
-  city: string;
-  image: string;
-  gallery: string[];
-  rating: number;
-  seatsAvailable: number;
-  startingPrice: number;
-  priceUnit: "hr" | "day" | "month";
-  description: string;
-  longDescription: string;
-  dayPassPrice: number;
-  distanceKm: number;
-  openDaysLabel: string;
-  openHours: string;
-  hoursNote: string;
-  /** The venue's Google Maps link, opened for directions after booking. */
-  googleMapsUrl: string;
-  rules: string[];
-  offer?: {
-    label: string;
-    details: string;
-  };
-  workspaceTypes: WorkspaceType[];
-  amenities: string[];
+/** A venue as the catalogue API returns it. */
+export type Venue = ApiVenue;
+
+export type VenueSeatMap = { id: string; image: string; seats: Seat[] };
+
+/** One venue with its seat plan and the add-ons it offers. */
+export type VenueDetail = Venue & {
+  seatMap: VenueSeatMap | null;
+  addons: VenueAddonOffer[];
 };
+
+/** An add-on type as a partner sees it: their price, or none yet. */
+export type AddonChoice = {
+  addonTypeId: string;
+  key: string;
+  name: string;
+  description: string;
+  unit: AddonUnit;
+  price: number | null;
+  enabled: boolean;
+};
+
+export type PartnerVenue = VenueDetail & { addonChoices: AddonChoice[] };

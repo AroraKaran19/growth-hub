@@ -1,7 +1,9 @@
 import type { Venue } from "@/types/venue";
 import OtherSpacesCarousel from "../components/OtherSpacesCarousel";
 
-const OtherSpacesSection = ({ venue }: { venue: Venue }) => {
+const OtherSpacesSection = ({ others }: { others: Venue[] }) => {
+  if (others.length === 0) return null;
+
   return (
     <section className="bg-surface pb-20">
       <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-10 2xl:max-w-[1600px]">
@@ -10,7 +12,7 @@ const OtherSpacesSection = ({ venue }: { venue: Venue }) => {
         </h2>
 
         <div className="mt-5">
-          <OtherSpacesCarousel venue={venue} />
+          <OtherSpacesCarousel others={others} />
         </div>
       </div>
     </section>

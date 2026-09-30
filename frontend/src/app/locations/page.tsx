@@ -7,6 +7,8 @@ export const metadata: Metadata = {
     "Find Growth Hub partner workspaces in Koramangala, HSR Layout, Indiranagar and more neighbourhoods across Bangalore.",
 };
 
+export const revalidate = 300;
+
 export default function Locations() {
   return <LocationsPage />;
 }

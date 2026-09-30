@@ -1,5 +1,7 @@
 import type { SelectOption } from "@/types/search";
 import type { BookingStepId, DayOption, TimeSlot } from "@/types/booking";
+import { hasPassed } from "@/utils/date";
+import { toMinutes24, toTimeLabel } from "@/utils/time";
 
 export const BOOKING_STEPS: { id: BookingStepId; label: string }[] = [
   { id: "space", label: "Choose Space" },
@@ -34,18 +36,6 @@ export const PREFERENCE_OPTIONS: SelectOption[] = [
   { label: "Near cafeteria", value: "cafeteria" },
 ];
 
-export const ADDON_OPTIONS: SelectOption[] = [
-  { label: "Locker", value: "locker" },
-  { label: "Meeting room credits", value: "meeting-credits" },
-  { label: "Printing credits", value: "printing-credits" },
-];
-
-export const PARKING_OPTIONS: SelectOption[] = [
-  { label: "Not required", value: "none" },
-  { label: "Two wheeler", value: "two-wheeler" },
-  { label: "Four wheeler", value: "four-wheeler" },
-];
-
 const MONTHS = [
   "JAN",
   "FEB",
@@ -62,8 +52,25 @@ const MONTHS = [
 ];
 const WEEKDAYS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 
+/** Matches the server: passes sell up to this many days ahead. */
+export const PASS_HORIZON_DAYS = 60;
+
+const isoOf = (date: Date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+
+export const lastPassDay = (today = new Date()) => {
+  const last = new Date(today.getFullYear(), today.getMonth(), today.getDate() + PASS_HORIZON_DAYS);
+  return isoOf(last);
+};
+
+export const withinPassHorizon = (iso: string, today = new Date()) => !iso || iso <= lastPassDay(today);
+
+/** True when the venue opens on that calendar day. No open days given means always. */
+export const isOpenDay = (openDays: number[] | undefined, iso: string) =>
+  !openDays?.length || openDays.includes(new Date(`${iso}T00:00:00`).getDay());
+
 /** Built on the client only, so a prerendered page never ships stale dates. */
-export const buildDays = (count = 30): DayOption[] => {
+export const buildDays = (count = 30, openDays?: number[]): DayOption[] => {
   const today = new Date();
 
   return Array.from({ length: count }, (_, offset) => {
@@ -77,38 +84,39 @@ export const buildDays = (count = 30): DayOption[] => {
       day: String(date.getDate()),
       weekday: WEEKDAYS[date.getDay()],
       monthLabel: isFirstOfRun ? MONTHS[date.getMonth()] : undefined,
+      closed: Boolean(openDays?.length) && !openDays?.includes(date.getDay()),
     };
   });
 };
 
 /** Extends the strip far enough to include a date picked from the calendar. */
-export const buildDaysThrough = (targetId: string): DayOption[] => {
+export const buildDaysThrough = (targetId: string, openDays?: number[]): DayOption[] => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
   const target = new Date(`${targetId}T00:00:00`);
-  if (Number.isNaN(target.getTime())) return buildDays();
+  if (Number.isNaN(target.getTime())) return buildDays(30, openDays);
 
   const dayMs = 24 * 60 * 60 * 1000;
   const span = Math.ceil((target.getTime() - today.getTime()) / dayMs) + 1;
 
-  return buildDays(Math.max(span, 30));
+  return buildDays(Math.max(span, 30), openDays);
 };
 
-// MOCK availability until the bookings API exists.
-const UNAVAILABLE_SLOTS = new Set([3, 8, 12]);
+const SLOT_STEP_MINUTES = 30;
 
-export const buildTimeSlots = (): TimeSlot[] =>
-  Array.from({ length: 15 }, (_, index) => {
-    const minutesFromNoon = index * 30;
-    const hour24 = 12 + Math.floor(minutesFromNoon / 60);
-    const minute = minutesFromNoon % 60;
-    const hour12 = hour24 > 12 ? hour24 - 12 : hour24;
-    const label = `${String(hour12).padStart(2, "0")}:${String(minute).padStart(2, "0")} PM`;
+export type OpeningHours = { opensAt: string; closesAt: string };
 
-    return {
-      id: label,
-      label,
-      available: !UNAVAILABLE_SLOTS.has(index),
-    };
-  });
+/** Half-hour starts that finish by closing time; today's past starts are closed. */
+export const buildTimeSlots = (date: string, hours: OpeningHours, durationMinutes: number): TimeSlot[] => {
+  const opens = toMinutes24(hours.opensAt);
+  const closes = toMinutes24(hours.closesAt);
+  if (opens === null || closes === null) return [];
+
+  const slots: TimeSlot[] = [];
+  for (let start = opens; start + durationMinutes <= closes; start += SLOT_STEP_MINUTES) {
+    const label = toTimeLabel(start);
+    slots.push({ id: label, label, available: !(date && hasPassed(date, label)) });
+  }
+  return slots;
+};

@@ -7,6 +7,7 @@ import { Autoplay } from "swiper/modules";
 import "swiper/css";
 import { CATEGORIES } from "@/data/categories";
 import type { Venue } from "@/types/venue";
+import { venuePhotos } from "@/utils/venues";
 
 // Loop mode needs at least ~2x slidesPerView slides or Swiper disables it, and
 // a venue offers at most four types. Repeat the list until there are enough.
@@ -20,6 +21,7 @@ const VenueCategoryCarousel = ({ venue }: { venue: Venue }) => {
 
   if (categories.length === 0) return null;
 
+  const [cover] = venuePhotos(venue);
   const slides = Array.from(
     { length: Math.ceil(MIN_SLIDES / categories.length) },
     () => categories,
@@ -42,15 +44,17 @@ const VenueCategoryCarousel = ({ venue }: { venue: Venue }) => {
       {slides.map((category, index) => (
         <SwiperSlide key={`${category.slug}-${index}`}>
           <article className="flex h-full flex-col overflow-hidden rounded-xl border border-tertiary/10 bg-secondary">
-            <div className="relative aspect-16/10 w-full">
-              <Image
-                src={venue.gallery[0]}
-                alt={`${category.name} at ${venue.name}`}
-                fill
-                sizes="(min-width: 1024px) 30vw, (min-width: 640px) 45vw, 85vw"
-                className="object-cover"
-              />
-            </div>
+            {cover && (
+              <div className="relative aspect-16/10 w-full">
+                <Image
+                  src={cover}
+                  alt={`${category.name} at ${venue.name}`}
+                  fill
+                  sizes="(min-width: 1024px) 30vw, (min-width: 640px) 45vw, 85vw"
+                  className="object-cover"
+                />
+              </div>
+            )}
 
             <div className="flex grow flex-col px-5 py-4">
               <h3 className="text-base font-bold text-tertiary">

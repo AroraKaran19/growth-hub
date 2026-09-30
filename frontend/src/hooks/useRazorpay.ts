@@ -12,23 +12,38 @@ export type RazorpaySuccess = {
   razorpay_signature: string;
 };
 
+/** What Checkout returns for a subscription's first payment. */
+export type RazorpaySubscriptionSuccess = {
+  razorpay_payment_id: string;
+  razorpay_subscription_id: string;
+  razorpay_signature: string;
+};
+
 export type RazorpayFailure = {
   error?: { code?: string; description?: string; reason?: string };
 };
 
-export type RazorpayOptions = {
+type CheckoutCommon = {
   key: string;
-  amount: number;
-  currency: string;
-  order_id: string;
   name: string;
   description?: string;
   prefill?: { name?: string; contact?: string; email?: string };
   notes?: Record<string, string>;
   theme?: { color?: string };
-  handler: (response: RazorpaySuccess) => void;
+  /** Seconds before Checkout closes itself. */
+  timeout?: number;
   modal?: { ondismiss?: () => void };
 };
+
+/** One payment for an order, or the first payment of a subscription. */
+export type RazorpayOptions = CheckoutCommon &
+  (
+    | { amount: number; currency: string; order_id: string; handler: (response: RazorpaySuccess) => void }
+    | { subscription_id: string; handler: (response: RazorpaySubscriptionSuccess) => void }
+  );
+
+// Omit on each member, so the order and subscription shapes stay apart.
+type WithoutKey<T> = T extends unknown ? Omit<T, "key"> : never;
 
 type RazorpayInstance = {
   open: () => void;
@@ -84,7 +99,7 @@ export const useRazorpay = () => {
     () => "idle" as RazorpayStatus,
   );
 
-  const open = (options: Omit<RazorpayOptions, "key">, onFailed?: (failure: RazorpayFailure) => void) => {
+  const open = (options: WithoutKey<RazorpayOptions>, onFailed?: (failure: RazorpayFailure) => void) => {
     const key = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
     if (!window.Razorpay || !key) throw new Error("Razorpay checkout is not available.");
 

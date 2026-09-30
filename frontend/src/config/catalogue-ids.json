@@ -1,0 +1,16 @@
+{
+  "workspaceTypes": ["hot-desk", "dedicated-desk", "private-cabin", "meeting-room"],
+  "amenities": [
+    "wifi",
+    "cafe",
+    "meeting-rooms",
+    "printing",
+    "parking",
+    "air-conditioning",
+    "power-backup",
+    "secure-access",
+    "phone-booths",
+    "networking-lounge"
+  ],
+  "seatTypes": ["desk", "private-cabin", "office", "meeting-room"]
+}

@@ -8,10 +8,11 @@ import {
   type BookingStatus,
   type MemberBooking,
 } from "@/types/memberBooking";
+import { useBookings } from "@/hooks/useBookings";
 import { cn } from "@/utils";
+import { toMemberBooking } from "./bookingAdapter";
 import BookingRow from "./components/BookingRow";
 import BookingQrModal from "./components/BookingQrModal";
-import { useMemberBookings } from "@/stores/bookings";
 
 const TABS = Object.keys(BOOKING_STATUS_LABELS) as BookingStatus[];
 
@@ -23,7 +24,8 @@ const SORTS = [
 ];
 
 const BookingsPage = () => {
-  const { bookings } = useMemberBookings();
+  const { bookings: fromApi, error, isLoading } = useBookings();
+  const bookings = useMemo(() => fromApi.map(toMemberBooking), [fromApi]);
   const [tab, setTab] = useState<BookingStatus>("upcoming");
   const [query, setQuery] = useState("");
   const [type, setType] = useState("");
@@ -168,7 +170,17 @@ const BookingsPage = () => {
         {BOOKING_STATUS_LABELS[tab]}
       </h2>
 
-      {results.length > 0 ? (
+      {isLoading ? (
+        <div className="mt-4 flex flex-col gap-4" aria-busy="true" aria-label="Loading bookings">
+          {[0, 1].map((index) => (
+            <div key={index} className="h-40 animate-pulse rounded-2xl border border-tertiary/10 bg-tertiary/3" />
+          ))}
+        </div>
+      ) : error ? (
+        <p role="alert" className="mt-4 rounded-2xl border border-primary/25 bg-primary/5 px-6 py-10 text-center text-sm text-tertiary">
+          We couldn&apos;t load your bookings. Refresh to try again.
+        </p>
+      ) : results.length > 0 ? (
         <div className="mt-4 flex flex-col gap-4">
           {results.map((booking) => (
             <BookingRow

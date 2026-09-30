@@ -2,13 +2,14 @@
 
 import { useEffect } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import { CirclePause, X } from "lucide-react";
-import { findVenue } from "@/data/venues";
-import type { MemberMembership } from "@/types/membership";
+import { CircleAlert, X } from "lucide-react";
+import { MEMBERSHIP_SPACES } from "@/data/membershipPlans";
+import { useVenue } from "@/hooks/useVenues";
+import type { ApiMembership } from "@/types/membership";
 import { formatDay } from "@/utils/date";
 
 type MemberPassModalProps = {
-  membership: MemberMembership;
+  membership: ApiMembership;
   onClose: () => void;
 };
 
@@ -17,8 +18,8 @@ const ROW_VALUE = "mt-0.5 text-sm font-medium text-tertiary";
 
 /** The QR a member shows at reception instead of a booking ticket. */
 const MemberPassModal = ({ membership, onClose }: MemberPassModalProps) => {
-  const venue = findVenue(membership.venueSlug);
-  const isPaused = membership.status === "paused";
+  const { venue } = useVenue(membership.venue.slug);
+  const isPastDue = membership.status === "past-due";
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -47,35 +48,29 @@ const MemberPassModal = ({ membership, onClose }: MemberPassModalProps) => {
         </button>
 
         <div className="text-center">
-          <p className="text-xs font-semibold uppercase tracking-wider text-primary">
-            Member pass
-          </p>
-          <h2
-            id="member-pass-title"
-            className="mt-1 text-xl font-bold text-tertiary"
-          >
-            {membership.venueName}
+          <p className="text-xs font-semibold text-primary">Member pass</p>
+          <h2 id="member-pass-title" className="mt-1 text-xl font-bold text-tertiary">
+            {membership.venue.name}
           </h2>
           <p className="mt-0.5 text-sm text-tertiary/60">
-            {membership.locality}, {membership.city}
+            {membership.venue.locality}, {membership.venue.city}
           </p>
         </div>
 
-        <div className="mt-5 flex justify-center rounded-xl bg-tertiary/4 p-5">
-          <QRCodeSVG
-            value={`growthhub:member:${membership.id}`}
-            size={176}
-            level="M"
-            className={isPaused ? "opacity-30" : undefined}
-          />
-        </div>
+        {membership.memberPass ? (
+          <div className="mt-5 flex justify-center rounded-xl bg-tertiary/4 p-5">
+            <QRCodeSVG value={membership.memberPass} size={176} level="M" />
+          </div>
+        ) : (
+          <p className="mt-5 rounded-xl bg-tertiary/4 p-5 text-center text-sm text-tertiary/65">
+            Give reception your membership ID, {membership.ref}.
+          </p>
+        )}
 
-        {isPaused ? (
+        {isPastDue ? (
           <p className="mt-3 flex items-start gap-2 rounded-lg bg-amber-500/10 px-3 py-2 text-sm text-amber-800">
-            <CirclePause aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
-            Paused until{" "}
-            {membership.resumesOn ? formatDay(membership.resumesOn) : "it resumes"}.
-            Resume the plan to check in with this pass.
+            <CircleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+            Your last renewal payment failed. Update your payment method in Razorpay to keep your seat.
           </p>
         ) : (
           <p className="mt-3 text-center text-sm text-tertiary/60">
@@ -86,18 +81,18 @@ const MemberPassModal = ({ membership, onClose }: MemberPassModalProps) => {
         <dl className="mt-5 grid grid-cols-2 gap-4 border-t border-tertiary/10 pt-5">
           <div>
             <dt className={ROW_LABEL}>Workspace</dt>
-            <dd className={ROW_VALUE}>{membership.workspace}</dd>
+            <dd className={ROW_VALUE}>{MEMBERSHIP_SPACES[membership.spaceType].workspace}</dd>
           </div>
           <div>
             <dt className={ROW_LABEL}>Your seat</dt>
-            <dd className={ROW_VALUE}>{membership.seats.join(", ")}</dd>
+            <dd className={ROW_VALUE}>{membership.seats.map((seat) => seat.label).join(", ")}</dd>
           </div>
-          <div>
-            <dt className={ROW_LABEL}>
-              {membership.autoRenew ? "Renews on" : "Valid until"}
-            </dt>
-            <dd className={ROW_VALUE}>{formatDay(membership.cycleEnd)}</dd>
-          </div>
+          {membership.paidThrough && (
+            <div>
+              <dt className={ROW_LABEL}>{membership.renewsOn ? "Paid through" : "Valid until"}</dt>
+              <dd className={ROW_VALUE}>{formatDay(membership.paidThrough)}</dd>
+            </div>
+          )}
           {venue && (
             <div>
               <dt className={ROW_LABEL}>Access</dt>

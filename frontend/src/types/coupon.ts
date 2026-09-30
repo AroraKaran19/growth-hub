@@ -1,27 +1,44 @@
-export type CouponScope = "all" | "pass" | "membership" | "meeting-room";
+export type CouponScope = "any" | "passes" | "memberships" | "meeting-rooms";
 
 export const COUPON_SCOPE_LABELS: Record<CouponScope, string> = {
-  all: "Any booking",
-  pass: "Day and hourly passes",
-  membership: "Memberships",
-  "meeting-room": "Meeting rooms",
+  any: "Any booking",
+  passes: "Day and hourly passes",
+  memberships: "Memberships",
+  "meeting-rooms": "Meeting rooms",
 };
 
-export type Coupon = {
+export type CouponKind = "percent" | "flat";
+
+export type CouponVisibility = "public" | "code-only";
+
+/** Where a coupon stands for this member, worked out by the server in India time. */
+export type CouponState = "available" | "upcoming" | "used" | "expired" | "inactive";
+
+/** The terms every coupon view shares; money in paise. */
+export type CouponTerms = {
   code: string;
   title: string;
   description: string;
-  kind: "percent" | "flat";
+  kind: CouponKind;
+  /** Percent, or paise for a flat coupon. */
   value: number;
-  /** Percent coupons only: the most they take off. */
-  maxDiscount?: number;
+  maxDiscount: number | null;
   minSpend: number;
-  scope: CouponScope;
-  /** ISO last day the coupon can be used. */
-  validUntil: string;
-  used: boolean;
-  usedOn?: string;
+  appliesTo: CouponScope;
+  startsOn: string;
+  endsOn: string;
 };
 
-/** Expiry depends on the viewer's date, so it is worked out, not stored. */
-export type CouponState = "available" | "used" | "expired";
+export type WalletCoupon = CouponTerms & { state: CouponState; usesLeft: number };
+
+export type AdminCoupon = CouponTerms & {
+  id: string;
+  perMemberLimit: number;
+  totalLimit: number | null;
+  visibility: CouponVisibility;
+  active: boolean;
+  redemptionCount: number;
+  createdAt: string;
+};
+
+export type CouponInput = Omit<AdminCoupon, "id" | "redemptionCount" | "createdAt">;

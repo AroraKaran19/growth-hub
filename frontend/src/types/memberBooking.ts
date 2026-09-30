@@ -1,3 +1,5 @@
+import type { RequestSummary, VenueRemovalNotice } from "./cancellation";
+
 export type BookingStatus =
   | "upcoming"
   | "rescheduled"
@@ -29,9 +31,19 @@ export type MemberBooking = {
   type: string;
   seats: string[];
   total: number;
-  /** Set once cancelled: what goes back to the member, and when. */
+  /** Set once a cancellation is approved: what the venue refunds, in rupees, and when. */
   refund?: number;
   cancelledOn?: string;
+  request?: RequestSummary | null;
+  venueRemoval?: VenueRemovalNotice | null;
+  /** Upcoming and not yet asked about, so a cancellation can be requested. */
+  canRequestCancel?: boolean;
+  /** From the bookings API: the signed check-in code and the tax invoice number. */
+  qrCode?: string | null;
+  invoiceNumber?: string | null;
+  addons?: { name: string; amount: number }[];
+  /** A finished booking nobody checked in for. */
+  missed?: boolean;
 };
 
 /** The part of a booking a reschedule is allowed to change. */

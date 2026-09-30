@@ -1,157 +1,190 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, CirclePause, Play, QrCode } from "lucide-react";
+import { useState } from "react";
+import { ArrowRight, CircleAlert, CircleX, Hourglass, PackagePlus, QrCode } from "lucide-react";
 import DirectionsLink from "@/app/components/ui/DirectionsLink";
-import { findVenue } from "@/data/venues";
 import {
-  MEMBERSHIP_STATUS_LABELS,
-  type Allowance,
-  type MemberMembership,
-  type MembershipStatus,
-} from "@/types/membership";
+  MEMBERSHIP_LENGTH_LABELS_BY_KEY,
+  MEMBERSHIP_SPACES,
+  MEMBERSHIP_UNIT_BY_KEY,
+} from "@/data/membershipPlans";
+import { useVenue } from "@/hooks/useVenues";
+import { readApiError } from "@/libs/api/errors";
+import type { ApiAddonOrder } from "@/types/addonOrder";
+import type { VenueAddonOffer } from "@/types/catalogue";
+import { MEMBERSHIP_STATUS_LABELS, type ApiMembership, type MembershipStatus } from "@/types/membership";
 import { cn } from "@/utils";
-import { formatDay, formatMonthYear } from "@/utils/date";
-import { MAX_PAUSE_DAYS } from "../membershipCycle";
+import { formatDay, todayIso } from "@/utils/date";
+import { canBuyAddons } from "../addonOrderRules";
+import { canAskToCancel, requestNotice } from "../cancelRequest";
+import { paidCycleStart } from "../membershipCycle";
+import AddonOrderList from "./AddonOrderList";
 import CycleProgress from "./CycleProgress";
 import { TICKET_LINK } from "./TicketCard";
 
-const STATUS_STYLE: Record<MembershipStatus, string> = {
+const STATUS_STYLE: Partial<Record<MembershipStatus, string>> = {
   active: "bg-green-500/12 text-green-700",
-  paused: "bg-amber-500/15 text-amber-700",
-  expired: "bg-tertiary/8 text-tertiary/70",
+  "past-due": "bg-amber-500/15 text-amber-700",
 };
 
 const DETAIL_LABEL = "text-sm text-tertiary/55";
 const DETAIL_VALUE = "mt-0.5 text-sm text-tertiary";
 const PRIMARY_ACTION =
   "cta-gradient inline-flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-medium text-secondary transition-opacity hover:opacity-90";
-const SECONDARY_ACTION =
-  "inline-flex items-center justify-center gap-2 rounded-lg border border-tertiary/20 px-4 py-2.5 text-sm font-medium text-tertiary transition-colors hover:bg-tertiary/5";
-
-const AllowanceMeter = ({
-  label,
-  unit,
-  allowance,
-}: {
-  label: string;
-  unit: string;
-  allowance: Allowance;
-}) => {
-  const left = Math.max(allowance.included - allowance.used, 0);
-  const percent = allowance.included ? (left / allowance.included) * 100 : 0;
-
-  return (
-    <div>
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-sm">
-        <span className="text-tertiary/55">{label}</span>
-        <span className="font-medium text-tertiary">
-          {left} of {allowance.included}
-          {unit && ` ${unit}`} left
-        </span>
-      </div>
-      <div
-        role="meter"
-        aria-label={`${label} left`}
-        aria-valuemin={0}
-        aria-valuemax={allowance.included}
-        aria-valuenow={left}
-        className="mt-2 h-2 overflow-hidden rounded-full bg-tertiary/8"
-      >
-        <div
-          className="h-full rounded-full bg-tertiary/70"
-          style={{ width: `${percent}%` }}
-        />
-      </div>
-      <p className="mt-1.5 text-xs text-tertiary/55">Resets every cycle</p>
-    </div>
-  );
-};
 
 type MembershipCardProps = {
-  /** Active or paused; finished plans are listed in history instead. */
-  membership: MemberMembership;
-  onPause: (membership: MemberMembership) => void;
-  onResume: (membership: MemberMembership) => void;
-  onShowPass: (membership: MemberMembership) => void;
-  onToggleAutoRenew: (membership: MemberMembership) => void;
+  /** A live plan; finished ones are listed in history instead. */
+  membership: ApiMembership;
+  onShowPass: (membership: ApiMembership) => void;
+  onStopRenewal: (membership: ApiMembership) => void;
+  onRequestCancel: (membership: ApiMembership) => void;
+  onWithdrawRequest: (membership: ApiMembership) => Promise<void>;
+  /** This plan's add-on orders that still have a day ahead. */
+  addonOrders: ApiAddonOrder[];
+  onBuyAddons: (membership: ApiMembership, offers: VenueAddonOffer[], openDays: number[]) => void;
+  onRequestAddonCancel: (order: ApiAddonOrder) => void;
+  onWithdrawAddonRequest: (order: ApiAddonOrder) => Promise<void>;
 };
 
 const MembershipCard = ({
   membership,
-  onPause,
-  onResume,
   onShowPass,
-  onToggleAutoRenew,
+  onStopRenewal,
+  onRequestCancel,
+  onWithdrawRequest,
+  addonOrders,
+  onBuyAddons,
+  onRequestAddonCancel,
+  onWithdrawAddonRequest,
 }: MembershipCardProps) => {
-  const venue = findVenue(membership.venueSlug);
-  const workspaceHref = `/workspaces/${membership.venueSlug}`;
-  const seatLabel = membership.seats.join(", ");
-  const isPaused = membership.status === "paused";
+  const [isWithdrawing, setIsWithdrawing] = useState(false);
+  const [withdrawError, setWithdrawError] = useState<string | null>(null);
+  const request = membership.request ?? null;
+  const decision = requestNotice(request);
+  const isRequestOpen = request?.status === "open";
+  const { venue } = useVenue(membership.venue.slug);
+  const unit = MEMBERSHIP_UNIT_BY_KEY[membership.length];
+  const seatLabel = membership.seats.map((seat) => seat.label).join(", ");
+  const isPastDue = membership.status === "past-due";
+  const offers = venue?.addons ?? [];
+  const canAddExtras = Boolean(venue) && canBuyAddons(membership, offers, todayIso());
 
   return (
-    <article className="rounded-2xl border border-tertiary/10 bg-secondary p-5 sm:p-6">
+    <article className="rounded-2xl border border-tertiary/10 bg-secondary p-5 shadow-sm sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex min-w-0 items-center gap-4 sm:gap-5">
-          <div className="relative size-16 shrink-0 overflow-hidden rounded-lg sm:size-20">
-            <Image
-              src={membership.image}
-              alt={membership.venueName}
-              fill
-              sizes="80px"
-              className="object-cover"
-            />
+          <div className="relative size-16 shrink-0 overflow-hidden rounded-lg bg-tertiary/5 sm:size-20">
+            {membership.venue.image && (
+              <Image src={membership.venue.image} alt={membership.venue.name} fill sizes="80px" className="object-cover" />
+            )}
           </div>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-              <h3 className="text-xl font-medium text-tertiary">
-                {membership.venueName}
-              </h3>
+              <h3 className="text-xl font-medium text-tertiary">{membership.venue.name}</h3>
               <span
                 className={cn(
                   "rounded-full px-2.5 py-0.5 text-xs font-medium",
-                  STATUS_STYLE[membership.status],
+                  STATUS_STYLE[membership.status] ?? "bg-tertiary/8 text-tertiary/70",
                 )}
               >
                 {MEMBERSHIP_STATUS_LABELS[membership.status]}
               </span>
             </div>
             <p className="mt-0.5 text-sm text-tertiary/75">
-              {membership.locality}, {membership.city}
+              {membership.venue.locality}, {membership.venue.city}
             </p>
           </div>
         </div>
 
         <div className="sm:text-right">
-          <p
-            className={cn(
-              "text-xl font-bold",
-              isPaused ? "text-tertiary/60" : "text-tertiary",
-            )}
-          >
-            ₹{membership.price.toLocaleString("en-IN")}
-            <span className="text-sm font-normal text-tertiary/60">
-              {" "}
-              / {membership.priceUnit}
-            </span>
+          <p className="text-xl font-bold text-tertiary">
+            ₹{(membership.cyclePrice / 100).toLocaleString("en-IN")}
+            <span className="text-sm font-normal text-tertiary/60"> / {unit}</span>
           </p>
           <p className="mt-0.5 text-xs text-tertiary/55">
-            {isPaused
-              ? "Billing on hold"
-              : membership.autoRenew
-                ? `Auto-renews ${formatDay(membership.cycleEnd)}`
-                : `Ends ${formatDay(membership.cycleEnd)}`}
+            {membership.renewsOn
+              ? `Next charge ${formatDay(membership.renewsOn)}`
+              : membership.paidThrough
+                ? `Ends ${formatDay(membership.paidThrough)}`
+                : ""}
           </p>
         </div>
       </div>
 
-      <dl className="mt-5 grid grid-cols-2 gap-x-6 gap-y-4 border-t border-dashed border-tertiary/15 pt-5 lg:grid-cols-[repeat(3,minmax(0,1fr))_minmax(0,1.5fr)]">
+      {decision && decision.tone !== "approved" && (
+        <div
+          className={cn(
+            "mt-4 flex flex-col gap-3 rounded-xl px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between",
+            decision.tone === "waiting" ? "bg-amber-500/10 text-amber-900" : "bg-tertiary/5 text-tertiary/80",
+          )}
+        >
+          <p className="flex items-start gap-2">
+            {decision.tone === "waiting" ? (
+              <Hourglass aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+            ) : (
+              <CircleX aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-tertiary/50" />
+            )}
+            {decision.text}
+          </p>
+          {isRequestOpen && !request?.systemOpened && (
+            <button
+              type="button"
+              disabled={isWithdrawing}
+              onClick={async () => {
+                setIsWithdrawing(true);
+                setWithdrawError(null);
+                try {
+                  await onWithdrawRequest(membership);
+                } catch (caught) {
+                  setWithdrawError(readApiError(caught).message);
+                } finally {
+                  setIsWithdrawing(false);
+                }
+              }}
+              className="shrink-0 text-sm font-semibold underline underline-offset-2 transition-opacity hover:opacity-75 disabled:opacity-50"
+            >
+              {isWithdrawing ? "Withdrawing..." : "Withdraw request"}
+            </button>
+          )}
+        </div>
+      )}
+
+      {withdrawError && (
+        <p role="alert" className="mt-2 text-sm text-primary">
+          {withdrawError}
+        </p>
+      )}
+
+      {isPastDue && (
+        <div className="mt-4 flex flex-col gap-3 rounded-xl bg-amber-500/10 px-4 py-3 text-sm text-amber-900 sm:flex-row sm:items-center sm:justify-between">
+          <p className="flex items-start gap-2">
+            <CircleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+            Your renewal payment failed. Razorpay will try again; update your card, UPI or bank mandate to keep
+            your seat.
+          </p>
+          {membership.updatePaymentUrl && (
+            <a
+              href={membership.updatePaymentUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="shrink-0 rounded-lg bg-amber-900 px-4 py-2 text-center text-sm font-semibold text-amber-50 shadow-sm transition-opacity hover:opacity-90"
+            >
+              Update payment method
+            </a>
+          )}
+        </div>
+      )}
+
+      <dl className="mt-5 grid grid-cols-2 gap-x-6 gap-y-4 border-t border-dashed border-tertiary/15 pt-5 lg:grid-cols-4">
         <div>
           <dt className={DETAIL_LABEL}>Plan</dt>
-          <dd className={DETAIL_VALUE}>{membership.plan}</dd>
+          <dd className={DETAIL_VALUE}>{MEMBERSHIP_LENGTH_LABELS_BY_KEY[membership.length]}</dd>
         </div>
         <div>
           <dt className={DETAIL_LABEL}>Workspace</dt>
-          <dd className={DETAIL_VALUE}>{membership.workspace}</dd>
+          <dd className={DETAIL_VALUE}>{MEMBERSHIP_SPACES[membership.spaceType].workspace}</dd>
         </div>
         <div>
           <dt className={DETAIL_LABEL}>Your seat</dt>
@@ -161,111 +194,70 @@ const MembershipCard = ({
           <div>
             <dt className={DETAIL_LABEL}>Access</dt>
             <dd className={DETAIL_VALUE}>
-              {/* The listing reads "Open Daily*"; the label here already says access. */}
-              {venue.openDaysLabel.replace(/^open\s+/i, "").replace("*", "")},{" "}
-              {venue.openHours}
+              {venue.openDaysLabel.replace(/^open\s+/i, "").replace("*", "")}, {venue.openHours}
             </dd>
           </div>
         )}
       </dl>
 
-      {!isPaused && (
-        <div className="mt-5 grid grid-cols-1 gap-5 md:grid-cols-3">
+      {membership.paidThrough && (
+        <div className="mt-5">
           <CycleProgress
-            label="Current cycle"
-            start={membership.cycleStart}
-            end={membership.cycleEnd}
-          />
-          <AllowanceMeter
-            label="Meeting room"
-            unit="hrs"
-            allowance={membership.meetingRoomHours}
-          />
-          <AllowanceMeter
-            label="Guest passes"
-            unit=""
-            allowance={membership.guestPasses}
+            label="Paid period"
+            start={paidCycleStart(membership.startDate, unit, membership.paidThrough)}
+            end={membership.paidThrough}
           />
         </div>
       )}
 
-      {isPaused && membership.pausedOn && membership.resumesOn && (
-        <div className="mt-5 grid grid-cols-1 gap-5 rounded-xl bg-amber-500/8 p-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] md:items-center">
-          <CycleProgress
-            label="Pause"
-            start={membership.pausedOn}
-            end={membership.resumesOn}
-            remainingSuffix="until it resumes"
-            barClassName="bg-amber-500"
-          />
-          <p className="flex items-start gap-2 text-sm text-amber-900">
-            <CirclePause aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
-            <span>
-              Resumes on its own on {formatDay(membership.resumesOn)}. Seat{" "}
-              {seatLabel} stays held, and the paused days move your renewal to{" "}
-              {formatDay(membership.cycleEnd)}. Pauses last up to{" "}
-              {MAX_PAUSE_DAYS} days.
-            </span>
-          </p>
-        </div>
+      {addonOrders.length > 0 && (
+        <AddonOrderList
+          orders={addonOrders}
+          onRequestCancel={onRequestAddonCancel}
+          onWithdrawRequest={onWithdrawAddonRequest}
+        />
       )}
 
-      <div className="mt-5 flex flex-wrap items-center justify-between gap-4 border-t border-tertiary/8 pt-4">
-        <p className="text-xs text-tertiary/55">
-          Member here since {formatMonthYear(membership.startedOn)}. Auto-renew
-          is {membership.autoRenew ? "on" : "off"}.{" "}
+      <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-tertiary/8 pt-5">
+        <button type="button" onClick={() => onShowPass(membership)} className={PRIMARY_ACTION}>
+          <QrCode aria-hidden="true" className="size-4" />
+          Show member pass
+        </button>
+        {canAddExtras && venue && (
           <button
             type="button"
-            onClick={() => onToggleAutoRenew(membership)}
-            className="font-medium text-primary underline underline-offset-2 transition-opacity hover:opacity-75"
+            onClick={() => onBuyAddons(membership, offers, venue.openDays)}
+            className="inline-flex items-center gap-2 rounded-lg border border-tertiary/15 bg-secondary px-4 py-2.5 text-sm font-medium text-tertiary shadow-sm transition-all hover:-translate-y-0.5 hover:border-tertiary/30 hover:shadow-md"
           >
-            Turn {membership.autoRenew ? "off" : "on"}
+            <PackagePlus aria-hidden="true" className="size-4 text-primary" />
+            Buy add-ons
           </button>
-        </p>
-
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
-          <Link href={workspaceHref} className={TICKET_LINK}>
-            View workspace
-          </Link>
-
-          <button
-            type="button"
-            onClick={() => onShowPass(membership)}
-            className={SECONDARY_ACTION}
-          >
-            <QrCode aria-hidden="true" className="size-4" />
-            Member pass
-          </button>
-
-          {isPaused ? (
+        )}
+        {venue?.googleMapsUrl && <DirectionsLink url={venue.googleMapsUrl} label="Directions" />}
+        <Link href={`/workspaces/${membership.venue.slug}`} className={cn(TICKET_LINK, "inline-flex items-center gap-1")}>
+          View workspace
+          <ArrowRight aria-hidden="true" className="size-4" />
+        </Link>
+        <span className="ml-auto flex flex-wrap items-center gap-4">
+          {membership.renewsOn && (
             <button
               type="button"
-              onClick={() => onResume(membership)}
-              className={PRIMARY_ACTION}
+              onClick={() => onStopRenewal(membership)}
+              className="text-sm font-medium text-tertiary/60 underline underline-offset-4 transition-colors hover:text-primary"
             >
-              <Play aria-hidden="true" className="size-4" />
-              Resume now
+              Stop renewing
             </button>
-          ) : (
-            <>
-              {venue && (
-                <DirectionsLink url={venue.googleMapsUrl} label="Directions" />
-              )}
-              <button
-                type="button"
-                onClick={() => onPause(membership)}
-                className={SECONDARY_ACTION}
-              >
-                <CirclePause aria-hidden="true" className="size-4" />
-                Pause
-              </button>
-              <Link href={`${workspaceHref}/book`} className={PRIMARY_ACTION}>
-                Book a meeting room
-                <ArrowRight aria-hidden="true" className="size-4" />
-              </Link>
-            </>
           )}
-        </div>
+          {canAskToCancel(membership.status, request) && (
+            <button
+              type="button"
+              onClick={() => onRequestCancel(membership)}
+              className="text-sm font-medium text-tertiary/60 underline underline-offset-4 transition-colors hover:text-primary"
+            >
+              Ask to cancel
+            </button>
+          )}
+        </span>
       </div>
     </article>
   );

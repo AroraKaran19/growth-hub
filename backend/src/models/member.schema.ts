@@ -9,9 +9,20 @@ export interface MemberDoc {
   name: string | null;
   email: string | null;
   status: AccountStatus;
+  // Absent on members who joined before profiles were saved.
+  dateOfBirth?: string | null;
+  gender?: string | null;
+  companyName?: string | null;
+  jobTitle?: string | null;
+  industry?: string | null;
+  workType?: string | null;
+  preferredLocation?: string | null;
+  billingEmail?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
+
+const optionalText = { type: String, trim: true, default: null };
 
 const memberSchema = new Schema<MemberDoc>(
   {
@@ -21,6 +32,14 @@ const memberSchema = new Schema<MemberDoc>(
     name: { type: String, trim: true, default: null },
     email: { type: String, trim: true, lowercase: true, default: null },
     status: { type: String, enum: ["active", "disabled"], default: "active" },
+    dateOfBirth: optionalText,
+    gender: optionalText,
+    companyName: optionalText,
+    jobTitle: optionalText,
+    industry: optionalText,
+    workType: optionalText,
+    preferredLocation: optionalText,
+    billingEmail: { type: String, trim: true, lowercase: true, default: null },
   },
   { timestamps: true },
 );

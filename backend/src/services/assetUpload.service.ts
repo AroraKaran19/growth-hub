@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { createPresignedPost } from "@aws-sdk/s3-presigned-post";
 import { getBucketName, getPublicUrlBase, getS3Client } from "../config/aws";
 import { env } from "../config/env";
@@ -62,7 +63,7 @@ export const createUploadTicket = async (
     Expires: UPLOAD_EXPIRY_SECONDS,
   });
 
-  return { ...post, key, maxBytes, expiresInSeconds: UPLOAD_EXPIRY_SECONDS };
+  return { ...post, key, publicUrl: readUrlFor(key), maxBytes, expiresInSeconds: UPLOAD_EXPIRY_SECONDS };
 };
 
 /**
@@ -71,3 +72,11 @@ export const createUploadTicket = async (
  * relative to the build rather than the visit.
  */
 export const readUrlFor = (key: string): string => `${getPublicUrlBase()}/${key}`;
+
+export const uploadObject = async (key: string, body: Buffer, contentType: string) => {
+  if (!env().aws) throw new AppError("Uploads are unavailable right now.", 503, "UPLOADS_UNAVAILABLE");
+  await (await getS3Client()).send(
+    new PutObjectCommand({ Bucket: getBucketName(), Key: key, Body: body, ContentType: contentType }),
+  );
+  return readUrlFor(key);
+};

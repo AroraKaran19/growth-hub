@@ -5,28 +5,16 @@ import PageHero from "@/app/components/shared/PageHero";
 import SectionHeading from "@/app/components/shared/SectionHeading";
 import { HALF_DAY_HOURS } from "@/data/bookingOptions";
 import { findFaqCategory } from "@/data/faqs";
-import {
-  MEMBERSHIP_LENGTH_DETAILS,
-  allowancesFor,
-} from "@/data/membershipPlans";
-import { VENUES } from "@/data/venues";
-import {
-  MEMBERSHIP_LENGTHS,
-  PASS_TYPES,
-  type BookingType,
-} from "@/types/booking";
+import { MEMBERSHIP_LENGTH_DETAILS } from "@/data/membershipPlans";
+import { getPublishedVenues } from "@/libs/api/venues";
+import { MEMBERSHIP_LENGTHS, PASS_TYPES } from "@/types/booking";
 import { cn } from "@/utils";
 import { CONTAINER } from "@/utils/layout";
-import { rateFor } from "../Booking/pricing";
+import { membershipFromPrices, passPriceRange } from "@/utils/venues";
+import { LENGTH_KEYS } from "../Booking/pricing";
 import CtaBannerSection from "../Home/sections/CtaBannerSection";
 
 const rupees = (amount: number) => `₹${amount.toLocaleString("en-IN")}`;
-
-/** Lowest and highest price for a booking type across partner venues. */
-const priceRange = (type: BookingType) => {
-  const amounts = VENUES.map((venue) => rateFor(venue, type).amount);
-  return { min: Math.min(...amounts), max: Math.max(...amounts) };
-};
 
 const PASS_DETAILS: Record<(typeof PASS_TYPES)[number], { title: string; text: string; unit: string }> = {
   hourly: {
@@ -49,14 +37,16 @@ const PASS_DETAILS: Record<(typeof PASS_TYPES)[number], { title: string; text: s
 const PROMISES = [
   "GST included in every price you see",
   "Free rescheduling on every booking",
-  "Full refund when you cancel 24 hours ahead",
+  "Ask the venue to cancel from your booking",
   "Coupons applied before you pay",
   "Tax invoice for every booking",
   "No sign-up or listing fee for members",
 ];
 
-const PricingPage = () => {
+const PricingPage = async () => {
   const faqs = findFaqCategory("payments")?.faqs ?? [];
+  const venues = await getPublishedVenues();
+  const deskFrom = membershipFromPrices(venues).desk;
 
   return (
     <>
@@ -75,7 +65,7 @@ const PricingPage = () => {
           <div className="mx-auto mt-10 grid max-w-6xl grid-cols-1 gap-6 md:grid-cols-3">
             {PASS_TYPES.map((type) => {
               const details = PASS_DETAILS[type];
-              const range = priceRange(type);
+              const range = passPriceRange(venues, type);
               return (
                 <article
                   key={type}
@@ -85,16 +75,26 @@ const PricingPage = () => {
                     {details.title}
                   </h3>
                   <p className="mt-1 text-sm text-tertiary/60">{details.text}</p>
-                  <p className="mt-6 flex flex-wrap items-baseline gap-x-1.5 text-sm text-tertiary/65">
-                    From
-                    <span className="text-3xl font-bold text-tertiary">
-                      {rupees(range.min)}
-                    </span>
-                    / {details.unit}
-                  </p>
-                  <p className="mt-1 text-xs text-tertiary/55">
-                    Up to {rupees(range.max)} at premium venues
-                  </p>
+                  {range ? (
+                    <>
+                      <p className="mt-6 flex flex-wrap items-baseline gap-x-1.5 text-sm text-tertiary/65">
+                        From
+                        <span className="text-3xl font-bold text-tertiary">
+                          {rupees(range.min)}
+                        </span>
+                        / {details.unit}
+                      </p>
+                      <p className="mt-1 text-xs text-tertiary/55">
+                        {range.max > range.min
+                          ? `Up to ${rupees(range.max)} at premium venues`
+                          : "The same rate at every venue"}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="mt-6 text-lg font-semibold text-tertiary/70">
+                      Prices coming soon
+                    </p>
+                  )}
                   <Link
                     href="/workspaces"
                     className="mt-6 inline-flex items-center gap-1.5 text-sm font-medium text-primary transition-opacity hover:opacity-75"
@@ -113,7 +113,7 @@ const PricingPage = () => {
         <div className={CONTAINER}>
           <SectionHeading
             title="Memberships"
-            description="A reserved dedicated desk, from the most affordable partner venue. Longer plans cost less per month."
+            description="A reserved dedicated desk, from the most affordable partner venue. Each venue sets its own plan prices."
           />
           <div className="mx-auto mt-10 max-w-5xl overflow-x-auto rounded-2xl border border-tertiary/10 bg-secondary">
             <table className="w-full min-w-2xl text-left text-sm">
@@ -126,20 +126,14 @@ const PricingPage = () => {
                     Dedicated desk from
                   </th>
                   <th scope="col" className="px-5 py-4 font-semibold text-tertiary">
-                    Discount
-                  </th>
-                  <th scope="col" className="px-5 py-4 font-semibold text-tertiary">
-                    Meeting room hours
-                  </th>
-                  <th scope="col" className="px-5 py-4 font-semibold text-tertiary">
-                    Guest passes
+                    Renews
                   </th>
                 </tr>
               </thead>
               <tbody>
                 {MEMBERSHIP_LENGTHS.map((length, index) => {
                   const details = MEMBERSHIP_LENGTH_DETAILS[length];
-                  const allowance = allowancesFor("desk", length);
+                  const price = deskFrom[LENGTH_KEYS[length]];
                   return (
                     <tr
                       key={length}
@@ -149,23 +143,17 @@ const PricingPage = () => {
                         {details.plan}
                       </th>
                       <td className="px-5 py-4 text-tertiary">
-                        {rupees(priceRange(length).min)}
-                        <span className="text-tertiary/55"> / {details.unit}</span>
-                      </td>
-                      <td className="px-5 py-4">
-                        {details.discount > 0 ? (
-                          <span className="rounded-full bg-green-500/12 px-2.5 py-0.5 text-xs font-semibold text-green-700">
-                            {Math.round(details.discount * 100)}% off
-                          </span>
+                        {price ? (
+                          <>
+                            {rupees(price)}
+                            <span className="text-tertiary/55"> / {details.unit}</span>
+                          </>
                         ) : (
-                          <span className="text-tertiary/45">None</span>
+                          <span className="text-tertiary/55">Prices coming soon</span>
                         )}
                       </td>
                       <td className="px-5 py-4 text-tertiary/75">
-                        {allowance.meetingRoomHours} hrs
-                      </td>
-                      <td className="px-5 py-4 text-tertiary/75">
-                        {allowance.guestPasses}
+                        Every {details.unit}, until you stop it
                       </td>
                     </tr>
                   );

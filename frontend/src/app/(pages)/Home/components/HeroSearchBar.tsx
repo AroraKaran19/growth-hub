@@ -7,14 +7,19 @@ import SelectField from "@/app/components/ui/form/SelectField";
 import DateField from "@/app/components/ui/form/DateField";
 import {
   DURATION_OPTIONS,
-  LOCATION_OPTIONS,
   PEOPLE_OPTIONS,
   WORKSPACE_TYPE_OPTIONS,
 } from "@/data/searchOptions";
-import type { WorkspaceSearchParams } from "@/types/search";
+import type { SelectOption, WorkspaceSearchParams } from "@/types/search";
 import { cn } from "@/utils";
 
-const HeroSearchBar = ({ className }: { className?: string }) => {
+const HeroSearchBar = ({
+  locations,
+  className,
+}: {
+  locations: SelectOption[];
+  className?: string;
+}) => {
   const router = useRouter();
   const [search, setSearch] = useState<WorkspaceSearchParams>({
     locality: "",
@@ -53,7 +58,7 @@ const HeroSearchBar = ({ className }: { className?: string }) => {
         label="Location"
         value={search.locality ?? ""}
         onChange={(value) => update("locality", value)}
-        options={LOCATION_OPTIONS}
+        options={locations}
       />
 
       <span

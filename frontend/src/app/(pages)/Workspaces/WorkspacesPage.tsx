@@ -1,7 +1,11 @@
 import { Suspense } from "react";
+import { getPublishedVenues } from "@/libs/api/venues";
+import { localityOptionsFrom } from "@/utils/venues";
 import WorkspaceBrowser from "./components/WorkspaceBrowser";
 
-const WorkspacesPage = () => {
+const WorkspacesPage = async () => {
+  const venues = await getPublishedVenues();
+
   return (
     // pt clears the fixed navbar, which takes no space in the flow.
     <section className="bg-secondary pb-20 pt-28 lg:pt-36">
@@ -27,7 +31,10 @@ const WorkspacesPage = () => {
               </p>
             }
           >
-            <WorkspaceBrowser />
+            <WorkspaceBrowser
+              venues={venues}
+              locations={localityOptionsFrom(venues)}
+            />
           </Suspense>
         </div>
       </div>

@@ -4,16 +4,17 @@ import Link from "next/link";
 import { QRCodeSVG } from "qrcode.react";
 import { ArrowRight, CalendarDays, Check, Clock, Download } from "lucide-react";
 import DirectionsLink from "@/app/components/ui/DirectionsLink";
-import type { MemberBooking } from "@/types/memberBooking";
-import type { Venue } from "@/types/venue";
+import type { ApiBooking } from "@/types/apiBooking";
 import { formatDay } from "@/utils/date";
+import { BOOKING_SPACE_LABELS } from "../membershipBooking";
 
 type BookingConfirmedProps = {
-  booking: MemberBooking;
-  venue: Venue;
+  booking: ApiBooking;
+  googleMapsUrl: string;
 };
 
-const BookingConfirmed = ({ booking, venue }: BookingConfirmedProps) => {
+const BookingConfirmed = ({ booking, googleMapsUrl }: BookingConfirmedProps) => {
+  const seats = booking.seats.map((seat) => seat.label);
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-tertiary/50 p-4">
       <div
@@ -34,27 +35,31 @@ const BookingConfirmed = ({ booking, venue }: BookingConfirmedProps) => {
         </h2>
 
         <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
-          <Link
-            href={`/invoice/${booking.bookingId}`}
-            target="_blank"
-            className="cta-gradient inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-secondary transition-opacity hover:opacity-90"
-          >
-            Download PDF
-            <Download aria-hidden="true" className="size-4" />
-          </Link>
-          <DirectionsLink url={venue.googleMapsUrl} />
+          {booking.invoiceNumber && (
+            <Link
+              href={`/invoice/${booking.ref}`}
+              target="_blank"
+              className="cta-gradient inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-secondary transition-opacity hover:opacity-90"
+            >
+              Download PDF
+              <Download aria-hidden="true" className="size-4" />
+            </Link>
+          )}
+          {googleMapsUrl && <DirectionsLink url={googleMapsUrl} />}
         </div>
 
         {/* Ticket: QR on the left, details on the right, split by a perforation */}
         <div className="mt-6 flex overflow-hidden rounded-xl bg-tertiary/4 text-left">
-          <div className="flex shrink-0 items-center justify-center p-4">
-            <QRCodeSVG
-              value={`growthhub:booking:${booking.bookingId}`}
-              size={96}
-              level="M"
-              aria-label={`QR code for booking ${booking.bookingId}`}
-            />
-          </div>
+          {booking.qrCode && (
+            <div className="flex shrink-0 items-center justify-center p-4">
+              <QRCodeSVG
+                value={booking.qrCode}
+                size={96}
+                level="M"
+                aria-label={`QR code for booking ${booking.ref}`}
+              />
+            </div>
+          )}
 
           <div
             aria-hidden="true"
@@ -63,11 +68,11 @@ const BookingConfirmed = ({ booking, venue }: BookingConfirmedProps) => {
 
           <div className="min-w-0 grow p-4">
             <p className="truncate text-base font-bold text-tertiary">
-              {venue.name}
+              {booking.venue.name}
             </p>
             <p className="mt-0.5 truncate text-sm text-tertiary/60">
-              {booking.type}
-              {booking.seats.length > 0 && ` - ${booking.seats.join(", ")}`}
+              {BOOKING_SPACE_LABELS[booking.spaceType]}
+              {seats.length > 0 && `, ${seats.join(", ")}`}
             </p>
 
             <div className="mt-2 flex flex-col gap-1 text-sm text-tertiary/70">
@@ -76,18 +81,16 @@ const BookingConfirmed = ({ booking, venue }: BookingConfirmedProps) => {
                   aria-hidden="true"
                   className="size-3.5 text-primary"
                 />
-                {formatDay(booking.startDate)}
+                {formatDay(booking.date)}
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <Clock aria-hidden="true" className="size-3.5 text-primary" />
-                {booking.time}
+                {booking.timeLabel}
               </span>
             </div>
 
             <p className="mt-3 text-xs text-tertiary/50">Booking ID</p>
-            <p className="font-mono text-sm text-tertiary">
-              {booking.bookingId}
-            </p>
+            <p className="font-mono text-sm text-tertiary">{booking.ref}</p>
           </div>
         </div>
 
@@ -103,7 +106,7 @@ const BookingConfirmed = ({ booking, venue }: BookingConfirmedProps) => {
             Go to Home
           </Link>
           <Link
-            href={`/account/bookings/${booking.bookingId}`}
+            href={`/account/bookings/${booking.ref}`}
             className="cta-gradient inline-flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-medium text-secondary transition-opacity hover:opacity-90"
           >
             View Booking

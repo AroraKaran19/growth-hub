@@ -1,7 +1,9 @@
 import VenueCard from "@/app/components/ui/VenueCard";
-import { VENUES } from "@/data/venues";
+import type { Venue } from "@/types/venue";
 
-const DiscoverWorkspacesSection = () => {
+const DiscoverWorkspacesSection = ({ venues }: { venues: Venue[] }) => {
+  if (venues.length === 0) return null;
+
   return (
     <section className="bg-secondary py-16 lg:py-24">
       <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-10 2xl:max-w-[1600px]">
@@ -16,8 +18,8 @@ const DiscoverWorkspacesSection = () => {
         </div>
 
         <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:mt-14 lg:grid-cols-3">
-          {VENUES.slice(0, 3).map((venue, index) => (
-            <VenueCard key={index} venue={venue} />
+          {venues.map((venue) => (
+            <VenueCard key={venue.id} venue={venue} />
           ))}
         </div>
       </div>

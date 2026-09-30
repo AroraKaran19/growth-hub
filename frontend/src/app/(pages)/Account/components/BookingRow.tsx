@@ -21,6 +21,13 @@ const BookingRow = ({ booking, onViewQr }: BookingRowProps) => {
       imageAlt={booking.venueName}
       title={booking.venueName}
       subtitle={`${booking.locality}, ${booking.city}`}
+      badge={
+        booking.request?.status === "open" ? (
+          <span className="rounded-full bg-amber-500/15 px-2.5 py-0.5 text-xs font-medium text-amber-800">
+            Cancellation requested
+          </span>
+        ) : undefined
+      }
       actions={
         <>
           <Link

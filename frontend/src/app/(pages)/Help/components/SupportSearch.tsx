@@ -35,7 +35,7 @@ const SupportSearch = () => {
           type="search"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search for refunds, pausing, invoices..."
+          placeholder="Search for refunds, memberships, invoices..."
           className="w-full rounded-xl border border-transparent bg-secondary py-4 pl-12 pr-4 text-base text-tertiary outline-none transition-shadow placeholder:text-tertiary/45 focus-visible:ring-4 focus-visible:ring-primary/30"
         />
       </label>

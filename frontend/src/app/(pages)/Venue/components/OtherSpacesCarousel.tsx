@@ -3,14 +3,9 @@
 import { Swiper, SwiperSlide } from "swiper/react";
 import "swiper/css";
 import VenueCard from "@/app/components/ui/VenueCard";
-import { VENUES } from "@/data/venues";
 import type { Venue } from "@/types/venue";
 
-const OtherSpacesCarousel = ({ venue }: { venue: Venue }) => {
-  const others = VENUES.filter((item) => item.id !== venue.id);
-
-  if (others.length === 0) return null;
-
+const OtherSpacesCarousel = ({ others }: { others: Venue[] }) => {
   return (
     <Swiper
       grabCursor

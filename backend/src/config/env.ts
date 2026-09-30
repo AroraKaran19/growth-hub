@@ -1,8 +1,17 @@
+import {
+  MEMBER_EVENTS,
+  STAFF_EVENTS,
+  type MemberEvent,
+  type NotificationTemplates,
+  type StaffEvent,
+} from "../constants/notifications";
+
 export type EmailSettings = {
   domain: string;
   from: string;
   fromName: string;
-  otpTemplateId: string;
+  /** Null until MSG91 approves the reset email; required in production. */
+  passwordResetTemplateId: string | null;
 };
 
 export type RazorpaySettings = {
@@ -36,6 +45,16 @@ export type AppEnv = {
   authTestPhone: string | null;
   /** Required alongside authTestPhone: the number alone must never sign anyone in. */
   authTestOtp: string | null;
+  revalidateSecret: string | null;
+  razorpayWebhookSecret: string | null;
+  /** Signs check-in QR codes. */
+  qrSigningSecret: string | null;
+  /** Bearer token the scheduler sends to the tidy-up job. */
+  cronSecret: string | null;
+  /** 32 bytes for encrypting venue bank account numbers. */
+  payoutEncryptionKey: Buffer | null;
+  /** Optional everywhere: a missing template id skips that message. */
+  notifications: NotificationTemplates;
 };
 
 const MIN_SECRET_LENGTH = 32;
@@ -77,23 +96,35 @@ export const loadEnv = (source: NodeJS.ProcessEnv = process.env): AppEnv => {
     domain: read("MSG91_EMAIL_DOMAIN"),
     from: read("MSG91_EMAIL_FROM"),
     fromName: read("MSG91_EMAIL_FROM_NAME"),
-    otpTemplateId: read("MSG91_EMAIL_OTP_TEMPLATE_ID"),
   };
   const email =
-    msg91AuthKey &&
-    emailParts.domain &&
-    emailParts.from &&
-    emailParts.fromName &&
-    emailParts.otpTemplateId
+    msg91AuthKey && emailParts.domain && emailParts.from && emailParts.fromName
       ? {
           domain: emailParts.domain,
           from: emailParts.from,
           fromName: emailParts.fromName,
-          otpTemplateId: emailParts.otpTemplateId,
+          passwordResetTemplateId: read("MSG91_EMAIL_PASSWORD_RESET_TEMPLATE_ID"),
         }
       : null;
   const authTestPhone = read("AUTH_TEST_PHONE");
   const authTestOtp = read("AUTH_TEST_OTP");
+  const optionalSecret = (key: string) => {
+    const value = read(key);
+    if (value && value.length < MIN_SECRET_LENGTH) {
+      errors.push(`${key} must be at least ${MIN_SECRET_LENGTH} characters`);
+    }
+    return value;
+  };
+  const revalidateSecret = optionalSecret("REVALIDATE_SECRET");
+  const qrSigningSecret = optionalSecret("QR_SIGNING_SECRET");
+  const cronSecret = optionalSecret("CRON_SECRET");
+  const payoutKeyText = read("PAYOUT_ENCRYPTION_KEY");
+  const payoutEncryptionKey = payoutKeyText ? Buffer.from(payoutKeyText, "base64") : null;
+  if (payoutEncryptionKey && payoutEncryptionKey.length !== 32) {
+    errors.push("PAYOUT_ENCRYPTION_KEY must be 32 bytes, base64 encoded");
+  }
+  // Razorpay generates this one, so its length is not ours to set.
+  const razorpayWebhookSecret = read("RAZORPAY_WEBHOOK_SECRET");
 
   const razorpayKeyId = read("RAZORPAY_KEY_ID");
   const razorpayKeySecret = read("RAZORPAY_KEY_SECRET");
@@ -115,6 +146,17 @@ export const loadEnv = (source: NodeJS.ProcessEnv = process.env): AppEnv => {
         }
       : null;
 
+  const templates = <E extends string>(prefix: string, events: readonly E[]) =>
+    Object.fromEntries(
+      events.flatMap((event) => {
+        const id = read(`${prefix}${event}`);
+        return id ? [[event, id]] : [];
+      }),
+    ) as Partial<Record<E, string>>;
+  const notifications: NotificationTemplates = {
+    emailTemplates: templates<MemberEvent | StaffEvent>("MSG91_EMAIL_TEMPLATE_", [...MEMBER_EVENTS, ...STAFF_EVENTS]),
+  };
+
   const result: AppEnv = {
     nodeEnv,
     isProduction,
@@ -130,6 +172,12 @@ export const loadEnv = (source: NodeJS.ProcessEnv = process.env): AppEnv => {
     trustProxy: parseTrustProxy(read("TRUST_PROXY")),
     authTestPhone,
     authTestOtp,
+    revalidateSecret,
+    razorpayWebhookSecret,
+    qrSigningSecret,
+    cronSecret,
+    payoutEncryptionKey,
+    notifications,
   };
 
   // A sign-in that skips the SMS is a development convenience, and the code is
@@ -143,8 +191,11 @@ export const loadEnv = (source: NodeJS.ProcessEnv = process.env): AppEnv => {
     if (!msg91AuthKey) errors.push("MSG91_AUTH_KEY is required in production");
     if (!email) {
       errors.push(
-        "MSG91_EMAIL_DOMAIN, MSG91_EMAIL_FROM, MSG91_EMAIL_FROM_NAME and MSG91_EMAIL_OTP_TEMPLATE_ID are required in production",
+        "MSG91_EMAIL_DOMAIN, MSG91_EMAIL_FROM and MSG91_EMAIL_FROM_NAME are required in production",
       );
+    }
+    if (!email?.passwordResetTemplateId) {
+      errors.push("MSG91_EMAIL_PASSWORD_RESET_TEMPLATE_ID is required in production");
     }
     if (!razorpay) {
       errors.push("RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET are required in production");
@@ -152,6 +203,11 @@ export const loadEnv = (source: NodeJS.ProcessEnv = process.env): AppEnv => {
     if (!aws) {
       errors.push("AWS_REGION and AWS_S3_BUCKET_NAME are required in production");
     }
+    if (!revalidateSecret) errors.push("REVALIDATE_SECRET is required in production");
+    if (!razorpayWebhookSecret) errors.push("RAZORPAY_WEBHOOK_SECRET is required in production");
+    if (!qrSigningSecret) errors.push("QR_SIGNING_SECRET is required in production");
+    if (!cronSecret) errors.push("CRON_SECRET is required in production");
+    if (!payoutEncryptionKey) errors.push("PAYOUT_ENCRYPTION_KEY is required in production");
   }
 
   if (errors.length) {

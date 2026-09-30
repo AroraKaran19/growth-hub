@@ -1,0 +1,114 @@
+import mongoose from "mongoose";
+import { SLOT_MINUTES } from "../constants/booking";
+import { AppError } from "../middlewares/error.middleware";
+import {
+  Booking,
+  Membership,
+  MembershipCheckIn,
+  SeatDay,
+  SeatMap,
+  Venue,
+  type BookingDoc,
+  type MembershipCheckInDoc,
+  type MembershipDoc,
+  type SeatDayDoc,
+  type SeatMapDoc,
+  type VenueDoc,
+} from "../models";
+import { indiaNow, toMinutes, weekdayOf } from "../utils/indiaTime";
+import { addonsForDay, deskSalesRecordedOn } from "./addonOrder.service";
+import { ruleError } from "./booking.service";
+import type { DeskStaff } from "./checkIn.service";
+import { claimRanges } from "./seatDays.service";
+import { toStaffBookingViews } from "./staffBookings.service";
+import { toStaffMembershipViews } from "./staffMemberships.service";
+
+const HIDDEN: BookingDoc["status"][] = ["pending-payment", "expired"];
+
+const venueOf = async (staff: DeskStaff) => {
+  const venue = await Venue.findOne({ slug: staff.venueSlug }).lean<VenueDoc>();
+  if (!venue) throw new AppError("This venue no longer exists.", 404, "VENUE_NOT_FOUND");
+  return venue;
+};
+
+/** Marks a seat taken by someone who walked in, from the current half hour until closing. */
+export const addWalkIn = async (staff: DeskStaff, seatId: string, now = new Date()) => {
+  const venue = await venueOf(staff);
+  const map = await SeatMap.findOne({ venueId: venue._id }).lean<SeatMapDoc>();
+  if (!map?.seats.some((seat) => seat.id === seatId)) throw ruleError("SEAT_UNKNOWN", { seatIds: [seatId] });
+  if (venue.outOfServiceSeatIds.includes(seatId)) throw ruleError("SEAT_OUT_OF_SERVICE", { seatIds: [seatId] });
+
+  const today = indiaNow(now);
+  const opens = toMinutes(venue.opensAt);
+  const closes = toMinutes(venue.closesAt);
+  const rounded = Math.floor(today.minutes / SLOT_MINUTES) * SLOT_MINUTES;
+  const start = opens === null ? rounded : Math.max(opens, rounded);
+  if (opens === null || closes === null || !venue.openDays.includes(weekdayOf(today.date)) || start >= closes) {
+    throw ruleError("VENUE_CLOSED");
+  }
+
+  await mongoose.connection.transaction((session) =>
+    claimRanges(
+      { venueId: venue._id, date: today.date, seatIds: [seatId], start, end: closes, bookingId: null, holdExpiresAt: null, kind: "walk-in" },
+      session,
+    ),
+  );
+  return { seatId, start, end: closes };
+};
+
+export const removeWalkIn = async (staff: DeskStaff, seatId: string, now = new Date()) => {
+  const venue = await venueOf(staff);
+  const result = await SeatDay.updateOne(
+    { venueId: venue._id, date: indiaNow(now).date, seatId, "ranges.kind": "walk-in" },
+    { $pull: { ranges: { kind: "walk-in" } } },
+  );
+  if (result.modifiedCount !== 1) throw new AppError("That seat has no walk-in today.", 404, "WALK_IN_NOT_FOUND");
+  return { seatId };
+};
+
+const isLiveHold = (expiresAt: Date | null | undefined, now: Date) => Boolean(expiresAt && expiresAt > now);
+
+/** Everything the front desk shows for today, in one read. */
+export const todayAtDesk = async (staff: DeskStaff, now = new Date()) => {
+  const venue = await venueOf(staff);
+  const today = indiaNow(now).date;
+
+  const [bookings, memberships, days] = await Promise.all([
+    Booking.find({ venueSlug: staff.venueSlug, date: today, status: { $nin: HIDDEN } })
+      .sort({ startMin: 1 })
+      .lean<BookingDoc[]>(),
+    Membership.find({
+      venueSlug: staff.venueSlug,
+      status: { $in: ["active", "past-due"] },
+      startDate: { $lte: today },
+      reservedThrough: { $gte: today },
+    }).lean<MembershipDoc[]>(),
+    SeatDay.find({ venueId: venue._id, date: today }).lean<SeatDayDoc[]>(),
+  ]);
+
+  const checkIns = await MembershipCheckIn.find({ membershipId: { $in: memberships.map((item) => item._id) }, date: today }).lean<
+    MembershipCheckInDoc[]
+  >();
+  const checkedIn = new Map(checkIns.map((item) => [item.membershipId.toString(), new Date(item.at).toISOString()]));
+  const memberViews = await toStaffMembershipViews(memberships);
+
+  return {
+    date: today,
+    bookings: await toStaffBookingViews(bookings, now),
+    members: memberViews.map((view, index) => ({ ...view, checkedInAt: checkedIn.get(memberships[index]._id.toString()) ?? null })),
+    walkInSeatIds: days
+      .filter((day) => day.ranges.some((range) => range.kind === "walk-in"))
+      .map((day) => day.seatId)
+      .sort(),
+    // Someone is on the payment page for these right now.
+    beingBookedSeatIds: days
+      .filter(
+        (day) =>
+          isLiveHold(day.membershipHoldExpiresAt, now) || day.ranges.some((range) => isLiveHold(range.holdExpiresAt, now)),
+      )
+      .map((day) => day.seatId)
+      .sort(),
+    addons: await addonsForDay(staff.venueSlug, today),
+    deskSalesToday: await deskSalesRecordedOn(staff.venueSlug, today),
+  };
+};

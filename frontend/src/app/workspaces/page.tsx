@@ -7,6 +7,8 @@ export const metadata: Metadata = {
     "Browse coworking spaces, meeting rooms and private offices from Growth Hub partner venues across Bangalore.",
 };
 
+export const revalidate = 300;
+
 export default function Workspaces() {
   return <WorkspacesPage />;
 }

@@ -1,21 +1,19 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { connection } from "next/server";
 import SeatSelectionPage from "../../../../(pages)/Booking/SeatSelectionPage";
-import { VENUES } from "@/data/venues";
+import { getVenue } from "@/libs/api/venues";
 
 type SeatsRouteProps = {
   params: Promise<{ slug: string }>;
 };
 
-export function generateStaticParams() {
-  return VENUES.map((venue) => ({ slug: venue.slug }));
-}
-
 export async function generateMetadata({
   params,
 }: SeatsRouteProps): Promise<Metadata> {
   const { slug } = await params;
-  const venue = VENUES.find((item) => item.slug === slug);
+  const venue = await getVenue(slug);
 
   if (!venue) return { title: "Workspace not found" };
 
@@ -23,10 +21,17 @@ export async function generateMetadata({
 }
 
 export default async function SeatsRoute({ params }: SeatsRouteProps) {
+  // Rendered per request so an unreachable API reaches app/error.tsx; the fetches stay cached.
+  await connection();
   const { slug } = await params;
-  const venue = VENUES.find((item) => item.slug === slug);
+  const venue = await getVenue(slug);
 
   if (!venue) notFound();
 
-  return <SeatSelectionPage venue={venue} />;
+  // The page reads ?taken= after a seat was lost at payment, which needs a boundary.
+  return (
+    <Suspense fallback={null}>
+      <SeatSelectionPage venue={venue} />
+    </Suspense>
+  );
 }

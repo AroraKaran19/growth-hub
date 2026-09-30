@@ -1,21 +1,20 @@
-import type { MemberBooking } from "@/types/memberBooking";
-import type { MemberMembership } from "@/types/membership";
-import type { PartnerBooking, PartnerMember } from "@/types/partner";
+import type { CheckInInput, CheckInResult, PartnerBooking, PartnerMember } from "@/types/partner";
 import { formatDay } from "@/utils/date";
 
-export type ScanTarget =
-  | { kind: "booking"; id: string }
-  | { kind: "member"; id: string };
+export type ScanTarget = { kind: "booking" | "member"; id: string; send: CheckInInput };
 
-/** Accepts what the QR codes encode, or an ID typed by hand. */
+/** Signed QR codes, or a booking ID or member pass typed by hand; the server verifies either. */
 export const parseScan = (raw: string): ScanTarget | null => {
   const value = raw.trim();
-  const booking = /^growthhub:booking:(\d{6,})$/i.exec(value);
-  if (booking) return { kind: "booking", id: booking[1] };
-  const member = /^growthhub:member:([\w-]+)$/i.exec(value);
-  if (member) return { kind: "member", id: member[1] };
-  if (/^\d{6,}$/.test(value)) return { kind: "booking", id: value };
-  if (/^m-[\w-]+$/i.test(value)) return { kind: "member", id: value.toLowerCase() };
+  const signed = /^growthhub:b:(\d{12})\.[\w-]{22}$/.exec(value);
+  if (signed) return { kind: "booking", id: signed[1], send: { code: value } };
+  const signedPass = /^growthhub:m:(m-\d{12})\.[\w-]{22}$/.exec(value);
+  if (signedPass) return { kind: "member", id: signedPass[1], send: { code: value } };
+  if (/^\d{12}$/.test(value)) return { kind: "booking", id: value, send: { bookingRef: value } };
+  if (/^m-\d{12}$/i.test(value)) {
+    const ref = value.toLowerCase();
+    return { kind: "member", id: ref, send: { membershipRef: ref } };
+  }
   return null;
 };
 
@@ -25,6 +24,10 @@ export type ScanOutcome = {
   detail: string;
   /** Set when the front desk can check this person in right now. */
   checkInId?: string;
+  /** What to send the server to check them in. */
+  send?: CheckInInput;
+  /** The pass or plan the server checked in. */
+  ref?: string;
   booking?: PartnerBooking;
   member?: PartnerMember;
 };
@@ -35,8 +38,6 @@ type VerifyContext = {
   bookings: PartnerBooking[];
   members: PartnerMember[];
   checkIns: Record<string, string>;
-  allMemberBookings: MemberBooking[];
-  allMemberships: MemberMembership[];
 };
 
 const checkedInAt = (iso: string | undefined) =>
@@ -44,9 +45,11 @@ const checkedInAt = (iso: string | undefined) =>
     ? new Date(iso).toLocaleTimeString("en-IN", {
         hour: "2-digit",
         minute: "2-digit",
+        timeZone: "Asia/Kolkata",
       })
     : null;
 
+/** A preview from today's lists; the server has the final say when the desk checks someone in. */
 export const verifyScan = (raw: string, context: VerifyContext): ScanOutcome => {
   const target = parseScan(raw);
 
@@ -63,20 +66,11 @@ export const verifyScan = (raw: string, context: VerifyContext): ScanOutcome => 
     const booking = context.bookings.find((item) => item.bookingId === target.id);
 
     if (!booking) {
-      const elsewhere = context.allMemberBookings.find(
-        (item) => item.bookingId === target.id,
-      );
-      return elsewhere
-        ? {
-            tone: "error",
-            title: "Booked at another venue",
-            detail: `Booking ${target.id} is for ${elsewhere.venueName}, ${elsewhere.locality}. Point the member there.`,
-          }
-        : {
-            tone: "error",
-            title: "No booking found",
-            detail: `There is no booking with ID ${target.id}. Check the number with the member.`,
-          };
+      return {
+        tone: "error",
+        title: "No booking found",
+        detail: `There is no booking with ID ${target.id} at this venue. Check the number with the member.`,
+      };
     }
 
     if (booking.status === "cancelled") {
@@ -112,6 +106,7 @@ export const verifyScan = (raw: string, context: VerifyContext): ScanOutcome => 
       title: "Valid booking",
       detail: `${booking.memberName}, ${booking.type} ${booking.seats.join(", ")}, ${booking.time}.`,
       checkInId: booking.bookingId,
+      send: target.send,
       booking,
     };
   }
@@ -119,25 +114,18 @@ export const verifyScan = (raw: string, context: VerifyContext): ScanOutcome => 
   const member = context.members.find((item) => item.membershipId === target.id);
 
   if (!member) {
-    const elsewhere = context.allMemberships.find((item) => item.id === target.id);
-    return elsewhere
-      ? {
-          tone: "error",
-          title: "Member of another venue",
-          detail: `This pass is for ${elsewhere.venueName}, ${elsewhere.locality}.`,
-        }
-      : {
-          tone: "error",
-          title: "Member pass not recognised",
-          detail: "Ask the member to open their pass again from My Memberships.",
-        };
+    return {
+      tone: "error",
+      title: "Member pass not recognised",
+      detail: `This pass is not for a current plan at ${context.venueName}. Ask the member to open it again from My Memberships.`,
+    };
   }
 
-  if (member.status === "paused") {
+  if (member.startDate > context.today) {
     return {
       tone: "warning",
-      title: "Membership is paused",
-      detail: `${member.memberName}'s plan is paused${member.resumesOn ? ` until ${formatDay(member.resumesOn)}` : ""}. They can resume it from the app to check in.`,
+      title: "Plan starts later",
+      detail: `${member.memberName}'s plan starts on ${formatDay(member.startDate)}.`,
       member,
     };
   }
@@ -151,11 +139,67 @@ export const verifyScan = (raw: string, context: VerifyContext): ScanOutcome => 
     };
   }
 
+  if (member.status === "past-due") {
+    return {
+      tone: "warning",
+      title: "Renewal payment failed",
+      detail: `${member.memberName}, ${member.workspace} ${member.seats.join(", ")}. The seat is still theirs while Razorpay retries, so they can check in. Ask them to update their payment method.`,
+      checkInId: member.membershipId,
+      send: target.send,
+      member,
+    };
+  }
+
   return {
     tone: "success",
     title: "Active member",
-    detail: `${member.memberName}, ${member.workspace} ${member.seats.join(", ")}. Renews ${formatDay(member.renewsOn)}.`,
+    detail: `${member.memberName}, ${member.workspace} ${member.seats.join(", ")}. ${
+      member.renewsOn ? `Renews ${formatDay(member.renewsOn)}` : `Ends ${formatDay(member.paidThrough)}`
+    }.`,
     checkInId: member.membershipId,
+    send: target.send,
     member,
   };
+};
+
+/** What the desk shows once the server has checked someone in. */
+export const outcomeOfCheckIn = (result: CheckInResult): ScanOutcome => {
+  const seats = result.seats.join(", ");
+  if (result.warning === "already") {
+    return {
+      tone: "warning",
+      title: "Already checked in",
+      detail: `${result.memberName} has been in since ${checkedInAt(result.checkedInAt)}.`,
+      ref: result.ref,
+    };
+  }
+  if (result.warning === "payment-failed") {
+    return {
+      tone: "warning",
+      title: "Checked in, renewal payment failed",
+      detail: `${result.memberName} is in at ${seats}. Ask them to update their payment method; the seat stays theirs while Razorpay retries.`,
+      ref: result.ref,
+    };
+  }
+  return { tone: "success", title: "Checked in", detail: `${result.memberName} is in. Show them to ${seats}.`, ref: result.ref };
+};
+
+/** What the desk shows when the server refuses a check-in. */
+export const outcomeOfError = (code: string | undefined, message: string): ScanOutcome => {
+  switch (code) {
+    case "CODE_INVALID":
+      return {
+        tone: "error",
+        title: "Not a Growth Hub code",
+        detail: "Scan the QR from the member's booking or member pass, or type the 12-digit booking ID.",
+      };
+    case "NOT_AT_VENUE":
+      return { tone: "error", title: "Not for this venue", detail: message };
+    case "CHECK_IN_WINDOW":
+      return { tone: "warning", title: "Can't check in right now", detail: message };
+    case "NOT_CHECKABLE":
+      return { tone: "error", title: "No longer valid", detail: message };
+    default:
+      return { tone: "error", title: "Check-in failed", detail: message };
+  }
 };

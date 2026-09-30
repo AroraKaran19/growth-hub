@@ -3,9 +3,11 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { ExternalLink, Search, Star } from "lucide-react";
+import { ExternalLink, Plus, Search, Star } from "lucide-react";
 import { CATEGORIES } from "@/data/categories";
-import { useVenueCatalog } from "@/stores/venues";
+import { patchVenueRow, useAdminVenues } from "@/hooks/useAdminCatalogue";
+import { readApiError } from "@/libs/api/errors";
+import type { AdminVenueRow } from "@/types/catalogue";
 import { cn } from "@/utils";
 import {
   PARTNER_CARD as CARD,
@@ -16,46 +18,76 @@ import Toggle from "./components/Toggle";
 
 type StatusFilter = "all" | "published" | "hidden";
 
-const TYPE_LABELS = Object.fromEntries(
-  CATEGORIES.map((category) => [category.slug, category.name]),
-);
+const TYPE_LABELS = Object.fromEntries(CATEGORIES.map((category) => [category.slug, category.name]));
+
+const PLACEHOLDER_PREFIX = "Placeholder:";
+
+const MapCell = ({ seatMap }: { seatMap: AdminVenueRow["seatMap"] }) => {
+  if (!seatMap) return <span className="text-tertiary/45">No map</span>;
+  const isPlaceholder = seatMap.name.startsWith(PLACEHOLDER_PREFIX);
+  return (
+    <div>
+      {isPlaceholder ? (
+        <span className="rounded-full bg-amber-500/15 px-2.5 py-0.5 text-xs font-medium text-amber-700">
+          Placeholder
+        </span>
+      ) : (
+        <p className="text-tertiary">{seatMap.name}</p>
+      )}
+      <p className="mt-0.5 text-xs text-tertiary/55">{seatMap.seatCount} seats</p>
+    </div>
+  );
+};
 
 const AdminVenuesPage = () => {
-  const catalog = useVenueCatalog();
+  const { venues, error, isLoading, refresh } = useAdminVenues();
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<StatusFilter>("all");
+  const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState<string | null>(null);
 
-  if (!catalog.isHydrated) return <Skeleton />;
+  if (isLoading) return <Skeleton />;
 
   const search = query.trim().toLowerCase();
-  const rows = catalog.venues.filter((venue) => {
+  const rows = venues.filter((venue) => {
     if (status === "published" && !venue.published) return false;
     if (status === "hidden" && venue.published) return false;
-    return (
-      !search ||
-      `${venue.name} ${venue.locality}`.toLowerCase().includes(search)
-    );
+    return !search || `${venue.name} ${venue.locality}`.toLowerCase().includes(search);
   });
 
   const filters: { value: StatusFilter; label: string; count: number }[] = [
-    { value: "all", label: "All", count: catalog.venues.length },
-    {
-      value: "published",
-      label: "Published",
-      count: catalog.venues.filter((venue) => venue.published).length,
-    },
-    {
-      value: "hidden",
-      label: "Hidden",
-      count: catalog.venues.filter((venue) => !venue.published).length,
-    },
+    { value: "all", label: "All", count: venues.length },
+    { value: "published", label: "Published", count: venues.filter((venue) => venue.published).length },
+    { value: "hidden", label: "Hidden", count: venues.filter((venue) => !venue.published).length },
   ];
+
+  const setPublished = async (venue: AdminVenueRow, published: boolean) => {
+    setSaving(venue.slug);
+    setRowErrors((current) => ({ ...current, [venue.slug]: "" }));
+    try {
+      await patchVenueRow(venue.slug, { published, version: venue.version });
+    } catch (caught) {
+      setRowErrors((current) => ({ ...current, [venue.slug]: readApiError(caught).message }));
+    } finally {
+      await refresh();
+      setSaving(null);
+    }
+  };
 
   return (
     <>
       <PageHeader
         title="Venues"
         description="Every partner listing. Hidden venues disappear from search and can't be booked."
+        actions={
+          <Link
+            href="/admin/venues/new"
+            className="cta-gradient inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-secondary transition-opacity hover:opacity-90"
+          >
+            <Plus aria-hidden="true" className="size-4" />
+            New venue
+          </Link>
+        }
       />
 
       <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
@@ -79,7 +111,10 @@ const AdminVenuesPage = () => {
         </div>
         <label className="relative">
           <span className="sr-only">Search venues</span>
-          <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-tertiary/45" />
+          <Search
+            aria-hidden="true"
+            className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-tertiary/45"
+          />
           <input
             type="search"
             value={query}
@@ -90,18 +125,23 @@ const AdminVenuesPage = () => {
         </label>
       </div>
 
-      <div className={`${CARD} mt-5 overflow-x-auto`}>
-        {rows.length === 0 ? (
+      <div className={`${CARD} mt-5 overflow-x-auto shadow-lg shadow-tertiary/5`}>
+        {error ? (
+          <p role="alert" className="px-6 py-14 text-center text-sm text-primary">
+            We couldn&apos;t load the venues. Refresh to try again.
+          </p>
+        ) : rows.length === 0 ? (
           <p className="px-6 py-14 text-center text-sm text-tertiary/60">
-            No venues match these filters.
+            {venues.length === 0 ? "No venues yet. Add the first one." : "No venues match these filters."}
           </p>
         ) : (
-          <table className="w-full min-w-4xl text-left text-sm">
+          <table className="w-full min-w-5xl text-left text-sm">
             <thead className="border-b border-tertiary/10 text-xs uppercase tracking-wider text-tertiary/50">
               <tr>
                 <th scope="col" className="px-5 py-3 font-semibold">Venue</th>
                 <th scope="col" className="px-5 py-3 font-semibold">Spaces</th>
                 <th scope="col" className="px-5 py-3 font-semibold">Rates</th>
+                <th scope="col" className="px-5 py-3 font-semibold">Seat map</th>
                 <th scope="col" className="px-5 py-3 font-semibold">Rating</th>
                 <th scope="col" className="px-5 py-3 font-semibold">Published</th>
                 <th scope="col" className="px-5 py-3 font-semibold">
@@ -114,12 +154,16 @@ const AdminVenuesPage = () => {
                 <tr key={venue.slug} className={cn(!venue.published && "bg-tertiary/2")}>
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-3">
-                      <div className="relative size-12 shrink-0 overflow-hidden rounded-lg">
-                        <Image src={venue.image} alt="" fill sizes="48px" className="object-cover" />
+                      <div className="relative size-12 shrink-0 overflow-hidden rounded-lg bg-tertiary/5">
+                        {venue.image && (
+                          <Image src={venue.image} alt="" fill sizes="48px" className="object-cover" />
+                        )}
                       </div>
                       <div className="min-w-0">
                         <p className="font-semibold text-tertiary">{venue.name}</p>
-                        <p className="text-xs text-tertiary/55">{venue.locality}, {venue.city}</p>
+                        <p className="text-xs text-tertiary/55">
+                          {venue.locality}, {venue.city}
+                        </p>
                       </div>
                     </div>
                   </td>
@@ -137,18 +181,28 @@ const AdminVenuesPage = () => {
                     <p className="text-xs text-tertiary/55">₹{venue.dayPassPrice}/day</p>
                   </td>
                   <td className="px-5 py-3.5">
+                    <MapCell seatMap={venue.seatMap} />
+                  </td>
+                  <td className="px-5 py-3.5">
                     <span className="inline-flex items-center gap-1 text-tertiary">
                       <Star aria-hidden="true" className="size-3.5 fill-rating text-rating" />
                       {venue.rating.toFixed(1)}
                     </span>
                   </td>
                   <td className="px-5 py-3.5">
-                    <Toggle
-                      checked={venue.published}
-                      onChange={(checked) => catalog.updateVenue(venue.slug, { published: checked })}
-                      label={`${venue.name} published`}
-                      hideLabel
-                    />
+                    <div className={cn(saving === venue.slug && "pointer-events-none opacity-60")}>
+                      <Toggle
+                        checked={venue.published}
+                        onChange={(checked) => setPublished(venue, checked)}
+                        label={`${venue.name} published`}
+                        hideLabel
+                      />
+                    </div>
+                    {rowErrors[venue.slug] && (
+                      <p role="alert" className="mt-1.5 max-w-44 text-xs text-primary">
+                        {rowErrors[venue.slug]}
+                      </p>
+                    )}
                   </td>
                   <td className="px-5 py-3.5">
                     <div className="flex items-center justify-end gap-4">

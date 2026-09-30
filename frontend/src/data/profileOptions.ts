@@ -1,3 +1,4 @@
+import profileIds from "@/config/profile-ids.json";
 import type { SelectOption } from "@/types/search";
 
 export const GENDER_OPTIONS: SelectOption[] = [
@@ -24,6 +25,16 @@ export const WORK_TYPE_OPTIONS: SelectOption[] = [
   { label: "Hybrid", value: "hybrid" },
   { label: "On-site", value: "on-site" },
 ];
+
+const ids = (options: SelectOption[]) => options.map((option) => option.value).join();
+
+if (
+  ids(GENDER_OPTIONS) !== profileIds.genders.join() ||
+  ids(INDUSTRY_OPTIONS) !== profileIds.industries.join() ||
+  ids(WORK_TYPE_OPTIONS) !== profileIds.workTypes.join()
+) {
+  throw new Error("Profile options must list the ids in config/profile-ids.json, in order");
+}
 
 export const COUNTRY_CODE_OPTIONS: SelectOption[] = [
   { label: "+91 IN", value: "+91" },

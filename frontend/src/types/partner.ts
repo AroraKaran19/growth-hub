@@ -23,13 +23,13 @@ export type PartnerBooking = {
   type: string;
   /** Floor plan labels, e.g. "D4" or "Meeting Room". */
   seats: string[];
+  people: number;
   /** ISO date of the visit. */
   date: string;
   time: string;
   total: number;
   status: PartnerBookingStatus;
-  /** Bookings made on the member site in this browser, or partner mock data. */
-  source: "member-app" | "seed";
+  source: "api";
 };
 
 /** A membership held at the partner's venue. */
@@ -40,14 +40,29 @@ export type PartnerMember = {
   plan: string;
   workspace: string;
   seats: string[];
+  people: number;
   status: MembershipStatus;
-  renewsOn: string;
-  resumesOn?: string;
-  source: "member-app" | "seed";
+  startDate: string;
+  /** Last day paid for. */
+  paidThrough: string;
+  /** Next charge, or null when the plan will not renew. */
+  renewsOn: string | null;
 };
 
 export type PartnerSession = {
   email: string;
   staffName: string;
   venueSlug: string;
+};
+
+export type CheckInInput = { code: string } | { bookingRef: string } | { membershipRef: string };
+
+/** The server's answer to a check-in; a repeat scan is a warning, not an error. */
+export type CheckInResult = {
+  kind: "booking" | "membership";
+  ref: string;
+  memberName: string;
+  seats: string[];
+  checkedInAt: string;
+  warning: "already" | "payment-failed" | null;
 };

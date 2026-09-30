@@ -1,14 +1,10 @@
 import type { Metadata } from "next";
 import InvoicePage from "../../(pages)/Invoice/InvoicePage";
-import { MEMBER_BOOKINGS } from "@/data/memberBookings";
+import RequireSession from "../../components/shared/RequireSession";
 
 type InvoiceRouteProps = {
   params: Promise<{ bookingId: string }>;
 };
-
-export function generateStaticParams() {
-  return MEMBER_BOOKINGS.map((booking) => ({ bookingId: booking.bookingId }));
-}
 
 export const metadata: Metadata = {
   title: "Invoice",
@@ -17,8 +13,10 @@ export const metadata: Metadata = {
 
 export default async function InvoiceRoute({ params }: InvoiceRouteProps) {
   const { bookingId } = await params;
-  // Bookings made in the browser are not known here; the page looks them up.
-  const booking = MEMBER_BOOKINGS.find((item) => item.bookingId === bookingId);
-
-  return <InvoicePage bookingId={bookingId} issuedBooking={booking} />;
+  // The booking is fetched in the browser with the member's own token, never baked into the page.
+  return (
+    <RequireSession>
+      <InvoicePage bookingId={bookingId} />
+    </RequireSession>
+  );
 }

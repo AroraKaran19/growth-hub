@@ -3,28 +3,35 @@
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { ArrowRight, Check, Copy, TicketPercent } from "lucide-react";
-import { useCoupons } from "@/stores/coupons";
-import {
-  COUPON_SCOPE_LABELS,
-  type Coupon,
-  type CouponScope,
-  type CouponState,
-} from "@/types/coupon";
+import { useWallet } from "@/hooks/useCoupons";
+import { addToWallet } from "@/libs/api/coupons";
+import { readApiError } from "@/libs/api/errors";
+import { COUPON_SCOPE_LABELS, type CouponScope, type CouponState, type WalletCoupon } from "@/types/coupon";
 import { cn } from "@/utils";
-import { couponHeadline, couponState } from "@/utils/coupon";
-import { formatDay, todayIso } from "@/utils/date";
+import { couponCap, couponHeadline, minSpendLabel } from "@/utils/coupon";
+import { formatDay } from "@/utils/date";
 
-const TABS: { value: CouponState; label: string }[] = [
+type Tab = "available" | "used" | "expired";
+
+const TABS: { value: Tab; label: string }[] = [
   { value: "available", label: "Available" },
   { value: "used", label: "Used" },
   { value: "expired", label: "Expired" },
 ];
 
+const TAB_OF: Record<CouponState, Tab> = {
+  available: "available",
+  upcoming: "available",
+  used: "used",
+  expired: "expired",
+  inactive: "expired",
+};
+
 const USE_HREF: Record<CouponScope, string> = {
-  all: "/workspaces",
-  pass: "/workspaces",
-  membership: "/memberships",
-  "meeting-room": "/workspaces?type=meeting-room",
+  any: "/workspaces",
+  passes: "/workspaces",
+  memberships: "/memberships",
+  "meeting-rooms": "/workspaces?type=meeting-room",
 };
 
 // A page-coloured disc straddling the card edge at the perforation. Only the
@@ -33,7 +40,7 @@ const NOTCH =
   "absolute left-[102px] size-5 rounded-full border border-tertiary/10 bg-secondary";
 
 type CouponTicketProps = {
-  coupon: Coupon;
+  coupon: WalletCoupon;
   state: CouponState;
   isCopied: boolean;
   onCopy: (code: string) => void;
@@ -41,6 +48,7 @@ type CouponTicketProps = {
 
 const CouponTicket = ({ coupon, state, isCopied, onCopy }: CouponTicketProps) => {
   const isAvailable = state === "available";
+  const cap = couponCap(coupon);
 
   return (
     <article className="relative flex rounded-2xl border border-tertiary/10 bg-secondary">
@@ -54,11 +62,7 @@ const CouponTicket = ({ coupon, state, isCopied, onCopy }: CouponTicketProps) =>
         <p className="mt-2 text-lg font-bold leading-tight">
           {couponHeadline(coupon)}
         </p>
-        {coupon.maxDiscount && (
-          <p className="mt-1 text-xs text-secondary/85">
-            Up to ₹{coupon.maxDiscount.toLocaleString("en-IN")}
-          </p>
-        )}
+        {cap && <p className="mt-1 text-xs text-secondary/85">{cap}</p>}
       </div>
 
       <span
@@ -81,24 +85,31 @@ const CouponTicket = ({ coupon, state, isCopied, onCopy }: CouponTicketProps) =>
             {coupon.title}
           </h3>
           {state === "used" && (
-            <span className="rounded-full bg-tertiary/8 px-2.5 py-0.5 text-xs font-medium text-tertiary/70">
-              Used{coupon.usedOn && ` ${formatDay(coupon.usedOn)}`}
+            <span className="rounded-full bg-tertiary/8 px-2.5 py-0.5 text-xs font-medium text-tertiary/70">Used</span>
+          )}
+          {state === "upcoming" && (
+            <span className="rounded-full bg-amber-500/15 px-2.5 py-0.5 text-xs font-medium text-amber-800">
+              From {formatDay(coupon.startsOn)}
             </span>
           )}
-          {state === "expired" && (
+          {(state === "expired" || state === "inactive") && (
             <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
-              Expired
+              {state === "expired" ? "Expired" : "Withdrawn"}
+            </span>
+          )}
+          {isAvailable && coupon.usesLeft > 1 && (
+            <span className="rounded-full bg-green-500/12 px-2.5 py-0.5 text-xs font-medium text-green-800">
+              {coupon.usesLeft} uses left
             </span>
           )}
         </div>
         <p className="mt-1 text-sm text-tertiary/60">{coupon.description}</p>
 
         <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-tertiary/55">
-          <li>{COUPON_SCOPE_LABELS[coupon.scope]}</li>
-          <li>Min spend ₹{coupon.minSpend.toLocaleString("en-IN")}</li>
+          <li>{COUPON_SCOPE_LABELS[coupon.appliesTo]}</li>
+          <li>{minSpendLabel(coupon.minSpend)}</li>
           <li>
-            {state === "expired" ? "Ended" : "Valid till"}{" "}
-            {formatDay(coupon.validUntil)}
+            {state === "expired" ? "Ended" : "Valid till"} {formatDay(coupon.endsOn)}
           </li>
         </ul>
 
@@ -128,7 +139,7 @@ const CouponTicket = ({ coupon, state, isCopied, onCopy }: CouponTicketProps) =>
 
           {isAvailable && (
             <Link
-              href={USE_HREF[coupon.scope]}
+              href={USE_HREF[coupon.appliesTo]}
               className="inline-flex items-center gap-1 text-sm font-medium text-primary transition-opacity hover:opacity-75"
             >
               Use now
@@ -142,28 +153,23 @@ const CouponTicket = ({ coupon, state, isCopied, onCopy }: CouponTicketProps) =>
 };
 
 const CouponsPage = () => {
-  const { coupons, isHydrated, redeem } = useCoupons();
-  const [tab, setTab] = useState<CouponState>("available");
+  const { coupons, isLoading, mutate } = useWallet();
+  const isHydrated = !isLoading;
+  const [tab, setTab] = useState<Tab>("available");
+  const [isAdding, setIsAdding] = useState(false);
   const [code, setCode] = useState("");
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(
     null,
   );
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
-  const today = isHydrated ? todayIso() : "";
-  const withState = coupons.map((coupon) => ({
-    coupon,
-    state: today ? couponState(coupon, today) : ("available" as CouponState),
-  }));
+  const withState = coupons.map((coupon) => ({ coupon, state: coupon.state }));
 
   const counts = Object.fromEntries(
-    TABS.map(({ value }) => [
-      value,
-      withState.filter((item) => item.state === value).length,
-    ]),
-  ) as Record<CouponState, number>;
+    TABS.map(({ value }) => [value, withState.filter((item) => TAB_OF[item.state] === value).length]),
+  ) as Record<Tab, number>;
 
-  const visible = withState.filter((item) => item.state === tab);
+  const visible = withState.filter((item) => TAB_OF[item.state] === tab);
 
   const handleCopy = (value: string) => {
     navigator.clipboard
@@ -178,18 +184,20 @@ const CouponsPage = () => {
       .catch(() => setCopiedCode(null));
   };
 
-  const handleSubmit = (event: FormEvent) => {
+  const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    const result = redeem(code, today);
-    if (result.ok) {
-      setMessage({
-        ok: true,
-        text: `${result.coupon.code} added: ${result.coupon.title}.`,
-      });
+    if (!code.trim()) return setMessage({ ok: false, text: "Enter a coupon code." });
+    setIsAdding(true);
+    try {
+      const coupon = await addToWallet(code);
+      await mutate();
+      setMessage({ ok: true, text: `${coupon.code} added: ${coupon.title}.` });
       setCode("");
-      setTab("available");
-    } else {
-      setMessage({ ok: false, text: result.reason });
+      setTab(TAB_OF[coupon.state]);
+    } catch (caught) {
+      setMessage({ ok: false, text: readApiError(caught).message });
+    } finally {
+      setIsAdding(false);
     }
   };
 
@@ -231,9 +239,10 @@ const CouponsPage = () => {
         </label>
         <button
           type="submit"
-          className="cta-gradient rounded-lg px-5 py-2.5 text-sm font-medium text-secondary transition-opacity hover:opacity-90"
+          disabled={isAdding}
+          className="cta-gradient rounded-lg px-5 py-2.5 text-sm font-medium text-secondary transition-opacity hover:opacity-90 disabled:opacity-60"
         >
-          Add to wallet
+          {isAdding ? "Adding..." : "Add to wallet"}
         </button>
         {message && (
           <p

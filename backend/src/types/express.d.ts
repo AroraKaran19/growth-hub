@@ -11,6 +11,8 @@ declare global {
         account: AccountSummary;
       };
       clientIp?: string;
+      /** The exact bytes of a JSON body, for signature checks. */
+      rawBody?: Buffer;
       clientUserAgent?: string;
     }
   }

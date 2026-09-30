@@ -1,7 +1,4 @@
-import { MAX_PAUSE_DAYS } from "@/data/membershipPlans";
-import type { MemberMembership, MembershipUnit } from "@/types/membership";
-
-export { MAX_PAUSE_DAYS };
+import type { MembershipUnit } from "@/types/membership";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -25,6 +22,24 @@ const MONTHS_IN: Record<Exclude<MembershipUnit, "week">, number> = {
   "6 months": 6,
 };
 
+const MAX_CYCLES = 600;
+
+/** The start of cycle n, anchored on the first day, as the server counts it. */
+const cycleStart = (startDate: string, unit: MembershipUnit, n: number) => {
+  if (unit === "week") return addDays(startDate, 7 * n);
+  const [year, month, day] = startDate.split("-").map(Number);
+  const target = new Date(Date.UTC(year, month - 1 + MONTHS_IN[unit] * n, 1));
+  const lastDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
+  return toIso(Date.UTC(target.getUTCFullYear(), target.getUTCMonth(), Math.min(day, lastDay)));
+};
+
+/** The first day of the paid cycle that ends on `paidThrough`. */
+export const paidCycleStart = (startDate: string, unit: MembershipUnit, paidThrough: string) => {
+  let n = 0;
+  while (n < MAX_CYCLES && addDays(cycleStart(startDate, unit, n + 1), -1) < paidThrough) n += 1;
+  return cycleStart(startDate, unit, n);
+};
+
 /** One billing period on from an ISO date. Months keep the day, clamped to
  *  the end of shorter months (31 Jan to 28 Feb). */
 export const addCycle = (iso: string, unit: MembershipUnit): string => {
@@ -35,37 +50,3 @@ export const addCycle = (iso: string, unit: MembershipUnit): string => {
   const lastDay = new Date(Date.UTC(year, month - 1 + months + 1, 0)).getUTCDate();
   return toIso(Date.UTC(year, month - 1 + months, Math.min(day, lastDay)));
 };
-
-/** Pauses from today. The paused days are added to the end of the cycle, so
- *  no paid time is lost. */
-export const pauseChanges = (
-  membership: MemberMembership,
-  today: string,
-  days: number,
-): Partial<MemberMembership> => {
-  const length = Math.min(Math.max(Math.round(days), 1), MAX_PAUSE_DAYS);
-
-  return {
-    status: membership.status === "active" ? "paused" : membership.status,
-    pausedOn: today,
-    resumesOn: addDays(today, length),
-    cycleEnd: addDays(membership.cycleEnd, length),
-  };
-};
-
-/** Days of a pause not yet used if it ended today. */
-export const unusedPauseDays = (membership: MemberMembership, today: string) =>
-  membership.resumesOn
-    ? Math.max(daysBetween(today, membership.resumesOn), 0)
-    : 0;
-
-/** Resumes today. Unused pause days come back off the end of the cycle. */
-export const resumeChanges = (
-  membership: MemberMembership,
-  today: string,
-): Partial<MemberMembership> => ({
-  status: "active",
-  cycleEnd: addDays(membership.cycleEnd, -unusedPauseDays(membership, today)),
-  pausedOn: undefined,
-  resumesOn: undefined,
-});

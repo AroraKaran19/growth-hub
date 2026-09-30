@@ -4,12 +4,13 @@ import Link from "next/link";
 import { QRCodeSVG } from "qrcode.react";
 import { ArrowRight, Check } from "lucide-react";
 import DirectionsLink from "@/app/components/ui/DirectionsLink";
-import type { MemberMembership } from "@/types/membership";
+import { MEMBERSHIP_LENGTH_LABELS_BY_KEY, MEMBERSHIP_SPACES } from "@/data/membershipPlans";
+import type { ApiMembership } from "@/types/membership";
 import type { Venue } from "@/types/venue";
 import { formatDay } from "@/utils/date";
 
 type MembershipConfirmedProps = {
-  membership: MemberMembership;
+  membership: ApiMembership;
   venue: Venue;
 };
 
@@ -18,10 +19,13 @@ const ROW_VALUE = "text-sm font-medium text-tertiary";
 
 const MembershipConfirmed = ({ membership, venue }: MembershipConfirmedProps) => {
   const rows = [
-    { label: "Plan", value: `${membership.plan} ${membership.workspace}` },
-    { label: "Your seat", value: membership.seats.join(", ") },
-    { label: "Starts", value: formatDay(membership.cycleStart) },
-    { label: "Renews on", value: formatDay(membership.cycleEnd) },
+    {
+      label: "Plan",
+      value: `${MEMBERSHIP_LENGTH_LABELS_BY_KEY[membership.length]} ${MEMBERSHIP_SPACES[membership.spaceType].workspace}`,
+    },
+    { label: "Your seat", value: membership.seats.map((seat) => seat.label).join(", ") },
+    { label: "Starts", value: formatDay(membership.startDate) },
+    { label: "Next charge", value: membership.renewsOn ? formatDay(membership.renewsOn) : "None" },
   ];
 
   return (
@@ -36,34 +40,24 @@ const MembershipConfirmed = ({ membership, venue }: MembershipConfirmedProps) =>
           <Check aria-hidden="true" className="size-8 text-secondary" />
         </span>
 
-        <h2
-          id="membership-confirmed-title"
-          className="mt-5 text-2xl font-bold text-tertiary"
-        >
+        <h2 id="membership-confirmed-title" className="mt-5 text-2xl font-bold text-tertiary">
           Membership Active
         </h2>
         <p className="mt-1 text-sm text-tertiary/60">
-          Welcome to {venue.name}. Your seat is reserved from{" "}
-          {formatDay(membership.cycleStart)}, so there is nothing else to book.
+          Welcome to {venue.name}. Your seat is reserved from {formatDay(membership.startDate)}, so there
+          is nothing else to book.
         </p>
 
         <div className="mt-6 flex overflow-hidden rounded-xl bg-tertiary/4 text-left">
-          <div className="flex shrink-0 flex-col items-center justify-center gap-2 p-4">
-            <QRCodeSVG
-              value={`growthhub:member:${membership.id}`}
-              size={96}
-              level="M"
-              aria-label="Member pass QR code"
-            />
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-primary">
-              Member pass
-            </span>
-          </div>
-
-          <div
-            aria-hidden="true"
-            className="my-3 border-l border-dashed border-tertiary/25"
-          />
+          {membership.memberPass && (
+            <>
+              <div className="flex shrink-0 flex-col items-center justify-center gap-2 p-4">
+                <QRCodeSVG value={membership.memberPass} size={96} level="M" aria-label="Member pass QR code" />
+                <span className="text-[11px] font-semibold text-primary">Member pass</span>
+              </div>
+              <div aria-hidden="true" className="my-3 border-l border-dashed border-tertiary/25" />
+            </>
+          )}
 
           <dl className="grid min-w-0 grow grid-cols-1 gap-2 p-4">
             {rows.map((row) => (
@@ -76,14 +70,14 @@ const MembershipConfirmed = ({ membership, venue }: MembershipConfirmedProps) =>
         </div>
 
         <p className="mt-4 text-sm text-tertiary/60">
-          Includes {membership.meetingRoomHours.included} meeting room hours
-          and {membership.guestPasses.included} guest passes each cycle. Open{" "}
-          {venue.openHours}.
+          Renews automatically until you stop it in My Memberships. Open {venue.openHours}.
         </p>
 
-        <div className="mt-4 flex justify-center">
-          <DirectionsLink url={venue.googleMapsUrl} />
-        </div>
+        {venue.googleMapsUrl && (
+          <div className="mt-4 flex justify-center">
+            <DirectionsLink url={venue.googleMapsUrl} />
+          </div>
+        )}
 
         <div className="mt-6 flex items-center justify-center gap-5">
           <Link

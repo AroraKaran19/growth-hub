@@ -1,8 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Check, Copy, Trash2, Undo2 } from "lucide-react";
-import { DEMO_FLOOR_PLAN } from "@/data/floorPlan";
+import { Check, Copy, ImageUp, Trash2, Undo2 } from "lucide-react";
 import { SEAT_TYPE_LABELS, type Seat, type SeatType } from "@/types/seat";
 import { cn } from "@/utils";
 import SelectField from "@/app/components/ui/form/SelectField";
@@ -35,7 +34,8 @@ const nextFallbackLabel = (seats: Seat[]) => {
 };
 
 const SeatMapper = () => {
-  const [seats, setSeats] = useState<Seat[]>(DEMO_FLOOR_PLAN.seats);
+  const [seats, setSeats] = useState<Seat[]>([]);
+  const [image, setImage] = useState<string | null>(null);
   const [label, setLabel] = useState("");
   const [type, setType] = useState<SeatType>("desk");
   const [draft, setDraft] = useState<Box | null>(null);
@@ -44,6 +44,16 @@ const SeatMapper = () => {
 
   const planRef = useRef<HTMLDivElement>(null);
   const originRef = useRef<{ x: number; y: number } | null>(null);
+
+  // The plan stays on this machine; only the seat JSON leaves the page.
+  const pickImage = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setImage((current) => {
+      if (current) URL.revokeObjectURL(current);
+      return URL.createObjectURL(file);
+    });
+  };
 
   const toPercent = (event: React.PointerEvent) => {
     const rect = planRef.current!.getBoundingClientRect();
@@ -141,6 +151,29 @@ const SeatMapper = () => {
     }
   };
 
+  if (!image) {
+    return (
+      <label className="flex cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-tertiary/20 bg-secondary px-6 py-20 text-center transition-colors hover:border-primary/50">
+        <span className="flex size-12 items-center justify-center rounded-xl bg-tertiary/5 text-tertiary/60">
+          <ImageUp aria-hidden="true" className="size-5" />
+        </span>
+        <span className="text-base font-semibold text-tertiary">
+          Choose a floor plan image
+        </span>
+        <span className="max-w-sm text-sm text-tertiary/60">
+          The image stays on this computer. Map the seats, copy the JSON, then
+          run the import script with the same image.
+        </span>
+        <input
+          type="file"
+          accept="image/*"
+          onChange={pickImage}
+          className="sr-only"
+        />
+      </label>
+    );
+  }
+
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px]">
       <div>
@@ -155,7 +188,7 @@ const SeatMapper = () => {
               raw box, and this never ships. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={DEMO_FLOOR_PLAN.image}
+            src={image}
             alt="Floor plan"
             className="pointer-events-none w-full"
             draggable={false}
@@ -224,6 +257,17 @@ const SeatMapper = () => {
           <p className="mt-3 text-xs text-tertiary/50">
             Pricing and availability are set in the admin panel, not here.
           </p>
+
+          <label className="mt-3 inline-flex cursor-pointer items-center gap-1.5 text-xs font-medium text-primary">
+            <ImageUp aria-hidden="true" className="size-3.5" />
+            Use a different plan image
+            <input
+              type="file"
+              accept="image/*"
+              onChange={pickImage}
+              className="sr-only"
+            />
+          </label>
         </div>
 
         <div className="rounded-xl border border-tertiary/15 bg-secondary p-4">

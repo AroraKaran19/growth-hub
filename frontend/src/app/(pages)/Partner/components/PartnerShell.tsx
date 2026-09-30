@@ -11,14 +11,18 @@ import {
   LayoutDashboard,
   LogOut,
   MapPin,
+  MessageSquareText,
+  Puzzle,
+  ReceiptText,
   ScanLine,
 } from "lucide-react";
 import Logo from "@/app/components/ui/Logo";
-import { PARTNER_ACCOUNT } from "@/data/partner";
-import { findVenue } from "@/data/venues";
 import { useAuthBootstrap } from "@/hooks/useAuthBootstrap";
-import { usePartnerSession } from "@/stores/partner";
+import { usePartnerRequests } from "@/hooks/useCancellationRequests";
+import { usePartnerVenue } from "@/hooks/useVenues";
+import { PartnerVenueContext, usePartnerSession } from "@/stores/partner";
 import { cn } from "@/utils";
+import { PartnerSkeleton } from "./PartnerUi";
 
 export const PARTNER_LINKS = [
   { label: "Overview", href: "/partner", icon: LayoutDashboard },
@@ -26,6 +30,9 @@ export const PARTNER_LINKS = [
   { label: "Bookings", href: "/partner/bookings", icon: CalendarCheck },
   { label: "Seats", href: "/partner/seats", icon: Armchair },
   { label: "Members", href: "/partner/members", icon: Crown },
+  { label: "Requests", href: "/partner/requests", icon: MessageSquareText },
+  { label: "Add-ons", href: "/partner/addons", icon: Puzzle },
+  { label: "Statements", href: "/partner/statements", icon: ReceiptText },
 ];
 
 /** Signed-in frame for every partner page: sidebar, top bar and guard. */
@@ -33,6 +40,12 @@ const PartnerShell = ({ children }: { children: ReactNode }) => {
   const pathname = usePathname();
   const router = useRouter();
   const { session, isReady, signOut } = usePartnerSession();
+  const { venue, error: venueError } = usePartnerVenue();
+  const { requests: waiting } = usePartnerRequests("open");
+  const badgeFor = (href: string) =>
+    href === "/partner/requests" && waiting.length > 0 ? (
+      <span className="ml-auto rounded-full bg-primary px-2 py-0.5 text-xs font-semibold text-secondary">{waiting.length}</span>
+    ) : null;
 
   useAuthBootstrap("partner");
 
@@ -54,8 +67,6 @@ const PartnerShell = ({ children }: { children: ReactNode }) => {
       </div>
     );
   }
-
-  const venue = findVenue(session.venueSlug ?? PARTNER_ACCOUNT.venueSlug);
 
   const handleSignOut = async () => {
     await signOut();
@@ -101,6 +112,7 @@ const PartnerShell = ({ children }: { children: ReactNode }) => {
                   >
                     <Icon aria-hidden="true" className="size-4 shrink-0" />
                     {link.label}
+                    {badgeFor(link.href)}
                   </Link>
                 </li>
               );
@@ -132,7 +144,7 @@ const PartnerShell = ({ children }: { children: ReactNode }) => {
               </span>
             </div>
             <p className="hidden text-sm text-tertiary/60 lg:block">
-              {venue?.name} front desk
+              {venue ? `${venue.name} front desk` : "Front desk"}
             </p>
             <div className="flex items-center gap-4">
               {venue && (
@@ -177,13 +189,32 @@ const PartnerShell = ({ children }: { children: ReactNode }) => {
                 >
                   <Icon aria-hidden="true" className="size-4" />
                   {link.label}
+                  {badgeFor(link.href)}
                 </Link>
               );
             })}
           </nav>
         </header>
 
-        <div className="px-4 py-6 sm:px-6 lg:px-8 lg:py-8">{children}</div>
+        <div className="px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+          {venue ? (
+            <PartnerVenueContext value={venue}>{children}</PartnerVenueContext>
+          ) : venueError ? (
+            <div
+              role="alert"
+              className="rounded-2xl border border-primary/25 bg-secondary px-6 py-14 text-center shadow-sm"
+            >
+              <p className="text-base font-semibold text-tertiary">
+                We couldn&apos;t load your venue
+              </p>
+              <p className="mx-auto mt-2 max-w-sm text-sm text-tertiary/60">
+                Refresh, or contact Growth Hub if it continues.
+              </p>
+            </div>
+          ) : (
+            <PartnerSkeleton />
+          )}
+        </div>
       </div>
     </div>
   );

@@ -1,48 +1,75 @@
 "use client";
 
 import { useState } from "react";
-import { useVenueCatalog, type CatalogVenue } from "@/stores/venues";
+import { patchVenueRow, useAdminVenues } from "@/hooks/useAdminCatalogue";
+import { readApiError } from "@/libs/api/errors";
+import type { AdminVenueRow } from "@/types/catalogue";
 import { cn } from "@/utils";
-import { rateFor } from "../Booking/pricing";
 import {
   PARTNER_CARD as CARD,
   PartnerPageHeader as PageHeader,
   PartnerSkeleton as Skeleton,
 } from "../Partner/components/PartnerUi";
+import { rateError, rateField } from "./components/priceRow";
 
 const INPUT =
   "w-24 rounded-lg border bg-secondary px-2.5 py-2 text-right text-sm text-tertiary outline-none transition-colors focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20";
 
-const PriceRow = ({ venue }: { venue: CatalogVenue }) => {
-  const catalog = useVenueCatalog();
-  const [hourly, setHourly] = useState(String(venue.startingPrice));
-  const [day, setDay] = useState(String(venue.dayPassPrice));
+const PriceRow = ({ venue, onSaved }: { venue: AdminVenueRow; onSaved: () => Promise<void> }) => {
+  // Null means untouched, so the box follows the server and typing is never lost.
+  const [typedHourly, setTypedHourly] = useState<string | null>(null);
+  const [typedDay, setTypedDay] = useState<string | null>(null);
+  // The version the admin started typing against; a newer one refuses the save once.
+  const [editVersion, setEditVersion] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
-  const hourlyValue = Number(hourly);
-  const dayValue = Number(day);
-  const isDirty =
-    hourlyValue !== venue.startingPrice || dayValue !== venue.dayPassPrice;
+  const hourly = rateField(typedHourly, venue.startingPrice);
+  const day = rateField(typedDay, venue.dayPassPrice);
+  const hourlyValue = hourly.value;
+  const dayValue = day.value;
+  const isDirty = hourly.isEdited || day.isEdited;
+  const monthly = venue.membershipPrices.desk?.monthly;
 
-  const handleSave = () => {
-    if (!(hourlyValue > 0) || !(dayValue > 0)) {
-      setError("Both rates must be above ₹0.");
-      return;
-    }
-    if (hourlyValue > dayValue) {
-      setError("Day pass can't cost less than an hour.");
-      return;
-    }
-    catalog.updateVenue(venue.slug, {
-      startingPrice: hourlyValue,
-      dayPassPrice: dayValue,
-    });
-    setError(null);
-    setSaved(true);
+  const type = (set: (value: string) => void, value: string) => {
+    set(value.replace(/\D/g, ""));
+    setEditVersion((current) => current ?? venue.version);
+    setSaved(false);
   };
 
-  const monthly = dayValue > 0 ? rateFor({ ...venue, dayPassPrice: dayValue }, "monthly").amount : 0;
+  const handleSave = async () => {
+    const invalid = rateError(hourlyValue, dayValue);
+    if (invalid) {
+      setError(invalid);
+      return;
+    }
+    setIsSaving(true);
+    setError(null);
+    try {
+      await patchVenueRow(venue.slug, {
+        startingPrice: hourlyValue,
+        dayPassPrice: dayValue,
+        version: editVersion ?? venue.version,
+      });
+      await onSaved();
+      setTypedHourly(null);
+      setTypedDay(null);
+      setEditVersion(null);
+      setSaved(true);
+    } catch (caught) {
+      const info = readApiError(caught);
+      if (info.code === "STALE_EDIT") {
+        setEditVersion(null);
+        void onSaved();
+        setError("This venue changed since you started typing. Check the rates, then save again.");
+      } else {
+        setError(info.fields.dayPassPrice ?? info.fields.startingPrice ?? info.message);
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
     <tr>
@@ -57,11 +84,8 @@ const PriceRow = ({ venue }: { venue: CatalogVenue }) => {
         <input
           id={`hourly-${venue.slug}`}
           inputMode="numeric"
-          value={hourly}
-          onChange={(event) => {
-            setHourly(event.target.value.replace(/\D/g, ""));
-            setSaved(false);
-          }}
+          value={hourly.text}
+          onChange={(event) => type(setTypedHourly, event.target.value)}
           className={cn(INPUT, error ? "border-primary" : "border-tertiary/20")}
         />
       </td>
@@ -72,11 +96,8 @@ const PriceRow = ({ venue }: { venue: CatalogVenue }) => {
         <input
           id={`day-${venue.slug}`}
           inputMode="numeric"
-          value={day}
-          onChange={(event) => {
-            setDay(event.target.value.replace(/\D/g, ""));
-            setSaved(false);
-          }}
+          value={day.text}
+          onChange={(event) => type(setTypedDay, event.target.value)}
           className={cn(INPUT, error ? "border-primary" : "border-tertiary/20")}
         />
       </td>
@@ -84,19 +105,27 @@ const PriceRow = ({ venue }: { venue: CatalogVenue }) => {
         ₹{Math.round(dayValue * 0.6 || 0).toLocaleString("en-IN")}
       </td>
       <td className="px-5 py-3.5 text-tertiary/70">
-        ₹{monthly.toLocaleString("en-IN")}
+        {monthly ? `₹${monthly.toLocaleString("en-IN")}` : "Not offered"}
       </td>
       <td className="px-5 py-3.5">
         <div className="flex items-center justify-end gap-3">
-          {error && <span role="alert" className="text-xs text-primary">{error}</span>}
-          {saved && !isDirty && <span role="status" className="text-xs text-green-700">Saved</span>}
+          {error && (
+            <span role="alert" className="text-xs text-primary">
+              {error}
+            </span>
+          )}
+          {saved && !isDirty && (
+            <span role="status" className="text-xs text-green-700">
+              Saved
+            </span>
+          )}
           <button
             type="button"
             onClick={handleSave}
-            disabled={!isDirty}
+            disabled={!isDirty || isSaving}
             className="rounded-lg border border-tertiary/20 px-3.5 py-1.5 text-sm font-medium text-tertiary transition-colors hover:bg-tertiary/5 disabled:opacity-40"
           >
-            Save
+            {isSaving ? "Saving..." : "Save"}
             <span className="sr-only"> {venue.name} rates</span>
           </button>
         </div>
@@ -106,42 +135,48 @@ const PriceRow = ({ venue }: { venue: CatalogVenue }) => {
 };
 
 const AdminPricingPage = () => {
-  const catalog = useVenueCatalog();
+  const { venues, error, isLoading, refresh } = useAdminVenues();
 
-  if (!catalog.isHydrated) return <Skeleton />;
+  if (isLoading) return <Skeleton />;
 
   return (
     <>
       <PageHeader
         title="Pricing"
-        description="Set each venue's hourly and day pass rates. Half day is 60% of a day pass; a month is 18 day passes, with 5% and 10% off 3 and 6 month plans."
+        description="Set each venue's hourly and day pass rates. Half day is 60% of a day pass. Membership prices are set on each venue's own page."
       />
 
-      <div className={`${CARD} mt-6 overflow-x-auto`}>
-        <table className="w-full min-w-3xl text-sm">
-          <thead className="border-b border-tertiary/10 text-left text-xs uppercase tracking-wider text-tertiary/50">
-            <tr>
-              <th scope="col" className="px-5 py-3 font-semibold">Venue</th>
-              <th scope="col" className="px-5 py-3 font-semibold">Hourly (₹)</th>
-              <th scope="col" className="px-5 py-3 font-semibold">Day pass (₹)</th>
-              <th scope="col" className="px-5 py-3 font-semibold">Half day</th>
-              <th scope="col" className="px-5 py-3 font-semibold">1 month</th>
-              <th scope="col" className="px-5 py-3 font-semibold">
-                <span className="sr-only">Save</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-tertiary/8">
-            {catalog.venues.map((venue) => (
-              <PriceRow key={`${venue.slug}-${venue.startingPrice}-${venue.dayPassPrice}`} venue={venue} />
-            ))}
-          </tbody>
-        </table>
+      <div className={`${CARD} mt-6 overflow-x-auto shadow-lg shadow-tertiary/5`}>
+        {error ? (
+          <p role="alert" className="px-6 py-14 text-center text-sm text-primary">
+            We couldn&apos;t load the venues. Refresh to try again.
+          </p>
+        ) : (
+          <table className="w-full min-w-3xl text-sm">
+            <thead className="border-b border-tertiary/10 text-left text-xs uppercase tracking-wider text-tertiary/50">
+              <tr>
+                <th scope="col" className="px-5 py-3 font-semibold">Venue</th>
+                <th scope="col" className="px-5 py-3 font-semibold">Hourly (₹)</th>
+                <th scope="col" className="px-5 py-3 font-semibold">Day pass (₹)</th>
+                <th scope="col" className="px-5 py-3 font-semibold">Half day</th>
+                <th scope="col" className="px-5 py-3 font-semibold">Desk, 1 month</th>
+                <th scope="col" className="px-5 py-3 font-semibold">
+                  <span className="sr-only">Save</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-tertiary/8">
+              {venues.map((venue) => (
+                <PriceRow key={venue.slug} venue={venue} onSaved={refresh} />
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
 
       <p className="mt-4 text-xs text-tertiary/55">
-        New rates apply to bookings made from now on. Existing bookings and
-        memberships keep the price that was paid.
+        New rates apply to bookings made from now on. Existing bookings and memberships keep the
+        price that was paid.
       </p>
     </>
   );

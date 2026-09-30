@@ -6,7 +6,7 @@ import FacilitiesSection from "./sections/FacilitiesSection";
 import BasicRulesSection from "./sections/BasicRulesSection";
 import OtherSpacesSection from "./sections/OtherSpacesSection";
 
-const VenuePage = ({ venue }: { venue: Venue }) => {
+const VenuePage = ({ venue, others }: { venue: Venue; others: Venue[] }) => {
   return (
     <>
       <VenueHeroSection venue={venue} />
@@ -14,7 +14,7 @@ const VenuePage = ({ venue }: { venue: Venue }) => {
       <VenueCategoriesSection venue={venue} />
       <FacilitiesSection venue={venue} />
       <BasicRulesSection venue={venue} />
-      <OtherSpacesSection venue={venue} />
+      <OtherSpacesSection others={others} />
     </>
   );
 };

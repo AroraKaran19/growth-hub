@@ -32,7 +32,7 @@ const TOPIC_ICONS: Record<FaqCategoryId, LucideIcon> = {
 const QUICK_ACTIONS = [
   { label: "Manage my bookings", href: "/account/bookings" },
   { label: "Cancel or reschedule", href: "/account/bookings" },
-  { label: "Pause a membership", href: "/account/memberships" },
+  { label: "Stop a membership", href: "/account/memberships" },
   { label: "Read the cancellation policy", href: "/cancellation-policy" },
 ];
 

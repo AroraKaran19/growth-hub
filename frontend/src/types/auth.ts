@@ -5,6 +5,18 @@ export const AUTH_SURFACES: readonly AuthSurface[] = ["member", "partner", "admi
 export const isAuthSurface = (value: string): value is AuthSurface =>
   (AUTH_SURFACES as readonly string[]).includes(value);
 
+/** Optional details a member fills in on Profile; null until they do. */
+export type MemberProfileFields = {
+  dateOfBirth: string | null;
+  gender: string | null;
+  companyName: string | null;
+  jobTitle: string | null;
+  industry: string | null;
+  workType: string | null;
+  preferredLocation: string | null;
+  billingEmail: string | null;
+};
+
 export type MemberAccount = {
   id: string;
   type: "member";
@@ -12,6 +24,8 @@ export type MemberAccount = {
   email: string | null;
   phone: { countryCode: string; number: string };
   needsOnboarding: boolean;
+  createdAt: string | null;
+  profile: MemberProfileFields;
 };
 
 export type PartnerAccount = {
@@ -22,7 +36,16 @@ export type PartnerAccount = {
   venueSlug: string;
 };
 
-export type AdminAccount = { id: string; type: "admin"; name: string; email: string };
+export type AdminRole = "super-admin" | "admin";
+
+export type AdminAccount = {
+  id: string;
+  type: "admin";
+  name: string;
+  email: string;
+  role: AdminRole;
+  permissions: string[];
+};
 
 export type AuthAccount = MemberAccount | PartnerAccount | AdminAccount;
 

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { DEMO_FLOOR_PLAN } from "@/data/floorPlan";
 import { usePartnerDesk } from "@/stores/partner";
 import { SEAT_TYPE_LABELS, type Seat } from "@/types/seat";
 import { cn } from "@/utils";
@@ -24,7 +23,27 @@ const PartnerSeatsPage = () => {
 
   if (!desk.isReady) return <PartnerSkeleton />;
 
-  const { image } = DEMO_FLOOR_PLAN;
+  const { seatMap } = desk.venue;
+  if (!seatMap) {
+    return (
+      <>
+        <PartnerPageHeader
+          title="Seats"
+          description="Live view of the floor."
+        />
+        <div className={`${PARTNER_CARD} mt-6 px-6 py-14 text-center`}>
+          <p className="text-base font-semibold text-tertiary">
+            Your venue has no seat plan yet
+          </p>
+          <p className="mx-auto mt-2 max-w-sm text-sm text-tertiary/60">
+            Growth Hub assigns the plan. Contact us and we will set it up.
+          </p>
+        </div>
+      </>
+    );
+  }
+
+  const { image } = seatMap;
   const { seats } = desk;
   const states = seatStatesFor(seats, desk);
   const selected: Seat | undefined = seats.find((seat) => seat.id === selectedId);
@@ -149,14 +168,10 @@ const PartnerSeatsPage = () => {
                   </div>
                   <div className="flex justify-between gap-3">
                     <dt className="text-tertiary/55">
-                      {selectedState.member.status === "paused" ? "Resumes" : "Renews"}
+                      {selectedState.member.renewsOn ? "Renews" : "Ends"}
                     </dt>
                     <dd className="text-tertiary">
-                      {formatDay(
-                        selectedState.member.status === "paused" && selectedState.member.resumesOn
-                          ? selectedState.member.resumesOn
-                          : selectedState.member.renewsOn,
-                      )}
+                      {formatDay(selectedState.member.renewsOn ?? selectedState.member.paidThrough)}
                     </dd>
                   </div>
                 </dl>
@@ -166,16 +181,17 @@ const PartnerSeatsPage = () => {
                 {selectedState.status === "booked" && selectedState.booking && (
                   <button
                     type="button"
-                    onClick={() => desk.checkIn(selectedState.booking!.bookingId)}
+                    onClick={() => void desk.quickCheckIn(selectedState.booking!.bookingId)}
                     className={cn(CHECK_IN_BUTTON, "w-full py-2.5")}
                   >
                     Check in {selectedState.booking.memberName}
                   </button>
                 )}
-                {selectedState.status === "member" && selectedState.member && (
+                {(selectedState.status === "member" || selectedState.status === "held") &&
+                  selectedState.member && (
                   <button
                     type="button"
-                    onClick={() => desk.checkIn(selectedState.member!.membershipId)}
+                    onClick={() => void desk.quickCheckIn(selectedState.member!.membershipId)}
                     className={cn(CHECK_IN_BUTTON, "w-full py-2.5")}
                   >
                     Check in {selectedState.member.memberName}
@@ -199,14 +215,19 @@ const PartnerSeatsPage = () => {
                     Mark as free
                   </button>
                 )}
+                {selectedState.status === "being-booked" && (
+                  <p className="rounded-lg bg-sky-500/10 px-3 py-2 text-sm text-sky-900">
+                    Someone is paying for this seat right now. It frees up within two minutes if they leave.
+                  </p>
+                )}
                 {selectedState.status === "blocked" && (
                   <p className="rounded-lg bg-tertiary/4 px-3 py-2 text-sm text-tertiary/65">
                     Out of service. Availability is managed in the admin panel.
                   </p>
                 )}
                 {selectedState.status === "held" && (
-                  <p className="rounded-lg bg-primary/5 px-3 py-2 text-sm text-tertiary/70">
-                    Held for a paused member. Keep it free until they resume.
+                  <p className="rounded-lg bg-amber-500/10 px-3 py-2 text-sm text-amber-800">
+                    The last renewal failed. The seat stays theirs while Razorpay retries.
                   </p>
                 )}
                 {selectedState.status === "checked-in" && (

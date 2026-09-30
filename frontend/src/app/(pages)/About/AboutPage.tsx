@@ -10,28 +10,11 @@ import {
 } from "lucide-react";
 import PageHero from "@/app/components/shared/PageHero";
 import SectionHeading from "@/app/components/shared/SectionHeading";
-import { VENUES } from "@/data/venues";
+import { getPublishedVenues } from "@/libs/api/venues";
 import { cn } from "@/utils";
 import { CONTAINER } from "@/utils/layout";
+import { venueStats } from "@/utils/venues";
 import CtaBannerSection from "../Home/sections/CtaBannerSection";
-
-const STATS = [
-  { label: "Partner venues", value: String(VENUES.length) },
-  {
-    label: "Neighbourhoods",
-    value: String(new Set(VENUES.map((venue) => venue.localityId)).size),
-  },
-  {
-    label: "Seats to book",
-    value: `${Math.round(VENUES.reduce((sum, venue) => sum + venue.seatsAvailable, 0) / 10) * 10}+`,
-  },
-  {
-    label: "Average venue rating",
-    value: (
-      VENUES.reduce((sum, venue) => sum + venue.rating, 0) / VENUES.length
-    ).toFixed(1),
-  },
-];
 
 const JOURNEYS = [
   {
@@ -93,7 +76,15 @@ const GALLERY = [
   "/assets/home/extras/5.webp",
 ];
 
-const AboutPage = () => {
+const AboutPage = async () => {
+  const stats = venueStats(await getPublishedVenues());
+  const statItems = [
+    { label: "Partner venues", value: String(stats.venues) },
+    { label: "Neighbourhoods", value: String(stats.localities) },
+    { label: "Seats to book", value: `${stats.seats}+` },
+    { label: "Average venue rating", value: stats.rating },
+  ];
+
   return (
     <>
       <PageHero
@@ -142,16 +133,18 @@ const AboutPage = () => {
         </div>
       </section>
 
-      <section className="bg-tertiary py-14 lg:py-16">
-        <dl className={cn(CONTAINER, "grid grid-cols-2 gap-8 lg:grid-cols-4")}>
-          {STATS.map((stat) => (
-            <div key={stat.label} className="text-center">
-              <dd className="text-4xl font-bold text-secondary">{stat.value}</dd>
-              <dt className="mt-1 text-sm text-secondary/65">{stat.label}</dt>
-            </div>
-          ))}
-        </dl>
-      </section>
+      {stats.venues > 0 && (
+        <section className="bg-tertiary py-14 lg:py-16">
+          <dl className={cn(CONTAINER, "grid grid-cols-2 gap-8 lg:grid-cols-4")}>
+            {statItems.map((stat) => (
+              <div key={stat.label} className="text-center">
+                <dd className="text-4xl font-bold text-secondary">{stat.value}</dd>
+                <dt className="mt-1 text-sm text-secondary/65">{stat.label}</dt>
+              </div>
+            ))}
+          </dl>
+        </section>
+      )}
 
       <section className="bg-surface py-16 lg:py-24">
         <div className={CONTAINER}>

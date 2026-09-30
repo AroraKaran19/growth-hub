@@ -1,4 +1,6 @@
 import type { Types } from "mongoose";
+import { isAdminPermission, type AdminPermission, type AdminRole } from "../constants/permissions";
+import { PROFILE_FIELDS, type ProfileField } from "../constants/profile";
 import {
   Admin,
   Member,
@@ -9,6 +11,8 @@ import {
 } from "../models";
 import type { AccountStatus, AccountType } from "../types/auth";
 
+export type MemberProfile = Record<ProfileField, string | null>;
+
 export type MemberAccount = {
   id: string;
   type: "member";
@@ -16,6 +20,8 @@ export type MemberAccount = {
   email: string | null;
   phone: { countryCode: string; number: string };
   needsOnboarding: boolean;
+  createdAt: string | null;
+  profile: MemberProfile;
 };
 
 export type PartnerAccount = {
@@ -26,7 +32,14 @@ export type PartnerAccount = {
   venueSlug: string;
 };
 
-export type AdminAccount = { id: string; type: "admin"; name: string; email: string };
+export type AdminAccount = {
+  id: string;
+  type: "admin";
+  name: string;
+  email: string;
+  role: AdminRole;
+  permissions: AdminPermission[];
+};
 
 export type AccountSummary = MemberAccount | PartnerAccount | AdminAccount;
 
@@ -38,7 +51,9 @@ export const memberSummary = (member: MemberDoc): MemberAccount => ({
   name: member.name ?? null,
   email: member.email ?? null,
   phone: { countryCode: member.countryCode, number: member.phoneNumber },
-  needsOnboarding: !member.name,
+  needsOnboarding: !member.name || !member.email,
+  createdAt: member.createdAt?.toISOString() ?? null,
+  profile: Object.fromEntries(PROFILE_FIELDS.map((field) => [field, member[field] ?? null])) as MemberProfile,
 });
 
 export const partnerSummary = (staff: PartnerStaffDoc): PartnerAccount => ({
@@ -49,12 +64,18 @@ export const partnerSummary = (staff: PartnerStaffDoc): PartnerAccount => ({
   venueSlug: staff.venueSlug,
 });
 
-export const adminSummary = (admin: AdminDoc): AdminAccount => ({
-  id: admin._id.toString(),
-  type: "admin",
-  name: admin.name,
-  email: admin.email,
-});
+export const adminSummary = (admin: AdminDoc): AdminAccount => {
+  // Admins from before roles had full access; keep it until migrate-admin-roles runs.
+  const role = admin.role ?? "super-admin";
+  return {
+    id: admin._id.toString(),
+    type: "admin",
+    name: admin.name,
+    email: admin.email,
+    role,
+    permissions: role === "super-admin" ? [] : (admin.permissions ?? []).filter(isAdminPermission),
+  };
+};
 
 type AccountId = Types.ObjectId | string;
 

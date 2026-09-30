@@ -1,21 +1,18 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { connection } from "next/server";
 import BookingPage from "../../../(pages)/Booking/BookingPage";
-import { VENUES } from "@/data/venues";
+import { getVenue } from "@/libs/api/venues";
 
 type BookRouteProps = {
   params: Promise<{ slug: string }>;
 };
 
-export function generateStaticParams() {
-  return VENUES.map((venue) => ({ slug: venue.slug }));
-}
-
 export async function generateMetadata({
   params,
 }: BookRouteProps): Promise<Metadata> {
   const { slug } = await params;
-  const venue = VENUES.find((item) => item.slug === slug);
+  const venue = await getVenue(slug);
 
   if (!venue) return { title: "Workspace not found" };
 
@@ -23,8 +20,10 @@ export async function generateMetadata({
 }
 
 export default async function BookRoute({ params }: BookRouteProps) {
+  // Rendered per request so an unreachable API reaches app/error.tsx; the fetches stay cached.
+  await connection();
   const { slug } = await params;
-  const venue = VENUES.find((item) => item.slug === slug);
+  const venue = await getVenue(slug);
 
   if (!venue) notFound();
 

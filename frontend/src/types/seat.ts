@@ -1,3 +1,5 @@
+import catalogue from "@/config/catalogue-ids.json";
+
 export type SeatType = "desk" | "private-cabin" | "office" | "meeting-room";
 
 export const SEAT_TYPE_LABELS: Record<SeatType, string> = {
@@ -6,6 +8,10 @@ export const SEAT_TYPE_LABELS: Record<SeatType, string> = {
   office: "Office space",
   "meeting-room": "Meeting room",
 };
+
+if (Object.keys(SEAT_TYPE_LABELS).join() !== catalogue.seatTypes.join()) {
+  throw new Error("SEAT_TYPE_LABELS must list the ids in config/catalogue-ids.json, in order");
+}
 
 export type Seat = {
   id: string;
@@ -22,9 +28,4 @@ export type Seat = {
   available: boolean;
   /** Rooms only: how many people it seats. */
   capacity?: number;
-};
-
-export type FloorPlan = {
-  image: string;
-  seats: Seat[];
 };

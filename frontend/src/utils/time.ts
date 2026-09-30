@@ -23,3 +23,9 @@ export const timeRange = (start: string, durationMinutes: number) => {
   if (startMinutes == null) return start;
   return `${start} - ${toTimeLabel(startMinutes + durationMinutes)}`;
 };
+
+/** "18:30" to minutes after midnight, or null if unreadable. */
+export const toMinutes24 = (hhmm: string) => {
+  const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(hhmm);
+  return match ? Number(match[1]) * 60 + Number(match[2]) : null;
+};

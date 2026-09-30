@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Armchair, ScanLine, Users } from "lucide-react";
-import EmailCodeSignIn from "@/app/components/shared/EmailCodeSignIn";
+import StaffPasswordSignIn from "@/app/components/shared/StaffPasswordSignIn";
 import Logo from "@/app/components/ui/Logo";
 import { useAuthBootstrap } from "@/hooks/useAuthBootstrap";
 
@@ -22,7 +22,7 @@ const HIGHLIGHTS = [
   {
     icon: Users,
     title: "Know your members",
-    text: "Memberships, reserved seats and pauses in one list.",
+    text: "Memberships, reserved seats and renewals in one list.",
   },
 ];
 
@@ -37,7 +37,7 @@ const PartnerLoginForm = () => {
 
   return (
     <>
-      <EmailCodeSignIn surface="partner" next={safeNext(searchParams.get("next"))} />
+      <StaffPasswordSignIn surface="partner" next={safeNext(searchParams.get("next"))} />
       <p className="mt-6 text-sm text-tertiary/60">
         Booking a workspace?{" "}
         <Link href="/login" className="font-medium text-primary">

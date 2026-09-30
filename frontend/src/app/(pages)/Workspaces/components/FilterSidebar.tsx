@@ -1,11 +1,8 @@
 "use client";
 
 import { AMENITIES } from "@/data/amenities";
-import {
-  LOCATION_OPTIONS,
-  PRICE_BANDS,
-  WORKSPACE_TYPE_OPTIONS,
-} from "@/data/searchOptions";
+import { PRICE_BANDS, WORKSPACE_TYPE_OPTIONS } from "@/data/searchOptions";
+import type { SelectOption } from "@/types/search";
 import { cn } from "@/utils";
 
 export type Filters = {
@@ -16,6 +13,7 @@ export type Filters = {
 };
 
 type FilterSidebarProps = {
+  locations: SelectOption[];
   filters: Filters;
   onToggle: (key: "locality" | "type" | "amenities", value: string) => void;
   onPriceChange: (value: string) => void;
@@ -31,6 +29,7 @@ const CONTROL =
   "size-4 shrink-0 accent-primary";
 
 const FilterSidebar = ({
+  locations,
   filters,
   onToggle,
   onPriceChange,
@@ -53,22 +52,24 @@ const FilterSidebar = ({
         )}
       </div>
 
-      <fieldset className="flex flex-col gap-3">
-        <legend className={GROUP_TITLE}>Locality</legend>
-        {LOCATION_OPTIONS.map((option) => (
-          <label key={option.value} className={OPTION_ROW}>
-            <input
-              type="checkbox"
-              className={CONTROL}
-              checked={filters.locality.includes(option.value)}
-              onChange={() => onToggle("locality", option.value)}
-            />
-            {option.label}
-          </label>
-        ))}
-      </fieldset>
+      {locations.length > 0 && (
+        <fieldset className="flex flex-col gap-3 border-b border-tertiary/10 pb-6">
+          <legend className={GROUP_TITLE}>Locality</legend>
+          {locations.map((option) => (
+            <label key={option.value} className={OPTION_ROW}>
+              <input
+                type="checkbox"
+                className={CONTROL}
+                checked={filters.locality.includes(option.value)}
+                onChange={() => onToggle("locality", option.value)}
+              />
+              {option.label}
+            </label>
+          ))}
+        </fieldset>
+      )}
 
-      <fieldset className="flex flex-col gap-3 border-t border-tertiary/10 pt-6">
+      <fieldset className="flex flex-col gap-3">
         <legend className={GROUP_TITLE}>Workspace type</legend>
         {WORKSPACE_TYPE_OPTIONS.map((option) => (
           <label key={option.value} className={OPTION_ROW}>

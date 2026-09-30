@@ -21,6 +21,8 @@ export function proxy(request: NextRequest) {
   // A revoked cookie on a login page would redirect in a loop. The login page
   // sends signed-in visitors on itself, once a refresh has actually succeeded.
   if (pathname === LOGIN_PATH[surface]) return NextResponse.next();
+  // Reached from an emailed link by someone who can't sign in yet.
+  if (surface !== "member" && pathname === `/${surface}/reset-password`) return NextResponse.next();
   if (request.cookies.has(REFRESH_COOKIE[surface])) return NextResponse.next();
 
   const login = new URL(LOGIN_PATH[surface], request.url);
@@ -31,5 +33,5 @@ export function proxy(request: NextRequest) {
 // Checkout is deliberately absent: a visitor configures and prices a booking
 // as a guest, and verifies their number on the payment page itself.
 export const config = {
-  matcher: ["/account/:path*", "/partner/:path*", "/admin/:path*"],
+  matcher: ["/account/:path*", "/invoice/:path*", "/partner/:path*", "/admin/:path*"],
 };

@@ -7,15 +7,26 @@ import {
   normaliseSelection,
   type BookingSelection,
 } from "@/types/booking";
+import type { VenueDetail } from "@/types/venue";
+import { hasPassed } from "@/utils/date";
 import { readStoredItem, useIsClient, useStoredItem } from "@/utils/storage";
 import { needsStartTime } from "./membershipBooking";
+import { fitSelectionToVenue } from "./selectionRules";
 
 const storageKey = (slug: string) => `growth-hub:booking:${slug}`;
 
-const parseSelection = (raw: string | null): BookingSelection => {
+// Progress saved on an earlier visit can hold a day or start that has gone by.
+const dropPastSchedule = (selection: BookingSelection): BookingSelection => {
+  if (!selection.date) return selection;
+  if (hasPassed(selection.date)) return { ...selection, date: "", time: "" };
+  if (hasPassed(selection.date, selection.time)) return { ...selection, time: "" };
+  return selection;
+};
+
+const parseSelection = (raw: string | null, venue: VenueDetail): BookingSelection => {
   if (!raw) return DEFAULT_SELECTION;
   try {
-    return normaliseSelection(JSON.parse(raw));
+    return fitSelectionToVenue(dropPastSchedule(normaliseSelection(JSON.parse(raw))), venue);
   } catch {
     return DEFAULT_SELECTION;
   }
@@ -25,21 +36,21 @@ const clamp = (value: number, min: number, max: number) =>
   Math.min(Math.max(value, min), max);
 
 /** Shared by every booking screen so progress survives navigation and reloads. */
-export const useBookingSelection = (slug: string) => {
-  const key = storageKey(slug);
+export const useBookingSelection = (venue: VenueDetail) => {
+  const key = storageKey(venue.slug);
   const [saved, write] = useStoredItem(key);
   const isHydrated = useIsClient();
 
-  const selection = useMemo(() => parseSelection(saved), [saved]);
+  const selection = useMemo(() => parseSelection(saved, venue), [saved, venue]);
 
   // Builds on the stored value at call time, so rapid clicks never read a
   // stale copy.
   const setSelection = useCallback(
     (next: SetStateAction<BookingSelection>) => {
-      const current = parseSelection(readStoredItem(key));
+      const current = parseSelection(readStoredItem(key), venue);
       write(JSON.stringify(typeof next === "function" ? next(current) : next));
     },
-    [key, write],
+    [key, venue, write],
   );
 
   const clear = useCallback(() => write(null), [write]);

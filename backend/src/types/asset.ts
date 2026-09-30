@@ -20,6 +20,7 @@ export const isAssetKind = (value: unknown): value is AssetKind =>
 
 export type UploadTicket = PresignedPost & {
   key: string;
+  publicUrl: string;
   maxBytes: number;
   expiresInSeconds: number;
 };

@@ -1,0 +1,34 @@
+import { PHASE_PRODUCTION_BUILD } from "next/constants";
+import type { Venue, VenueDetail } from "@/types/venue";
+
+const API_URL = process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "";
+
+const REVALIDATE_SECONDS = 300;
+
+const isBuilding = () => process.env.NEXT_PHASE === PHASE_PRODUCTION_BUILD;
+
+type Envelope<T> = { data: T };
+
+const load = async <T>(path: string, tags: string[]): Promise<T | null> => {
+  const response = await fetch(`${API_URL}${path}`, {
+    next: { tags, revalidate: REVALIDATE_SECONDS },
+  });
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`Catalogue request failed: ${response.status} ${path}`);
+  return ((await response.json()) as Envelope<T>).data;
+};
+
+/** Published venues for listings. An unreachable API never fails a build. */
+export const getPublishedVenues = async (): Promise<Venue[]> => {
+  try {
+    return (await load<{ venues: Venue[] }>("/venues", ["venues"]))?.venues ?? [];
+  } catch (error) {
+    if (isBuilding()) return [];
+    throw error;
+  }
+};
+
+/** One venue by address, hidden ones included. Null when it doesn't exist. */
+export const getVenue = async (slug: string): Promise<VenueDetail | null> =>
+  (await load<{ venue: VenueDetail }>(`/venues/${encodeURIComponent(slug)}`, ["venues", `venue:${slug}`]))
+    ?.venue ?? null;

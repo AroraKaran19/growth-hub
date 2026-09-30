@@ -8,6 +8,7 @@ export type SeatStatus =
   | "member"
   | "held"
   | "walk-in"
+  | "being-booked"
   | "blocked";
 
 export const SEAT_STATUS_META: Record<
@@ -35,7 +36,7 @@ export const SEAT_STATUS_META: Record<
     box: "border-primary bg-primary/35 hover:bg-primary/55",
   },
   held: {
-    label: "Held, member paused",
+    label: "Member seat, payment failed",
     swatch: "bg-primary/40",
     box: "border-primary/50 bg-primary/15 hover:bg-primary/25",
   },
@@ -43,6 +44,11 @@ export const SEAT_STATUS_META: Record<
     label: "Walk-in",
     swatch: "bg-purple-600",
     box: "border-purple-700 bg-purple-600/40 hover:bg-purple-600/60",
+  },
+  "being-booked": {
+    label: "Being booked",
+    swatch: "bg-sky-500",
+    box: "border-sky-600 border-dashed bg-sky-500/25 hover:bg-sky-500/40",
   },
   blocked: {
     label: "Out of service",
@@ -69,6 +75,8 @@ export const seatStatesFor = (
     members: PartnerMember[];
     checkIns: Record<string, string>;
     walkIns: string[];
+    /** Someone is on the payment page for these right now. */
+    beingBooked?: string[];
   },
 ): Record<string, SeatState> => {
   const todays = context.bookings.filter(
@@ -80,7 +88,9 @@ export const seatStatesFor = (
   return Object.fromEntries(
     seats.map((seat) => {
       const booking = todays.find((item) => matchesSeat(seat, item.seats));
-      const member = context.members.find((item) => matchesSeat(seat, item.seats));
+      const member = context.members.find(
+        (item) => item.startDate <= context.today && matchesSeat(seat, item.seats),
+      );
 
       let state: SeatState = { status: "available" };
 
@@ -93,16 +103,17 @@ export const seatStatesFor = (
         };
       } else if (member) {
         state = {
-          status:
-            member.status === "paused"
+          status: context.checkIns[member.membershipId]
+            ? "checked-in"
+            : member.status === "past-due"
               ? "held"
-              : context.checkIns[member.membershipId]
-                ? "checked-in"
-                : "member",
+              : "member",
           member,
         };
       } else if (context.walkIns.includes(seat.id)) {
         state = { status: "walk-in" };
+      } else if (context.beingBooked?.includes(seat.id)) {
+        state = { status: "being-booked" };
       }
 
       return [seat.id, state];

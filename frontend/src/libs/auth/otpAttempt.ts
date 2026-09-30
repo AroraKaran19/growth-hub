@@ -12,7 +12,7 @@ import type { AuthSurface } from "@/types/auth";
  */
 export type OtpAttempt = {
   surface: AuthSurface;
-  /** National mobile digits for members, the email address for staff. */
+  /** National mobile digits. */
   identifier: string;
   /** Members only, so the country select can be restored. */
   countryCode?: string;
@@ -20,7 +20,7 @@ export type OtpAttempt = {
   expiresAt: number;
 };
 
-/** How long a sent code stays worth typing. Matches the email code lifetime. */
+/** How long a sent code stays worth typing. */
 export const OTP_ATTEMPT_TTL_MS = 10 * 60 * 1000;
 
 const keyFor = (surface: AuthSurface) => `gh:otp-attempt:${surface}`;

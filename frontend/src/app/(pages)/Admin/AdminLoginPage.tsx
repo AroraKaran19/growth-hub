@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Building2, CalendarRange, TicketPercent } from "lucide-react";
-import EmailCodeSignIn from "@/app/components/shared/EmailCodeSignIn";
+import StaffPasswordSignIn from "@/app/components/shared/StaffPasswordSignIn";
 import Logo from "@/app/components/ui/Logo";
 import { useAuthBootstrap } from "@/hooks/useAuthBootstrap";
 
@@ -35,7 +35,7 @@ const AdminLoginForm = () => {
   const searchParams = useSearchParams();
   useAuthBootstrap("admin");
 
-  return <EmailCodeSignIn surface="admin" next={safeNext(searchParams.get("next"))} />;
+  return <StaffPasswordSignIn surface="admin" next={safeNext(searchParams.get("next"))} />;
 };
 
 const AdminLoginPage = () => {

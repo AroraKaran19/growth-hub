@@ -1,18 +1,12 @@
-import {
-  Armchair,
-  CalendarClock,
-  CirclePause,
-  Presentation,
-  QrCode,
-  UserPlus,
-} from "lucide-react";
+import { Armchair, CalendarClock, CircleStop, Presentation, QrCode, Repeat } from "lucide-react";
 import FaqList from "@/app/components/shared/FaqList";
 import PageHero from "@/app/components/shared/PageHero";
 import SectionHeading from "@/app/components/shared/SectionHeading";
 import { findFaqCategory } from "@/data/faqs";
-import { MAX_PAUSE_DAYS } from "@/data/membershipPlans";
+import { getPublishedVenues } from "@/libs/api/venues";
 import { cn } from "@/utils";
 import { CONTAINER } from "@/utils/layout";
+import { membershipFromPrices } from "@/utils/venues";
 import CtaBannerSection from "../Home/sections/CtaBannerSection";
 import PlanExplorer from "./components/PlanExplorer";
 
@@ -28,19 +22,19 @@ const INCLUDED = [
     text: "Your space is reserved for the whole plan. Just turn up and work.",
   },
   {
+    icon: Repeat,
+    title: "Renews on its own",
+    text: "Pay the first cycle today; after that it renews by card, UPI or bank mandate.",
+  },
+  {
+    icon: CircleStop,
+    title: "Stop any time",
+    text: "Stop renewing from My Memberships and keep your seat until the end of what you paid for.",
+  },
+  {
     icon: Presentation,
-    title: "Meeting room hours",
-    text: "Included every cycle and used automatically when you book a room.",
-  },
-  {
-    icon: UserPlus,
-    title: "Guest passes",
-    text: "Bring a colleague or client for the day without paying extra.",
-  },
-  {
-    icon: CirclePause,
-    title: "Pause when you travel",
-    text: `Pause for up to ${MAX_PAUSE_DAYS} days and the days are added back to your plan.`,
+    title: "Extras when you need them",
+    text: "Add lockers, parking or printing for the days you want them, at the venue's prices.",
   },
   {
     icon: QrCode,
@@ -80,19 +74,14 @@ const COMPARISON = [
     membership: "Book once for the whole plan",
   },
   {
-    feature: "Meeting rooms",
-    pass: "Paid by the hour",
-    membership: "Hours included every cycle",
+    feature: "Paying",
+    pass: "Pay once for each visit",
+    membership: "Renews automatically, stop any time",
   },
   {
-    feature: "Guests",
-    pass: "Book a pass for each guest",
-    membership: "Guest passes included",
-  },
-  {
-    feature: "Time away",
-    pass: "Nothing to pause",
-    membership: `Pause up to ${MAX_PAUSE_DAYS} days at a time`,
+    feature: "Extras",
+    pass: "Add them when you book",
+    membership: "Add them for the days you need",
   },
   {
     feature: "Best for",
@@ -101,15 +90,16 @@ const COMPARISON = [
   },
 ];
 
-const MembershipPlansPage = () => {
+const MembershipPlansPage = async () => {
   const faqs = findFaqCategory("memberships")?.faqs ?? [];
+  const fromPrices = membershipFromPrices(await getPublishedVenues());
 
   return (
     <>
       <PageHero
         eyebrow="Memberships"
         title="Make one workspace yours"
-        description="Reserve a desk, cabin or office at a partner venue for a week or more. Your seat is held every day, with meeting room hours and guest passes included."
+        description="Reserve a desk, cabin or office at a partner venue for a week or more. Your seat is held every day, and the plan renews on its own until you stop it."
       />
 
       <section className="bg-secondary py-16 lg:py-24">
@@ -119,7 +109,7 @@ const MembershipPlansPage = () => {
             description="Pick a plan length to see prices and what each membership includes."
           />
           <div className="mt-10">
-            <PlanExplorer />
+            <PlanExplorer fromPrices={fromPrices} />
           </div>
         </div>
       </section>

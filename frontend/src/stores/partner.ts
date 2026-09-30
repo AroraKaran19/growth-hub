@@ -1,45 +1,38 @@
 "use client";
 
-import { useMemo } from "react";
-import { MEMBER } from "@/data/member";
-import {
-  PARTNER_ACCOUNT,
-  PARTNER_SEED_BOOKINGS,
-  PARTNER_SEED_MEMBERS,
-} from "@/data/partner";
-import { findVenue } from "@/data/venues";
+import { createContext, useContext, useMemo } from "react";
+import { MEMBERSHIP_LENGTH_LABELS_BY_KEY, MEMBERSHIP_SPACES } from "@/data/membershipPlans";
+import { toast } from "react-toastify";
+import { usePartnerToday } from "@/hooks/usePartnerToday";
+import { usePartnerBookings, usePartnerMembers } from "@/hooks/useStaffBookings";
+import { readApiError } from "@/libs/api/errors";
+import { recordDeskAddons, voidDeskAddons } from "@/libs/api/addonOrders";
+import { addWalkIn, checkInAtDesk, removeWalkIn, type DeskSale, type TodayAddon } from "@/libs/api/partnerDesk";
 import type {
+  CheckInInput,
+  CheckInResult,
   PartnerBooking,
   PartnerMember,
   PartnerSession,
 } from "@/types/partner";
-import type { Venue } from "@/types/venue";
+import type { DeskAddonTarget } from "@/types/addonOrder";
+import type { Seat } from "@/types/seat";
+import type { PartnerVenue } from "@/types/venue";
 import { todayIso } from "@/utils/date";
-import { readStoredItem, useIsClient, useStoredItem } from "@/utils/storage";
-import { addDays } from "@/app/(pages)/Account/membershipCycle";
+import { useIsClient } from "@/utils/storage";
+import { BOOKING_SPACE_LABELS } from "@/app/(pages)/Booking/membershipBooking";
+import { outcomeOfCheckIn, outcomeOfError } from "@/app/(pages)/Partner/verify";
 import { useAuthStore } from "./auth";
-import { useMemberBookings } from "./bookings";
-import { useMemberMemberships } from "./memberships";
-import { useVenueCatalog } from "./venues";
 
-const DESK_KEY = "growth-hub:partner-desk";
+const NO_SEATS: Seat[] = [];
 
-/** What the front desk recorded today. Resets when the date changes. */
-type DeskDay = {
-  date: string;
-  /** Booking or membership id to the ISO time of check-in. */
-  checkIns: Record<string, string>;
-  /** Seat ids marked as taken by walk-ins. */
-  walkIns: string[];
-};
+/** The partner's venue, loaded once by the shell for every page inside it. */
+export const PartnerVenueContext = createContext<PartnerVenue | null>(null);
 
-const parseJson = <T,>(raw: string | null, fallback: T): T => {
-  if (!raw) return fallback;
-  try {
-    return JSON.parse(raw) as T;
-  } catch {
-    return fallback;
-  }
+const useShellVenue = () => {
+  const venue = useContext(PartnerVenueContext);
+  if (!venue) throw new Error("Partner pages must render inside PartnerShell");
+  return venue;
 };
 
 /** The signed-in staff account, from the partner auth store. */
@@ -55,129 +48,144 @@ export const usePartnerSession = () => {
   return { session, account, isReady: status !== "loading", signOut };
 };
 
-const MEMBER_PHONE = `${MEMBER.mobileCountryCode} ${MEMBER.mobile}`;
-
-/** Everything the partner dashboard shows for its venue today. */
+/** Everything the partner dashboard shows for its venue today, from the server. */
 export const usePartnerDesk = () => {
-  const isReady = useIsClient();
-  const { session } = usePartnerSession();
-  const venueSlug = session?.venueSlug ?? PARTNER_ACCOUNT.venueSlug;
-  const today = isReady ? todayIso() : "";
-  const [deskRaw, writeDesk] = useStoredItem(DESK_KEY);
-  const { bookings: memberBookings } = useMemberBookings();
-  const { memberships } = useMemberMemberships();
-  const { venueFor, seatsFor } = useVenueCatalog();
-  const venue = venueFor(
-    (findVenue(venueSlug) ?? findVenue(PARTNER_ACCOUNT.venueSlug)) as Venue,
-  );
-  // Seats the admin panel took out of service show as blocked here too.
-  const seats = seatsFor(venue.slug);
+  const isClient = useIsClient();
+  const { today: feed, isLoading: isFeedLoading, mutate: refreshFeed } = usePartnerToday();
+  const { bookings: apiBookings, isLoading: areBookingsLoading, mutate: refreshBookings } = usePartnerBookings();
+  const { members: apiMembers, isLoading: areMembersLoading } = usePartnerMembers();
+  const venue = useShellVenue();
+  // Seats the admin panel took out of service arrive marked unavailable.
+  const seats = venue.seatMap?.seats ?? NO_SEATS;
+  // India date from the server, so a desk in another zone still sees the venue's day.
+  const today = feed?.date ?? (isClient ? todayIso() : "");
 
-  const desk = useMemo<DeskDay>(() => {
-    const saved = parseJson<DeskDay | null>(deskRaw, null);
-    return saved && saved.date === today
-      ? saved
-      : { date: today, checkIns: {}, walkIns: [] };
-  }, [deskRaw, today]);
+  const checkIns = useMemo<Record<string, string>>(() => {
+    if (!feed) return {};
+    const entries = [
+      ...feed.bookings.filter((booking) => booking.checkedInAt).map((booking) => [booking.ref, booking.checkedInAt!] as const),
+      ...feed.members.filter((member) => member.checkedInAt).map((member) => [member.ref, member.checkedInAt!] as const),
+    ];
+    return Object.fromEntries(entries);
+  }, [feed]);
 
-  const bookings = useMemo<PartnerBooking[]>(() => {
-    if (!today) return [];
-
-    const seeded: PartnerBooking[] = PARTNER_SEED_BOOKINGS.map(
-      ({ dayOffset, ...booking }) => ({
-        ...booking,
-        date: addDays(today, dayOffset),
-        source: "seed",
-      }),
-    );
-
-    // The member site's bookings at this venue, so both surfaces agree.
-    const fromMemberApp: PartnerBooking[] = memberBookings
-      .filter((booking) => booking.venueSlug === venue.slug)
-      .map((booking) => ({
-        bookingId: booking.bookingId,
-        memberName: MEMBER.name,
-        phone: MEMBER_PHONE,
-        type: booking.type,
+  const bookings = useMemo<PartnerBooking[]>(
+    () =>
+      apiBookings.map((booking): PartnerBooking => ({
+        bookingId: booking.ref,
+        memberName: booking.member.name,
+        phone: booking.member.phone,
+        type: BOOKING_SPACE_LABELS[booking.spaceType],
         seats: booking.seats,
-        date: booking.startDate,
-        time: booking.time,
-        total: booking.total,
-        status:
-          booking.status === "cancelled"
-            ? "cancelled"
-            : booking.status === "completed"
-              ? "completed"
-              : "upcoming",
-        source: "member-app",
-      }));
+        people: booking.people,
+        date: booking.date,
+        time: booking.timeLabel,
+        total: booking.total / 100,
+        status: booking.status === "pending-payment" || booking.status === "expired" ? "cancelled" : booking.status,
+        source: "api",
+      })),
+    [apiBookings],
+  );
 
-    return [...fromMemberApp, ...seeded].map((booking) =>
-      booking.status === "upcoming" && desk.checkIns[booking.bookingId]
-        ? { ...booking, status: "checked-in" }
-        : booking,
-    );
-  }, [today, memberBookings, venue.slug, desk.checkIns]);
-
-  const members = useMemo<PartnerMember[]>(() => {
-    const fromMemberApp: PartnerMember[] = memberships
-      .filter(
-        (membership) =>
-          membership.venueSlug === venue.slug && membership.status !== "expired",
-      )
-      .map((membership) => ({
-        membershipId: membership.id,
-        memberName: MEMBER.name,
-        phone: MEMBER_PHONE,
-        plan: membership.plan,
-        workspace: membership.workspace,
+  const members = useMemo<PartnerMember[]>(
+    () =>
+      apiMembers.map((membership) => ({
+        membershipId: membership.ref,
+        memberName: membership.member.name,
+        phone: membership.member.phone,
+        plan: MEMBERSHIP_LENGTH_LABELS_BY_KEY[membership.length] ?? membership.length,
+        workspace: MEMBERSHIP_SPACES[membership.spaceType].workspace,
         seats: membership.seats,
+        people: membership.people,
         status: membership.status,
-        renewsOn: membership.cycleEnd,
-        resumesOn: membership.resumesOn ?? undefined,
-        source: "member-app",
-      }));
+        startDate: membership.startDate,
+        paidThrough: membership.paidThrough ?? membership.startDate,
+        renewsOn: membership.renewsOn,
+      })),
+    [apiMembers],
+  );
 
-    return [...fromMemberApp, ...PARTNER_SEED_MEMBERS];
-  }, [memberships, venue.slug]);
+  const refresh = () => Promise.all([refreshFeed(), refreshBookings()]);
 
-  // Reads the stored day at call time so quick successive actions stack.
-  const updateDesk = (change: (current: DeskDay) => DeskDay) => {
-    const saved = parseJson<DeskDay | null>(readStoredItem(DESK_KEY), null);
-    const current =
-      saved && saved.date === today
-        ? saved
-        : { date: today, checkIns: {}, walkIns: [] };
-    writeDesk(JSON.stringify(change(current)));
+  const addonsByTarget = useMemo(() => {
+    const grouped: Record<string, TodayAddon[]> = {};
+    for (const addon of feed?.addons ?? []) (grouped[addon.targetRef] ??= []).push(addon);
+    return grouped;
+  }, [feed]);
+
+  const salesByTarget = useMemo(() => {
+    const grouped: Record<string, DeskSale[]> = {};
+    for (const sale of feed?.deskSalesToday ?? []) (grouped[sale.targetRef] ??= []).push(sale);
+    return grouped;
+  }, [feed]);
+
+  /** Throws the server's refusal, for the modal to show inline. */
+  const recordAddons = async (target: DeskAddonTarget, addonKeys: string[]) => {
+    const order = await recordDeskAddons(target, addonKeys);
+    await refreshFeed();
+    return order;
   };
 
-  const checkIn = (id: string) =>
-    updateDesk((current) => ({
-      ...current,
-      checkIns: { ...current.checkIns, [id]: new Date().toISOString() },
-    }));
+  const voidAddons = async (orderRef: string) => {
+    try {
+      await voidDeskAddons(orderRef);
+      await refreshFeed();
+      toast.success("Desk sale voided.", { autoClose: 3000 });
+    } catch (caught) {
+      toast.error(readApiError(caught).message, { autoClose: 6000 });
+    }
+  };
 
-  const toggleWalkIn = (seatId: string) =>
-    updateDesk((current) => ({
-      ...current,
-      walkIns: current.walkIns.includes(seatId)
-        ? current.walkIns.filter((id) => id !== seatId)
-        : [...current.walkIns, seatId],
-    }));
+  /** Throws the server's refusal, for screens that show it inline. */
+  const checkIn = async (target: string | CheckInInput): Promise<CheckInResult> => {
+    const input =
+      typeof target !== "string"
+        ? target
+        : target.startsWith("m-")
+          ? { membershipRef: target }
+          : { bookingRef: target };
+    const result = await checkInAtDesk(input);
+    await refresh();
+    return result;
+  };
+
+  /** For one-tap buttons in lists: the outcome shows as a toast. */
+  const quickCheckIn = async (id: string) => {
+    try {
+      const outcome = outcomeOfCheckIn(await checkIn(id));
+      (outcome.tone === "success" ? toast.success : toast.warning)(outcome.detail, { autoClose: 4000 });
+    } catch (caught) {
+      const info = readApiError(caught);
+      toast.error(outcomeOfError(info.code, info.message).detail, { autoClose: 6000 });
+    }
+  };
+
+  const toggleWalkIn = async (seatId: string) => {
+    try {
+      if (feed?.walkInSeatIds.includes(seatId)) await removeWalkIn(seatId);
+      else await addWalkIn(seatId);
+      await refreshFeed();
+    } catch (caught) {
+      toast.error(readApiError(caught).message, { autoClose: 6000 });
+    }
+  };
 
   return {
-    isReady,
+    isReady: isClient && !isFeedLoading && !areBookingsLoading && !areMembersLoading,
     today,
     venue,
     seats,
     bookings,
     members,
-    checkIns: desk.checkIns,
-    walkIns: desk.walkIns,
-    /** Every member-site booking, to explain scans meant for other venues. */
-    allMemberBookings: memberBookings,
-    allMemberships: memberships,
+    checkIns,
+    walkIns: feed?.walkInSeatIds ?? [],
+    beingBooked: feed?.beingBookedSeatIds ?? [],
+    addonsByTarget,
+    salesByTarget,
+    recordAddons,
+    voidAddons,
     checkIn,
+    quickCheckIn,
     toggleWalkIn,
   };
 };

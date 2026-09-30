@@ -9,26 +9,27 @@ import {
   CalendarDays,
   CircleX,
   Clock,
+  Hourglass,
   Download,
   MapPin,
   QrCode,
   RefreshCw,
-  XCircle,
 } from "lucide-react";
 import DirectionsLink from "@/app/components/ui/DirectionsLink";
-import { findVenue } from "@/data/venues";
-import { useMemberBookings } from "@/stores/bookings";
-import {
-  BOOKING_STATUS_LABELS,
-  type BookingSchedule,
-  type MemberBooking,
-} from "@/types/memberBooking";
+import { useBooking } from "@/hooks/useBookings";
+import { useVenue } from "@/hooks/useVenues";
+import { rescheduleBooking } from "@/libs/api/bookings";
+import { askToCancel, withdrawCancellation } from "@/libs/api/cancellations";
+import { readApiError } from "@/libs/api/errors";
+import { BOOKING_STATUS_LABELS, type MemberBooking } from "@/types/memberBooking";
 import { cn } from "@/utils";
-import { formatDay, todayIso } from "@/utils/date";
+import { formatDay } from "@/utils/date";
+import { toMemberBooking } from "./bookingAdapter";
+import { requestNotice } from "./cancelRequest";
+import VenueRemovedNotice from "./components/VenueRemovedNotice";
 import BookingQrModal from "./components/BookingQrModal";
-import CancelBookingModal from "./components/CancelBookingModal";
+import CancelRequestModal from "./components/CancelRequestModal";
 import RescheduleModal from "./components/RescheduleModal";
-import { FREE_CANCELLATION_HOURS } from "./cancellation";
 
 const STATUS_STYLE: Record<MemberBooking["status"], string> = {
   upcoming: "bg-green-500/12 text-green-700",
@@ -43,33 +44,32 @@ const SECONDARY_ACTION =
   "inline-flex items-center justify-center gap-2 rounded-lg border border-tertiary/20 px-4 py-2.5 text-sm font-medium text-tertiary transition-colors hover:bg-tertiary/5";
 
 type Dialog = "qr" | "reschedule" | "cancel" | null;
-type Notice = "rescheduled" | "cancelled" | null;
+type Notice = "rescheduled" | null;
 
-type BookingDetailPageProps = {
-  bookingId: string;
-  /** Seed bookings are known at build time; new ones only in the browser. */
-  issuedBooking?: MemberBooking;
-};
-
-const BookingDetailPage = ({
-  bookingId,
-  issuedBooking,
-}: BookingDetailPageProps) => {
-  const { bookings, isHydrated, reschedule, cancel } = useMemberBookings();
+const BookingDetailPage = ({ bookingId }: { bookingId: string }) => {
+  const { booking: fromApi, error, isLoading, mutate } = useBooking(bookingId);
   const [dialog, setDialog] = useState<Dialog>(null);
   const [notice, setNotice] = useState<Notice>(null);
+  const [isWithdrawing, setIsWithdrawing] = useState(false);
+  const [withdrawError, setWithdrawError] = useState<string | null>(null);
 
-  const booking =
-    bookings.find((item) => item.bookingId === bookingId) ?? issuedBooking;
+  const booking = fromApi ? toMemberBooking(fromApi) : null;
+  const { venue } = useVenue(booking?.venueSlug);
 
   if (!booking) {
-    return isHydrated ? (
+    if (isLoading) {
+      return <div className="h-96 animate-pulse rounded-2xl border border-tertiary/10 bg-secondary" />;
+    }
+    const isMissing = readApiError(error).code === "BOOKING_NOT_FOUND";
+    return (
       <div className="rounded-2xl border border-tertiary/10 px-6 py-16 text-center">
         <p className="text-base font-semibold text-tertiary">
-          We couldn&apos;t find that booking
+          {isMissing ? "We couldn't find that booking" : "We couldn't load this booking"}
         </p>
         <p className="mx-auto mt-2 max-w-sm text-sm text-tertiary/60">
-          It may belong to another account, or the link is incomplete.
+          {isMissing
+            ? "It may belong to another account, or the link is incomplete."
+            : "Check your connection and refresh the page."}
         </p>
         <Link
           href="/account/bookings"
@@ -78,25 +78,34 @@ const BookingDetailPage = ({
           Back to My Bookings
         </Link>
       </div>
-    ) : (
-      <div className="h-96 animate-pulse rounded-2xl border border-tertiary/10 bg-secondary" />
     );
   }
 
-  const venue = findVenue(booking.venueSlug);
   const isPast =
     booking.status === "completed" || booking.status === "cancelled";
 
-  const handleReschedule = (schedule: BookingSchedule) => {
-    reschedule(booking.bookingId, schedule);
+  const handleReschedule = async (date: string, startMin: number) => {
+    const moved = await rescheduleBooking(booking.bookingId, date, startMin);
+    await mutate(moved, { revalidate: false });
     setDialog(null);
     setNotice("rescheduled");
   };
 
-  const handleCancel = (refund: number) => {
-    cancel(booking.bookingId, refund, todayIso());
-    setDialog(null);
-    setNotice("cancelled");
+  const request = booking.request ?? null;
+  const decision = requestNotice(request);
+  const isRequestOpen = request?.status === "open";
+
+  const handleWithdraw = async () => {
+    setIsWithdrawing(true);
+    setWithdrawError(null);
+    try {
+      await withdrawCancellation("booking", booking.bookingId);
+      await mutate();
+    } catch (caught) {
+      setWithdrawError(readApiError(caught).message);
+    } finally {
+      setIsWithdrawing(false);
+    }
   };
 
   return (
@@ -135,9 +144,15 @@ const BookingDetailPage = ({
         </p>
       )}
 
+      {booking.missed && (
+        <p className="mt-5 flex items-start gap-2 rounded-xl bg-tertiary/5 px-4 py-3 text-sm text-tertiary/75">
+          <CircleX aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-tertiary/50" />
+          Nobody checked in for this booking.
+        </p>
+      )}
+
       {booking.status === "cancelled" && (
         <p
-          role={notice === "cancelled" ? "status" : undefined}
           className="mt-5 flex items-start gap-2 rounded-xl bg-primary/8 px-4 py-3 text-sm text-tertiary/80"
         >
           <CircleX
@@ -147,10 +162,43 @@ const BookingDetailPage = ({
           <span>
             Cancelled
             {booking.cancelledOn && ` on ${formatDay(booking.cancelledOn)}`}.
-            {booking.refund !== undefined
-              ? ` ₹${booking.refund.toLocaleString("en-IN")} is on its way back to your original payment method, within 5 to 7 working days.`
-              : " No payment was taken for this booking."}
+            {request?.status === "approved" && ` ${decision?.text.replace("Cancellation approved. ", "")}`}
           </span>
+        </p>
+      )}
+
+      {booking.venueRemoval && <VenueRemovedNotice notice={booking.venueRemoval} className="mt-4" />}
+
+      {booking.status !== "cancelled" && decision && decision.tone !== "approved" && (
+        <div
+          className={cn(
+            "mt-5 flex flex-col gap-3 rounded-xl px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between",
+            decision.tone === "waiting" ? "bg-amber-500/10 text-amber-900" : "bg-tertiary/5 text-tertiary/80",
+          )}
+        >
+          <p className="flex items-start gap-2">
+            {decision.tone === "waiting" ? (
+              <Hourglass aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+            ) : (
+              <CircleX aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-tertiary/50" />
+            )}
+            {decision.text}
+          </p>
+          {isRequestOpen && !request?.systemOpened && (
+            <button
+              type="button"
+              onClick={handleWithdraw}
+              disabled={isWithdrawing}
+              className="shrink-0 text-sm font-semibold underline underline-offset-2 transition-opacity hover:opacity-75 disabled:opacity-50"
+            >
+              {isWithdrawing ? "Withdrawing..." : "Withdraw request"}
+            </button>
+          )}
+        </div>
+      )}
+      {withdrawError && (
+        <p role="alert" className="mt-2 text-sm text-primary">
+          {withdrawError}
         </p>
       )}
 
@@ -229,8 +277,16 @@ const BookingDetailPage = ({
                 <dt className="text-sm text-tertiary/60">
                   {booking.type} x {booking.seats.length}
                 </dt>
-                <dd className="text-sm text-tertiary">₹{booking.total}</dd>
+                <dd className="text-sm text-tertiary">
+                  ₹{booking.total - (booking.addons ?? []).reduce((sum, line) => sum + line.amount, 0)}
+                </dd>
               </div>
+              {booking.addons?.map((line) => (
+                <div key={line.name} className="flex items-center justify-between gap-4">
+                  <dt className="text-sm text-tertiary/60">{line.name}</dt>
+                  <dd className="text-sm text-tertiary">₹{line.amount}</dd>
+                </div>
+              ))}
               <div className="flex items-center justify-between gap-4">
                 <dt className="text-sm text-tertiary/60">Taxes and fees</dt>
                 <dd className="text-sm text-tertiary">Included</dd>
@@ -245,7 +301,7 @@ const BookingDetailPage = ({
               </div>
               {booking.refund !== undefined && (
                 <div className="flex items-center justify-between gap-4">
-                  <dt className="text-sm text-tertiary/60">Refunded</dt>
+                  <dt className="text-sm text-tertiary/60">Refund from the venue</dt>
                   <dd className="text-sm font-medium text-green-700">
                     ₹{booking.refund}
                   </dd>
@@ -276,45 +332,46 @@ const BookingDetailPage = ({
                 <QrCode aria-hidden="true" className="size-4" />
                 Show check-in QR
               </button>
-              {venue && <DirectionsLink url={venue.googleMapsUrl} />}
-              <button
-                type="button"
-                onClick={() => setDialog("reschedule")}
-                className={SECONDARY_ACTION}
-              >
-                <RefreshCw aria-hidden="true" className="size-4" />
-                Reschedule
-              </button>
-              <button
-                type="button"
-                onClick={() => setDialog("cancel")}
-                className={SECONDARY_ACTION}
-              >
-                <XCircle aria-hidden="true" className="size-4" />
-                Cancel booking
-              </button>
+              {venue?.googleMapsUrl && (
+                <DirectionsLink url={venue.googleMapsUrl} />
+              )}
+              {!isRequestOpen && (
+                <button
+                  type="button"
+                  onClick={() => setDialog("reschedule")}
+                  className={SECONDARY_ACTION}
+                >
+                  <RefreshCw aria-hidden="true" className="size-4" />
+                  Reschedule
+                </button>
+              )}
             </>
           )}
 
-          <Link
-            href={`/invoice/${booking.bookingId}`}
-            target="_blank"
-            className={SECONDARY_ACTION}
-          >
-            <Download aria-hidden="true" className="size-4" />
-            Download invoice
-          </Link>
-
-          <p className="mt-2 text-xs leading-relaxed text-tertiary/50">
-            Free cancellation up to {FREE_CANCELLATION_HOURS} hours before your
-            booking starts.{" "}
+          {booking.invoiceNumber && (
             <Link
-              href="/cancellation-policy"
-              className="font-medium text-primary underline underline-offset-2"
+              href={`/invoice/${booking.bookingId}`}
+              target="_blank"
+              className={SECONDARY_ACTION}
             >
-              Policy
+              <Download aria-hidden="true" className="size-4" />
+              Download invoice
             </Link>
-          </p>
+          )}
+
+          {booking.canRequestCancel && (
+            <p className="mt-2 text-xs leading-relaxed text-tertiary/50">
+              Can&apos;t make it?{" "}
+              <button
+                type="button"
+                onClick={() => setDialog("cancel")}
+                className="font-medium text-primary underline underline-offset-2"
+              >
+                Ask the venue to cancel
+              </button>
+              . It decides and refunds you directly.
+            </p>
+          )}
         </aside>
       </div>
 
@@ -322,19 +379,24 @@ const BookingDetailPage = ({
         <BookingQrModal booking={booking} onClose={() => setDialog(null)} />
       )}
 
+      {dialog === "cancel" && (
+        <CancelRequestModal
+          subject={`Pass ${booking.bookingId}`}
+          venueName={booking.venueName}
+          onClose={() => setDialog(null)}
+          onSubmit={async (input) => {
+            await askToCancel("booking", booking.bookingId, input);
+            await mutate();
+            setDialog(null);
+          }}
+        />
+      )}
+
       {dialog === "reschedule" && (
         <RescheduleModal
           booking={booking}
           onClose={() => setDialog(null)}
           onConfirm={handleReschedule}
-        />
-      )}
-
-      {dialog === "cancel" && (
-        <CancelBookingModal
-          booking={booking}
-          onCancel={() => setDialog(null)}
-          onConfirm={handleCancel}
         />
       )}
     </>

@@ -21,6 +21,7 @@ import { signInThroughRelay } from "@/libs/auth/requests";
 import { useAuthStore } from "@/stores/auth";
 import type { MemberAccount } from "@/types/auth";
 import { cn } from "@/utils";
+import { isValidMobile, nationalDigits } from "@/utils/phone";
 
 const OTP_LENGTH = 4;
 const MOBILE_DIGITS = 10;
@@ -121,8 +122,12 @@ const PhoneSignIn = ({
 
   const handleSendCode = async (event: FormEvent) => {
     event.preventDefault();
-    if (mobile.length !== MOBILE_DIGITS && countryCode === "+91") {
-      setError(`Enter your ${MOBILE_DIGITS}-digit mobile number.`);
+    if (!isValidMobile(mobile, countryCode)) {
+      setError(
+        countryCode === "+91"
+          ? `Enter your ${MOBILE_DIGITS}-digit mobile number.`
+          : "Enter a valid mobile number.",
+      );
       return;
     }
     setBusy(true);
@@ -176,6 +181,8 @@ const PhoneSignIn = ({
       applySignIn(payload);
       clearAttempt("member");
       if (payload.account.needsOnboarding) {
+        setName(payload.account.name ?? "");
+        setEmail(payload.account.email ?? "");
         setStep("onboarding");
         return;
       }
@@ -191,6 +198,10 @@ const PhoneSignIn = ({
     event.preventDefault();
     if (!name.trim()) {
       setError("Enter your name.");
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setError("Enter your email address. Booking confirmations and receipts go there.");
       return;
     }
     setBusy(true);
@@ -225,9 +236,14 @@ const PhoneSignIn = ({
                 label="Country code"
                 hideLabel
                 value={countryCode}
-                onChange={setCountryCode}
+                onChange={(next) => {
+                  setCountryCode(next);
+                  setMobile((current) => nationalDigits(current, next));
+                  setError(null);
+                }}
                 options={COUNTRY_CODE_OPTIONS}
-                className="w-28 shrink-0"
+                compact
+                className="w-24 shrink-0"
               />
               <input
                 id="signin-mobile"
@@ -235,10 +251,12 @@ const PhoneSignIn = ({
                 type="tel"
                 inputMode="numeric"
                 autoComplete="tel-national"
-                placeholder="10-digit number"
+                placeholder={
+                  countryCode === "+91" ? "10-digit number" : "Your mobile number"
+                }
                 value={mobile}
                 onChange={(event) => {
-                  setMobile(event.target.value.replace(/\D/g, "").slice(0, 14));
+                  setMobile(nationalDigits(event.target.value, countryCode));
                   setError(null);
                 }}
                 aria-invalid={Boolean(error)}
@@ -325,10 +343,10 @@ const PhoneSignIn = ({
       {step === "onboarding" && (
         <>
           <Heading className="text-2xl font-bold text-tertiary">
-            Tell us your name
+            Tell us about you
           </Heading>
           <p className="mt-1 text-sm text-tertiary/60">
-            It goes on your bookings and invoices.
+            Your name goes on bookings and invoices; confirmations and receipts are emailed to you.
           </p>
 
           <form onSubmit={handleOnboarding} noValidate className="mt-6 flex flex-col gap-4">
@@ -353,7 +371,7 @@ const PhoneSignIn = ({
             </div>
             <div>
               <label htmlFor="onboarding-email" className={FIELD_LABEL}>
-                Email <span className="font-normal text-tertiary/50">(optional)</span>
+                Email
               </label>
               <input
                 id="onboarding-email"
@@ -370,7 +388,7 @@ const PhoneSignIn = ({
                 className={INPUT}
               />
               <p id="onboarding-email-hint" className="mt-1.5 text-xs text-tertiary/55">
-                Add it to get booking confirmations and updates.
+                We send booking confirmations, receipts and payment updates here.
               </p>
             </div>
             <button type="submit" disabled={busy} className={PRIMARY_BUTTON}>

@@ -5,6 +5,7 @@ import {
   CircleAlert,
   CircleCheck,
   CircleX,
+  PackageCheck,
   type LucideIcon,
 } from "lucide-react";
 import { usePartnerDesk } from "@/stores/partner";
@@ -16,7 +17,8 @@ import {
   PartnerSkeleton,
 } from "./components/PartnerUi";
 import QrScanner from "./components/QrScanner";
-import { verifyScan, type ScanOutcome } from "./verify";
+import { readApiError } from "@/libs/api/errors";
+import { outcomeOfCheckIn, outcomeOfError, verifyScan, type ScanOutcome } from "./verify";
 
 const TONES: Record<
   ScanOutcome["tone"],
@@ -46,6 +48,7 @@ const PartnerCheckInPage = () => {
   const desk = usePartnerDesk();
   const [code, setCode] = useState("");
   const [outcome, setOutcome] = useState<ScanOutcome | null>(null);
+  const [isChecking, setIsChecking] = useState(false);
 
   if (!desk.isReady) return <PartnerSkeleton />;
 
@@ -57,8 +60,6 @@ const PartnerCheckInPage = () => {
         bookings: desk.bookings,
         members: desk.members,
         checkIns: desk.checkIns,
-        allMemberBookings: desk.allMemberBookings,
-        allMemberships: desk.allMemberships,
       }),
     );
 
@@ -75,18 +76,19 @@ const PartnerCheckInPage = () => {
     verify(code);
   };
 
-  const handleCheckIn = () => {
-    if (!outcome?.checkInId) return;
-    const name = outcome.booking?.memberName ?? outcome.member?.memberName ?? "Member";
-    desk.checkIn(outcome.checkInId);
-    setOutcome({
-      tone: "success",
-      title: "Checked in",
-      detail: `${name} is in. Show them to ${
-        outcome.booking?.seats.join(", ") ?? outcome.member?.seats.join(", ")
-      }.`,
-    });
-    setCode("");
+  // The server verifies the signed code and the time window; the preview above is only a guide.
+  const handleCheckIn = async () => {
+    if (!outcome?.send) return;
+    setIsChecking(true);
+    try {
+      setOutcome(outcomeOfCheckIn(await desk.checkIn(outcome.send)));
+      setCode("");
+    } catch (caught) {
+      const info = readApiError(caught);
+      setOutcome(outcomeOfError(info.code, info.message));
+    } finally {
+      setIsChecking(false);
+    }
   };
 
   const recent = Object.entries(desk.checkIns)
@@ -107,6 +109,8 @@ const PartnerCheckInPage = () => {
     .sort((a, b) => b.time.localeCompare(a.time));
 
   const tone = outcome ? TONES[outcome.tone] : null;
+  const outcomeRef = outcome?.ref ?? outcome?.booking?.bookingId ?? outcome?.member?.membershipId;
+  const outcomeAddons = outcomeRef ? (desk.addonsByTarget[outcomeRef] ?? []) : [];
   const ToneIcon = tone?.icon;
 
   return (
@@ -152,7 +156,7 @@ const PartnerCheckInPage = () => {
               </button>
             </div>
             <p className="text-xs text-tertiary/50">
-              Member passes start with m-, for example m-11.
+              Member passes start with m-, for example m-123456789012.
             </p>
           </form>
 
@@ -168,9 +172,26 @@ const PartnerCheckInPage = () => {
                   <p className="mt-0.5 text-sm text-tertiary/70">{outcome.detail}</p>
                 </div>
               </div>
-              {outcome.checkInId && (
-                <button type="button" onClick={handleCheckIn} className={cn(CHECK_IN_BUTTON, "mt-4 w-full py-2.5")}>
-                  Check in
+              {outcomeAddons.length > 0 && (
+                <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-tertiary/10 pt-3">
+                  <PackageCheck aria-hidden="true" className="size-4 text-tertiary/55" />
+                  <span className="text-xs font-medium text-tertiary/70">Add-ons today:</span>
+                  {outcomeAddons.map((addon, index) => (
+                    <span key={`${addon.orderRef}-${index}`} className="rounded-full bg-secondary px-2 py-0.5 text-xs text-tertiary shadow-sm">
+                      {addon.name}
+                      {addon.quantity > 1 ? ` x ${addon.quantity}` : ""}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {outcome.send && (
+                <button
+                  type="button"
+                  onClick={handleCheckIn}
+                  disabled={isChecking}
+                  className={cn(CHECK_IN_BUTTON, "mt-4 w-full py-2.5 disabled:opacity-60")}
+                >
+                  {isChecking ? "Checking in..." : "Check in"}
                 </button>
               )}
             </div>
@@ -181,7 +202,7 @@ const PartnerCheckInPage = () => {
           <h2 className="text-base font-bold text-tertiary">Checked in today</h2>
           {recent.length === 0 ? (
             <p className="mt-4 rounded-xl bg-surface px-4 py-6 text-center text-sm text-tertiary/60">
-              Nobody checked in from this desk yet today.
+              Nobody has checked in yet today.
             </p>
           ) : (
             <ul className="mt-3 divide-y divide-tertiary/8">

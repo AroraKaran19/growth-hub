@@ -7,6 +7,8 @@ export const metadata: Metadata = {
     "Hourly, half-day and full-day passes and membership plans at Growth Hub partner venues, with GST included.",
 };
 
+export const revalidate = 300;
+
 export default function Pricing() {
   return <PricingPage />;
 }

@@ -41,6 +41,12 @@ export const signInThroughRelay = async <S extends AuthSurface>(
 ): Promise<SessionPayload<AccountFor<S>>> =>
   (await relayFetch(surface, "verify", payload)) as SessionPayload<AccountFor<S>>;
 
+export const changePasswordThroughRelay = async <S extends "partner" | "admin">(
+  surface: S,
+  payload: { email: string; password: string; newPassword: string },
+): Promise<SessionPayload<AccountFor<S>>> =>
+  (await relayFetch(surface, "password-change", payload)) as SessionPayload<AccountFor<S>>;
+
 export const refreshThroughRelay = async <S extends AuthSurface>(
   surface: S,
 ): Promise<SessionPayload<AccountFor<S>>> =>

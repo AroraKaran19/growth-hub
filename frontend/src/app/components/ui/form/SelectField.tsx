@@ -15,6 +15,8 @@ type SelectFieldProps = {
   /** Keeps the label for screen readers only, for compact toolbars. */
   hideLabel?: boolean;
   icon?: LucideIcon;
+  /** Closed field shows the raw value, for narrow pickers like dialling codes. */
+  compact?: boolean;
 };
 
 // Custom listbox: a native <select>'s popup can't be themed.
@@ -27,6 +29,7 @@ const SelectField = ({
   className,
   hideLabel = false,
   icon: Icon,
+  compact = false,
 }: SelectFieldProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
@@ -147,7 +150,9 @@ const SelectField = ({
               className="size-4 shrink-0 text-tertiary/45"
             />
           )}
-          <span className="truncate">{selected?.label ?? placeholder}</span>
+          <span className="truncate">
+            {(compact ? selected?.value : selected?.label) ?? placeholder}
+          </span>
         </span>
         <ChevronDown
           aria-hidden="true"
@@ -164,7 +169,10 @@ const SelectField = ({
           id={listboxId}
           role="listbox"
           aria-labelledby={labelId}
-          className="absolute inset-x-0 top-full z-30 mt-2 max-h-56 overflow-y-auto rounded-xl border border-tertiary/10 bg-secondary p-1.5 shadow-xl shadow-tertiary/15"
+          className={cn(
+            "absolute top-full z-30 mt-2 max-h-56 overflow-y-auto rounded-xl border border-tertiary/10 bg-secondary p-1.5 shadow-xl shadow-tertiary/15",
+            compact ? "left-0 w-max min-w-full" : "inset-x-0",
+          )}
         >
           {options.map((option, index) => {
             const isSelected = option.value === value;

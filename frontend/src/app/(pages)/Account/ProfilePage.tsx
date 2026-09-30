@@ -2,36 +2,49 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Pencil } from "lucide-react";
+import { ArrowRight, CircleCheck, Pencil } from "lucide-react";
 import SelectField from "@/app/components/ui/form/SelectField";
-import { MEMBER } from "@/data/member";
-import { MEMBER_MEMBERSHIPS } from "@/data/memberMemberships";
 import {
-  COUNTRY_CODE_OPTIONS,
   GENDER_OPTIONS,
   INDUSTRY_OPTIONS,
   WORK_TYPE_OPTIONS,
   labelFor,
 } from "@/data/profileOptions";
-import { LOCATION_OPTIONS } from "@/data/searchOptions";
+import { useBookings } from "@/hooks/useBookings";
+import { useMemberships } from "@/hooks/useMemberships";
+import { usePublishedVenues } from "@/hooks/useVenues";
+import { memberApi } from "@/libs/api/client";
+import { readApiError } from "@/libs/api/errors";
+import { useAuthStore } from "@/stores/auth";
+import type { MemberAccount } from "@/types/auth";
+import { isLiveMembership } from "@/types/membership";
 import type { SelectOption } from "@/types/search";
-import type { MemberProfile } from "@/types/member";
 import { cn } from "@/utils";
-
-const MOBILE_DIGITS = 10;
-
-const ACTIVE_MEMBERSHIPS = MEMBER_MEMBERSHIPS.filter(
-  (membership) => membership.status === "active",
-).length;
+import { todayIso } from "@/utils/date";
+import { localityOptionsFrom } from "@/utils/venues";
+import {
+  errorsFromApi,
+  memberNumber,
+  memberSince,
+  toDraft,
+  toPatch,
+  validateDraft,
+  type ProfileDraft,
+  type ProfileErrors,
+} from "./profileDraft";
+import { toStatsBooking } from "./bookingAdapter";
+import { profileStats } from "./profileStats";
 
 const initials = (name: string) =>
   name
     .split(" ")
+    .filter(Boolean)
     .map((part) => part[0])
     .slice(0, 2)
-    .join("");
+    .join("")
+    .toUpperCase();
 
-type FieldKey = keyof MemberProfile;
+type FieldKey = keyof ProfileDraft;
 
 type Field = {
   label: string;
@@ -40,19 +53,23 @@ type Field = {
   autoComplete?: string;
   /** Fixed sets render as a dropdown rather than a free-text box. */
   options?: SelectOption[];
+  /** Shown under the box while editing. */
+  hint?: string;
 };
 
 type Section = {
   title: string;
   fields: Field[];
+  showMobile?: boolean;
   showMemberships?: boolean;
 };
 
 const SECTIONS: Section[] = [
   {
-    // The mockup labelled this "Company Name", but it holds personal details.
     title: "Personal Details",
+    showMobile: true,
     fields: [
+      { label: "Full Name", key: "name", autoComplete: "name" },
       {
         label: "Date of Birth",
         key: "dateOfBirth",
@@ -64,14 +81,9 @@ const SECTIONS: Section[] = [
         key: "email",
         type: "email",
         autoComplete: "email",
+        hint: "Booking confirmations, receipts and payment updates are emailed here.",
       },
       { label: "Gender", key: "gender", options: GENDER_OPTIONS },
-      {
-        label: "Mobile Number",
-        key: "mobile",
-        type: "tel",
-        autoComplete: "tel-national",
-      },
     ],
   },
   {
@@ -95,16 +107,14 @@ const SECTIONS: Section[] = [
     title: "Account Details",
     showMemberships: true,
     fields: [
-      {
-        label: "Preferred Location",
-        key: "preferredLocation",
-        options: LOCATION_OPTIONS,
-      },
+      // Options come from the venues on sale, filled in at render.
+      { label: "Preferred Location", key: "preferredLocation", options: [] },
       {
         label: "Billing Email",
         key: "billingEmail",
         type: "email",
         autoComplete: "email",
+        hint: "Invoices show this address. Leave it blank to use your email.",
       },
     ],
   },
@@ -129,48 +139,98 @@ const formatMobile = (countryCode: string, digits: string) => {
   return `${countryCode} ${grouped}`;
 };
 
-/** Digits only, capped at ten. A pasted number that still carries the
- *  selected country code has that prefix dropped rather than truncated. */
-const toNationalDigits = (input: string, countryCode: string) => {
-  const digits = input.replace(/\D/g, "");
-  const code = countryCode.replace(/\D/g, "");
-  const national =
-    digits.length > MOBILE_DIGITS && digits.startsWith(code)
-      ? digits.slice(code.length)
-      : digits;
-  return national.slice(0, MOBILE_DIGITS);
-};
-
-const SUMMARY: { label: string; key: FieldKey }[] = [
-  { label: "Upcoming Booking", key: "upcomingBookings" },
-  { label: "Completed", key: "completedBookings" },
-  { label: "Favourite Hub", key: "favouriteHub" },
-  { label: "Reward Points", key: "rewardPoints" },
-];
-
 const FIELD_BOX =
-  "w-full rounded-lg border px-3.5 py-2.5 text-sm text-tertiary outline-none transition-colors";
+  "w-full rounded-lg border px-3.5 py-2.5 text-sm text-tertiary outline-none transition-colors placeholder:text-tertiary/40";
 const READ_ONLY_BOX = "cursor-default border-tertiary/12 bg-tertiary/3";
 const EDITABLE_BOX =
   "border-tertiary/20 bg-secondary focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20";
 const FIELD_LABEL = "mb-1.5 block text-sm font-medium text-tertiary";
+const FIELD_HINT = "mt-1.5 text-xs text-tertiary/55";
 
-const ProfilePage = () => {
-  const [profile, setProfile] = useState<MemberProfile>(MEMBER);
-  const [draft, setDraft] = useState<MemberProfile>(MEMBER);
-  const [isEditing, setIsEditing] = useState(false);
+const ProfileView = ({ account }: { account: MemberAccount }) => {
+  const setAccount = useAuthStore("member", (state) => state.setAccount);
+  // Null while reading; a draft only exists between Edit and Save.
+  const [draft, setDraft] = useState<ProfileDraft | null>(null);
+  const [errors, setErrors] = useState<ProfileErrors>({});
+  const [formError, setFormError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
 
-  const value = isEditing ? draft : profile;
+  const { venues } = usePublishedVenues();
+  const { bookings } = useBookings();
+  const { memberships } = useMemberships();
+
+  const isEditing = draft !== null;
+  const value = draft ?? toDraft(account);
+  const locations = localityOptionsFrom(venues);
+  const stats = profileStats(bookings.map(toStatsBooking));
+  const activeMemberships = memberships.filter(isLiveMembership).length;
+  const displayName = account.name ?? "Member";
+
+  const tiles = [
+    { label: "Total Bookings", value: stats.total },
+    { label: "Total Spent", value: stats.spent },
+    { label: "Attendance Rate", value: stats.attendance },
+    { label: "Time Spent", value: stats.hours },
+  ];
+  const summary = [
+    { label: "Upcoming Booking", value: stats.upcoming },
+    { label: "Completed", value: stats.completed },
+    { label: "Favourite Hub", value: stats.favouriteHub },
+  ];
 
   const startEditing = () => {
-    setDraft(profile);
-    setIsEditing(true);
+    setDraft(toDraft(account));
+    setErrors({});
+    setFormError(null);
+    setIsSaved(false);
   };
 
-  const save = () => {
-    // Local only for now; there is no members API to persist to.
-    setProfile(draft);
-    setIsEditing(false);
+  const stopEditing = () => {
+    setDraft(null);
+    setErrors({});
+    setFormError(null);
+  };
+
+  const change = (key: FieldKey, next: string) => {
+    setDraft((current) => (current ? { ...current, [key]: next } : current));
+    if (errors[key]) setErrors((current) => ({ ...current, [key]: undefined }));
+  };
+
+  const save = async () => {
+    if (!draft) return;
+    const found = validateDraft(draft, todayIso());
+    setErrors(found);
+    if (Object.keys(found).length > 0) {
+      setFormError("Check the highlighted fields.");
+      return;
+    }
+
+    const patch = toPatch(draft, account);
+    if (Object.keys(patch).length === 0) {
+      stopEditing();
+      return;
+    }
+
+    setIsSaving(true);
+    setFormError(null);
+    try {
+      const { data } = await memberApi.patch("/members/me", patch);
+      setAccount(data.data.account as MemberAccount);
+      stopEditing();
+      setIsSaved(true);
+    } catch (caught) {
+      const info = readApiError(caught);
+      const mapped = errorsFromApi(info);
+      setErrors(mapped);
+      setFormError(
+        Object.keys(mapped).length > 0
+          ? "Check the highlighted fields."
+          : info.message,
+      );
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -189,17 +249,19 @@ const ProfilePage = () => {
           <div className="flex items-center gap-2.5">
             <button
               type="button"
-              onClick={() => setIsEditing(false)}
-              className="rounded-lg border border-tertiary/20 px-4 py-2 text-sm font-medium text-tertiary transition-colors hover:bg-tertiary/5"
+              onClick={stopEditing}
+              disabled={isSaving}
+              className="rounded-lg border border-tertiary/20 px-4 py-2 text-sm font-medium text-tertiary transition-colors hover:bg-tertiary/5 disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="button"
               onClick={save}
-              className="cta-gradient rounded-lg px-4 py-2 text-sm font-medium text-secondary transition-opacity hover:opacity-90"
+              disabled={isSaving}
+              className="cta-gradient rounded-lg px-4 py-2 text-sm font-medium text-secondary transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Save changes
+              {isSaving ? "Saving..." : "Save changes"}
             </button>
           </div>
         ) : (
@@ -214,8 +276,23 @@ const ProfilePage = () => {
         )}
       </div>
 
+      {formError && (
+        <p role="alert" className="mt-4 text-sm text-primary">
+          {formError}
+        </p>
+      )}
+      {isSaved && !isEditing && (
+        <p
+          role="status"
+          className="mt-4 flex items-center gap-2 text-sm text-green-700"
+        >
+          <CircleCheck aria-hidden="true" className="size-4" />
+          Your details are saved.
+        </p>
+      )}
+
       <dl className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {profile.stats.map((stat) => (
+        {tiles.map((stat) => (
           <div
             key={stat.label}
             className="rounded-xl border border-tertiary/10 border-b-2 border-b-primary bg-secondary px-4 py-3.5"
@@ -232,27 +309,29 @@ const ProfilePage = () => {
         <div className="flex flex-col gap-5">
           <div className="feature-card flex flex-col items-center rounded-xl border border-primary/25 p-5 text-center">
             <span className="flex size-16 items-center justify-center rounded-full bg-tertiary/10 text-lg font-semibold text-tertiary">
-              {initials(profile.name)}
+              {initials(displayName)}
             </span>
             <p className="mt-3 text-base font-bold text-tertiary">
-              {profile.name}
+              {displayName}
             </p>
             <p className="text-xs text-tertiary/55">
-              Member ID: {profile.memberId}
+              Member ID: {memberNumber(account.id)}
             </p>
-            <p className="text-xs text-tertiary/55">
-              Member since {profile.memberSince}
-            </p>
+            {memberSince(account.createdAt) && (
+              <p className="text-xs text-tertiary/55">
+                Member since {memberSince(account.createdAt)}
+              </p>
+            )}
           </div>
 
           <dl className="flex flex-col gap-3">
-            {SUMMARY.map((row) => (
-              <div key={row.key}>
+            {summary.map((row) => (
+              <div key={row.label}>
                 <dt className="mb-1.5 text-sm font-medium text-tertiary">
                   {row.label}
                 </dt>
                 <dd className="rounded-lg border border-tertiary/12 bg-tertiary/3 px-3.5 py-2.5 text-sm text-tertiary/75">
-                  {String(profile[row.key])}
+                  {row.value}
                 </dd>
               </div>
             ))}
@@ -279,7 +358,7 @@ const ProfilePage = () => {
                         "flex items-center justify-between gap-3",
                       )}
                     >
-                      <span>{ACTIVE_MEMBERSHIPS} active</span>
+                      <span>{activeMemberships} active</span>
                       <Link
                         href="/account/memberships"
                         className="inline-flex items-center gap-1 font-medium text-primary transition-opacity hover:opacity-75"
@@ -292,81 +371,38 @@ const ProfilePage = () => {
                 )}
 
                 {section.fields.map((field) => {
-                  const readOnly = !isEditing;
-                  const raw = String(value[field.key]);
+                  const raw = value[field.key];
+                  const error = errors[field.key];
+                  const options =
+                    field.key === "preferredLocation"
+                      ? locations
+                      : field.options;
 
                   // Fixed sets get the themed dropdown while editing.
-                  if (field.options && !readOnly) {
-                    return (
-                      <SelectField
-                        key={field.key}
-                        label={field.label}
-                        value={raw}
-                        options={field.options}
-                        onChange={(next) =>
-                          setDraft((current) => ({
-                            ...current,
-                            [field.key]: next,
-                          }))
-                        }
-                      />
-                    );
-                  }
-
-                  // The dialling code is picked apart from the national number.
-                  if (field.type === "tel" && !readOnly) {
+                  if (options && isEditing) {
                     return (
                       <div key={field.key}>
-                        <label htmlFor={field.key} className={FIELD_LABEL}>
-                          {field.label}
-                        </label>
-                        <div className="flex gap-2">
-                          <SelectField
-                            label="Country code"
-                            hideLabel
-                            value={draft.mobileCountryCode}
-                            options={COUNTRY_CODE_OPTIONS}
-                            onChange={(next) =>
-                              setDraft((current) => ({
-                                ...current,
-                                mobileCountryCode: next,
-                              }))
-                            }
-                            className="w-28 shrink-0"
-                          />
-                          {/* No maxLength: the browser would cut the raw text
-                              before spaces and a pasted +91 are stripped. */}
-                          <input
-                            id={field.key}
-                            name={field.key}
-                            type="tel"
-                            inputMode="numeric"
-                            autoComplete={field.autoComplete}
-                            pattern={`[0-9]{${MOBILE_DIGITS}}`}
-                            placeholder="10-digit number"
-                            value={draft.mobile}
-                            onChange={(event) => {
-                              const mobile = toNationalDigits(
-                                event.target.value,
-                                draft.mobileCountryCode,
-                              );
-                              setDraft((current) => ({ ...current, mobile }));
-                            }}
-                            className={cn(FIELD_BOX, EDITABLE_BOX, "min-w-0")}
-                          />
-                        </div>
+                        <SelectField
+                          label={field.label}
+                          value={raw}
+                          options={options}
+                          onChange={(next) => change(field.key, next)}
+                        />
+                        {error && (
+                          <p role="alert" className="mt-1.5 text-xs text-primary">
+                            {error}
+                          </p>
+                        )}
                       </div>
                     );
                   }
 
                   // A date input needs the ISO value; readers want it spelled out.
-                  const shown = field.options
-                    ? labelFor(field.options, raw)
-                    : field.type === "tel"
-                      ? formatMobile(value.mobileCountryCode, raw)
-                      : field.type === "date" && readOnly
-                        ? formatDate(raw)
-                        : raw;
+                  const shown = options
+                    ? labelFor(options, raw)
+                    : field.type === "date" && !isEditing && raw
+                      ? formatDate(raw)
+                      : raw;
 
                   return (
                     <div key={field.key}>
@@ -376,30 +412,72 @@ const ProfilePage = () => {
                       <input
                         // Remounted per mode so a date input is never handed
                         // the spelled-out text while its type switches.
-                        key={readOnly ? "view" : "edit"}
+                        key={isEditing ? "edit" : "view"}
                         id={field.key}
                         name={field.key}
-                        type={readOnly ? "text" : (field.type ?? "text")}
+                        type={isEditing ? (field.type ?? "text") : "text"}
                         autoComplete={field.autoComplete}
+                        max={field.type === "date" ? todayIso() : undefined}
                         value={shown}
-                        readOnly={readOnly}
+                        placeholder={isEditing ? undefined : "Not added yet"}
+                        readOnly={!isEditing}
                         // Read-only fields are skipped in the tab order so the
                         // keyboard does not walk through a dozen dead inputs.
-                        tabIndex={readOnly ? -1 : undefined}
+                        tabIndex={isEditing ? undefined : -1}
+                        aria-invalid={Boolean(error)}
+                        aria-describedby={
+                          error ? `${field.key}-error` : undefined
+                        }
                         onChange={(event) =>
-                          setDraft((current) => ({
-                            ...current,
-                            [field.key]: event.target.value,
-                          }))
+                          change(field.key, event.target.value)
                         }
                         className={cn(
                           FIELD_BOX,
-                          readOnly ? READ_ONLY_BOX : EDITABLE_BOX,
+                          isEditing ? EDITABLE_BOX : READ_ONLY_BOX,
+                          error && "border-primary",
                         )}
                       />
+                      {error ? (
+                        <p
+                          id={`${field.key}-error`}
+                          role="alert"
+                          className="mt-1.5 text-xs text-primary"
+                        >
+                          {error}
+                        </p>
+                      ) : (
+                        isEditing &&
+                        field.hint && <p className={FIELD_HINT}>{field.hint}</p>
+                      )}
                     </div>
                   );
                 })}
+
+                {section.showMobile && (
+                  <div>
+                    <label htmlFor="mobile" className={FIELD_LABEL}>
+                      Mobile Number
+                    </label>
+                    <input
+                      id="mobile"
+                      name="mobile"
+                      type="text"
+                      readOnly
+                      tabIndex={-1}
+                      value={formatMobile(
+                        account.phone.countryCode,
+                        account.phone.number,
+                      )}
+                      className={cn(FIELD_BOX, READ_ONLY_BOX)}
+                    />
+                    {isEditing && (
+                      <p className={FIELD_HINT}>
+                        This number is your login, so it can&apos;t be changed
+                        here. Contact support to move your account.
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             </section>
           ))}
@@ -407,6 +485,15 @@ const ProfilePage = () => {
       </div>
     </>
   );
+};
+
+const ProfilePage = () => {
+  const account = useAuthStore("member", (state) => state.account);
+
+  // The account layout only renders this once a member is signed in.
+  if (!account) return null;
+
+  return <ProfileView account={account} />;
 };
 
 export default ProfilePage;
