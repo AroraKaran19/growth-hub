@@ -6,6 +6,7 @@ import { ArrowRight, Check, Copy, TicketPercent } from "lucide-react";
 import { useWallet } from "@/hooks/useCoupons";
 import { addToWallet } from "@/libs/api/coupons";
 import { readApiError } from "@/libs/api/errors";
+import { toastDone } from "@/libs/toast";
 import { COUPON_SCOPE_LABELS, type CouponScope, type CouponState, type WalletCoupon } from "@/types/coupon";
 import { cn } from "@/utils";
 import { couponCap, couponHeadline, minSpendLabel } from "@/utils/coupon";
@@ -158,9 +159,7 @@ const CouponsPage = () => {
   const [tab, setTab] = useState<Tab>("available");
   const [isAdding, setIsAdding] = useState(false);
   const [code, setCode] = useState("");
-  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(
-    null,
-  );
+  const [error, setError] = useState<string | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
   const withState = coupons.map((coupon) => ({ coupon, state: coupon.state }));
@@ -186,16 +185,16 @@ const CouponsPage = () => {
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
-    if (!code.trim()) return setMessage({ ok: false, text: "Enter a coupon code." });
+    if (!code.trim()) return setError("Enter a coupon code.");
     setIsAdding(true);
     try {
       const coupon = await addToWallet(code);
       await mutate();
-      setMessage({ ok: true, text: `${coupon.code} added: ${coupon.title}.` });
+      toastDone(`${coupon.code} added to your wallet: ${coupon.title}.`);
       setCode("");
       setTab(TAB_OF[coupon.state]);
     } catch (caught) {
-      setMessage({ ok: false, text: readApiError(caught).message });
+      setError(readApiError(caught).message);
     } finally {
       setIsAdding(false);
     }
@@ -230,10 +229,10 @@ const CouponsPage = () => {
             value={code}
             onChange={(event) => {
               setCode(event.target.value);
-              setMessage(null);
+              setError(null);
             }}
             placeholder="Enter a coupon code"
-            aria-describedby={message ? "redeem-message" : undefined}
+            aria-describedby={error ? "redeem-message" : undefined}
             className="w-full rounded-lg border border-tertiary/15 bg-secondary px-3.5 py-2.5 text-sm uppercase text-tertiary outline-none transition-colors placeholder:normal-case placeholder:text-tertiary/40 hover:border-tertiary/30 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20"
           />
         </label>
@@ -244,16 +243,9 @@ const CouponsPage = () => {
         >
           {isAdding ? "Adding..." : "Add to wallet"}
         </button>
-        {message && (
-          <p
-            id="redeem-message"
-            role={message.ok ? "status" : "alert"}
-            className={cn(
-              "basis-full text-sm",
-              message.ok ? "text-green-700" : "text-primary",
-            )}
-          >
-            {message.text}
+        {error && (
+          <p id="redeem-message" role="alert" className="basis-full text-sm text-primary">
+            {error}
           </p>
         )}
       </form>

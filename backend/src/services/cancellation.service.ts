@@ -17,6 +17,7 @@ import {
   type RequestDecider,
 } from "../models";
 import { addDays, indiaLabel, indiaNow, instantOf } from "../utils/indiaTime";
+import { isRef } from "../utils/refs";
 import { effectiveStatus } from "./bookingRules";
 import { effectiveMembershipStatus } from "./membershipView";
 import { notifyMember, notifyVenueStaff } from "./notify.service";
@@ -77,12 +78,6 @@ const NOT_FOUND = {
 const targetNotFound = (kind: RequestKind) =>
   new AppError(`We couldn't find that ${NOT_FOUND[kind][0]}.`, 404, NOT_FOUND[kind][1]);
 
-const REF_PATTERN: Record<RequestKind, RegExp> = {
-  booking: /^\d{12}$/,
-  membership: /^m-\d{12}$/,
-  "addon-order": /^a-\d{12}$/,
-};
-
 const findTarget = async (kind: RequestKind, filter: Record<string, unknown>, session?: ClientSession) => {
   const target: Target | null =
     kind === "booking"
@@ -95,7 +90,7 @@ const findTarget = async (kind: RequestKind, filter: Record<string, unknown>, se
 };
 
 const targetByRef = (kind: RequestKind, ref: string, memberId?: string) => {
-  if (!REF_PATTERN[kind].test(ref) || (memberId && !Types.ObjectId.isValid(memberId))) throw targetNotFound(kind);
+  if (!isRef(kind, ref) || (memberId && !Types.ObjectId.isValid(memberId))) throw targetNotFound(kind);
   return findTarget(kind, memberId ? { ref, memberId } : { ref });
 };
 

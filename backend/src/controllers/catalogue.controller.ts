@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import { Types } from "mongoose";
 import { asyncHandler, sendSuccessResponse } from "../middlewares/error.middleware";
 import type { Actor } from "../models";
+import { listLabels, setLabel } from "../services/catalogueLabel.service";
 import { notifyVenuesChanged } from "../services/revalidate.service";
 import { getSeatMap, listSeatMaps } from "../services/seatMap.service";
 import {
@@ -18,6 +19,7 @@ import {
 import { parseBody } from "../utils/validate";
 import {
   assignSeatMapSchema,
+  labelSchema,
   createVenueSchema,
   outOfServiceSchema,
   patchVenueSchema,
@@ -85,4 +87,15 @@ export const getSeatMaps = asyncHandler(async (req: Request, res: Response) => {
 
 export const getSeatMapDetail = asyncHandler(async (req: Request, res: Response) => {
   sendSuccessResponse(res, { seatMap: await getSeatMap(String(req.params.id)) }, "Seat map");
+});
+
+export const getLabels = asyncHandler(async (_req: Request, res: Response) => {
+  sendSuccessResponse(res, { labels: await listLabels() }, "Labels");
+});
+
+export const putLabel = asyncHandler(async (req: Request, res: Response) => {
+  const account = req.auth!.account;
+  const labels = await setLabel(parseBody(labelSchema, req.body), { id: account.id, name: account.type === "admin" ? account.name : "" });
+  notifyVenuesChanged();
+  sendSuccessResponse(res, { labels }, "Label saved");
 });

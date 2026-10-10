@@ -2,11 +2,17 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, CircleCheck, ExternalLink } from "lucide-react";
+import { ArrowLeft, ExternalLink } from "lucide-react";
+import useSWR from "swr";
 import { useAdminVenue } from "@/hooks/useAdminCatalogue";
+import type { AddonPriceInput } from "@/hooks/useVenues";
+import { adminApi } from "@/libs/api/client";
+import type { AddonChoice } from "@/types/venue";
+import { AddonsEditor } from "../Partner/PartnerAddonsPage";
 import { useAdminSession } from "@/stores/admin";
 import { readApiError } from "@/libs/api/errors";
-import { ADDON_UNIT_LABELS, type AdminVenue } from "@/types/catalogue";
+import { toastDone, toastFailed } from "@/libs/toast";
+import type { AdminVenue } from "@/types/catalogue";
 import { cn } from "@/utils";
 import { PartnerSkeleton as Skeleton } from "../Partner/components/PartnerUi";
 import { QUIET, Section } from "./components/venue/fields";
@@ -24,33 +30,29 @@ import {
   type VenueDraft,
 } from "./components/venue/venueDraft";
 
-const AddonsCard = ({ venue }: { venue: AdminVenue }) => (
-  <Section title="Add-ons" hint="Set by the venue in its partner dashboard.">
-    {venue.addons.length === 0 ? (
-      <p className="text-sm text-tertiary/50">The venue hasn&apos;t priced any add-ons yet.</p>
-    ) : (
-      <ul className="divide-y divide-tertiary/8">
-        {venue.addons.map((addon) => (
-          <li key={addon.addonTypeId} className="flex items-center justify-between gap-3 py-2.5 text-sm">
-            <span className="text-tertiary">
-              {addon.name}
-              <span className="block text-xs text-tertiary/50">{ADDON_UNIT_LABELS[addon.unit]}</span>
-            </span>
-            <span className="flex items-center gap-2">
-              {!addon.active && (
-                <span className="rounded-full bg-tertiary/8 px-2.5 py-0.5 text-xs text-tertiary/60">Retired</span>
-              )}
-              {addon.active && !addon.enabled && (
-                <span className="rounded-full bg-tertiary/8 px-2.5 py-0.5 text-xs text-tertiary/60">Off</span>
-              )}
-              <span className="font-medium text-tertiary">₹{addon.price.toLocaleString("en-IN")}</span>
-            </span>
-          </li>
-        ))}
-      </ul>
-    )}
-  </Section>
-);
+const AddonsCard = ({ venue }: { venue: AdminVenue }) => {
+  const { data: choices, error, mutate } = useSWR(["admin/venue-addons", venue.slug], async () =>
+    ((await adminApi.get(`/admin/venues/${venue.slug}/addons`)) as { data: { data: { choices: AddonChoice[] } } }).data.data.choices,
+  );
+  const save = async (addons: AddonPriceInput[]) => {
+    const response = (await adminApi.put(`/admin/venues/${venue.slug}/addons`, { addons })) as {
+      data: { data: { choices: AddonChoice[] } };
+    };
+    await mutate(response.data.data.choices, { revalidate: false });
+  };
+
+  return (
+    <Section title="Add-ons" hint="The venue sets these in its partner dashboard. You can set them for it when it needs help.">
+      {error ? (
+        <p role="alert" className="text-sm text-primary">{readApiError(error).message}</p>
+      ) : !choices ? (
+        <div className="h-24 animate-pulse rounded-xl bg-tertiary/5" />
+      ) : (
+        <AddonsEditor choices={choices} onSave={save} onRefresh={() => void mutate()} />
+      )}
+    </Section>
+  );
+};
 
 type EditorProps = {
   venue: AdminVenue;
@@ -63,8 +65,6 @@ const VenueEditor = ({ venue, actions }: EditorProps) => {
   const [baseVersion, setBaseVersion] = useState(venue.version);
   const [isDirty, setIsDirty] = useState(false);
   const [errors, setErrors] = useState<DraftErrors>({});
-  const [formError, setFormError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   const state = draftState({ baseVersion, venueVersion: venue.version, isDirty });
@@ -74,8 +74,6 @@ const VenueEditor = ({ venue, actions }: EditorProps) => {
     setBaseVersion(venue.version);
     setIsDirty(false);
     setErrors({});
-    setFormError(null);
-    setSaved(false);
   };
 
   // An untouched form follows the newest copy instead of showing a stale one.
@@ -87,16 +85,16 @@ const VenueEditor = ({ venue, actions }: EditorProps) => {
   const handleChange = <K extends keyof VenueDraft>(key: K, value: VenueDraft[K]) => {
     setDraft((current) => ({ ...current, [key]: value }));
     setIsDirty(true);
-    setSaved(false);
     if (errors[key]) setErrors((current) => ({ ...current, [key]: undefined }));
   };
 
   const handleSubmit = async () => {
     const found = validateDraft(draft, "edit");
     setErrors(found);
-    setFormError(Object.keys(found).length > 0 ? "Check the highlighted fields." : null);
-    setSaved(false);
-    if (Object.keys(found).length > 0) return;
+    if (Object.keys(found).length > 0) {
+      toastFailed("Check the highlighted fields.");
+      return;
+    }
 
     setIsSaving(true);
     try {
@@ -104,12 +102,12 @@ const VenueEditor = ({ venue, actions }: EditorProps) => {
       setDraft(toDraft(updated));
       setBaseVersion(updated.version);
       setIsDirty(false);
-      setSaved(true);
+      toastDone("Saved. The listing updates across the site within a minute.");
     } catch (caught) {
       const info = readApiError(caught);
       const mapped = errorsFromApi(info);
       setErrors(mapped.errors);
-      setFormError(mapped.formError);
+      if (mapped.formError) toastFailed(mapped.formError);
       // A refused publish must not leave the switch claiming the venue is live.
       if (mapped.revertPublished) {
         setDraft((current) => ({ ...current, published: venue.published }));
@@ -130,17 +128,6 @@ const VenueEditor = ({ venue, actions }: EditorProps) => {
       isSaving={isSaving}
       status={
         <>
-          {saved && (
-            <p role="status" className="flex items-center gap-2 text-sm text-green-700">
-              <CircleCheck aria-hidden="true" className="size-4" />
-              Saved. The listing updates across the site within a minute.
-            </p>
-          )}
-          {formError && (
-            <p role="alert" className="text-sm text-primary">
-              {formError}
-            </p>
-          )}
           {state === "conflict" && (
             <div role="alert" className="rounded-xl border border-amber-500/30 bg-amber-500/8 p-3.5 text-sm text-tertiary">
               This venue was changed somewhere else while you were editing. Your edits are still

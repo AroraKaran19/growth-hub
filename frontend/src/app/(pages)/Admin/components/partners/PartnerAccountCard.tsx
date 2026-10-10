@@ -5,6 +5,7 @@ import { MapPin } from "lucide-react";
 import SelectField from "@/app/components/ui/form/SelectField";
 import type { PartnerAccountRow, PartnerChange, VenueOption } from "@/hooks/usePartnerAccounts";
 import { readApiError } from "@/libs/api/errors";
+import { toastDone, toastFailed } from "@/libs/toast";
 import { cn } from "@/utils";
 import { timeAgo } from "@/utils/date";
 
@@ -29,25 +30,30 @@ const initials = (name: string) =>
 const PartnerAccountCard = ({ account, venues, onUpdate }: PartnerAccountCardProps) => {
   const [mode, setMode] = useState<Mode>("view");
   const [target, setTarget] = useState(account.venueSlug);
-  const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const isDisabled = account.status === "disabled";
 
   const save = async (change: PartnerChange) => {
     setIsSaving(true);
-    setError(null);
     try {
       await onUpdate(change);
       setMode("view");
+      const venue = venues.find((option) => option.slug === change.venueSlug);
+      toastDone(
+        change.status === "disabled"
+          ? `${account.name} is disabled and signed out.`
+          : change.status === "active"
+            ? `${account.name} can sign in again.`
+            : `${account.name} now manages ${venue?.name ?? "the new venue"}.`,
+      );
     } catch (caught) {
-      setError(readApiError(caught).message);
+      toastFailed(readApiError(caught).message);
     } finally {
       setIsSaving(false);
     }
   };
 
   const cancel = () => {
-    setError(null);
     setTarget(account.venueSlug);
     setMode("view");
   };
@@ -163,7 +169,6 @@ const PartnerAccountCard = ({ account, venues, onUpdate }: PartnerAccountCardPro
           </div>
         )}
       </div>
-      {error && <p className="mt-2 text-sm text-primary">{error}</p>}
     </article>
   );
 };

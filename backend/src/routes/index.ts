@@ -3,6 +3,7 @@ import {
   adminAddonTypeRoutes,
   adminAddonOrderRoutes,
   adminBookingRoutes,
+  adminLabelRoutes,
   adminCouponRoutes,
   adminMembershipRoutes,
   adminOverviewRoutes,
@@ -18,6 +19,7 @@ import assetRoutes from "./asset.routes";
 import addonOrderRoutes from "./addonOrder.routes";
 import authRoutes from "./auth.routes";
 import bookingRoutes from "./booking.routes";
+import catalogueRoutes from "./catalogue.routes";
 import couponRoutes from "./coupon.routes";
 import jobRoutes from "./job.routes";
 import membershipRoutes from "./membership.routes";
@@ -38,12 +40,14 @@ router.use("/memberships", membershipRoutes);
 router.use("/webhooks", webhookRoutes);
 router.use("/jobs", jobRoutes);
 router.use("/venues", venueRoutes);
+router.use("/catalogue", catalogueRoutes);
 router.use("/partner", partnerRoutes);
 router.use("/admin/assets", assetRoutes);
 router.use("/admin/team", teamRoutes);
 router.use("/admin/overview", adminOverviewRoutes);
 router.use("/admin/venues/:slug/payout-account", adminPayoutAccountRoutes);
 router.use("/admin/venues", adminVenueRoutes);
+router.use("/admin/labels", adminLabelRoutes);
 router.use("/admin/payouts", adminPayoutRoutes);
 router.use("/admin/reports", adminReportRoutes);
 router.use("/admin/seat-maps", adminSeatMapRoutes);

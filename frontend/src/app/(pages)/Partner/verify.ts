@@ -3,18 +3,20 @@ import { formatDay } from "@/utils/date";
 
 export type ScanTarget = { kind: "booking" | "member"; id: string; send: CheckInInput };
 
+// The 12-digit forms are IDs issued before the GH- format.
+const BOOKING_REF = /^(GH-\d{7}|\d{12})$/;
+const MEMBER_REF = /^(GH-M-\d{7}|m-\d{12})$/;
+export const isMemberRef = (value: string) => MEMBER_REF.test(value);
+
 /** Signed QR codes, or a booking ID or member pass typed by hand; the server verifies either. */
 export const parseScan = (raw: string): ScanTarget | null => {
   const value = raw.trim();
-  const signed = /^growthhub:b:(\d{12})\.[\w-]{22}$/.exec(value);
-  if (signed) return { kind: "booking", id: signed[1], send: { code: value } };
-  const signedPass = /^growthhub:m:(m-\d{12})\.[\w-]{22}$/.exec(value);
-  if (signedPass) return { kind: "member", id: signedPass[1], send: { code: value } };
-  if (/^\d{12}$/.test(value)) return { kind: "booking", id: value, send: { bookingRef: value } };
-  if (/^m-\d{12}$/i.test(value)) {
-    const ref = value.toLowerCase();
-    return { kind: "member", id: ref, send: { membershipRef: ref } };
-  }
+  const signed = /^growthhub:(b|m):([\w-]{1,40})\.[\w-]{22}$/.exec(value);
+  if (signed?.[1] === "b" && BOOKING_REF.test(signed[2])) return { kind: "booking", id: signed[2], send: { code: value } };
+  if (signed?.[1] === "m" && MEMBER_REF.test(signed[2])) return { kind: "member", id: signed[2], send: { code: value } };
+  const typed = /^gh-/i.test(value) ? value.toUpperCase() : value.toLowerCase();
+  if (BOOKING_REF.test(typed)) return { kind: "booking", id: typed, send: { bookingRef: typed } };
+  if (MEMBER_REF.test(typed)) return { kind: "member", id: typed, send: { membershipRef: typed } };
   return null;
 };
 
@@ -58,7 +60,7 @@ export const verifyScan = (raw: string, context: VerifyContext): ScanOutcome => 
       tone: "error",
       title: "Not a Growth Hub code",
       detail:
-        "Scan the QR from the member's booking or member pass, or type the 12-digit booking ID.",
+        "Scan the QR from the member's booking or member pass, or type the booking ID, like GH-0004521.",
     };
   }
 
@@ -191,7 +193,7 @@ export const outcomeOfError = (code: string | undefined, message: string): ScanO
       return {
         tone: "error",
         title: "Not a Growth Hub code",
-        detail: "Scan the QR from the member's booking or member pass, or type the 12-digit booking ID.",
+        detail: "Scan the QR from the member's booking or member pass, or type the booking ID, like GH-0004521.",
       };
     case "NOT_AT_VENUE":
       return { tone: "error", title: "Not for this venue", detail: message };

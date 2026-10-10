@@ -3,7 +3,7 @@ import { deleteDeskOrder, postDeskOrder } from "../controllers/addonOrder.contro
 import { getPartnerRequests, postPartnerDecision } from "../controllers/cancellation.controller";
 import { postCheckIn } from "../controllers/checkIn.controller";
 import { deleteWalkIn, getToday, postWalkIn } from "../controllers/partnerDesk.controller";
-import { getMyVenue, putMyVenueAddons } from "../controllers/partner.controller";
+import { getMyVenue, putMyVenueAddons, putMyVenuePrices } from "../controllers/partner.controller";
 import { getPartnerMembers } from "../controllers/membership.controller";
 import { getPartnerBookings } from "../controllers/staffBookings.controller";
 import {
@@ -20,6 +20,7 @@ const router = Router();
 router.use(requireAuth("partner"), panelRateLimit);
 router.get("/venue", getMyVenue);
 router.put("/venue/addons", putMyVenueAddons);
+router.put("/venue/prices", putMyVenuePrices);
 router.get("/bookings", getPartnerBookings);
 router.get("/members", getPartnerMembers);
 router.get("/today", getToday);

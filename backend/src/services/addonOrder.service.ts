@@ -14,8 +14,9 @@ import {
   type VenueDoc,
 } from "../models";
 import { addDays, dateLabel, indiaNow, instantOf, isIsoDate, weekdayOf } from "../utils/indiaTime";
+import { freshRef, isRef } from "../utils/refs";
 import type { ConfirmInput } from "../validators/booking";
-import { holdRanOut, newRef, refundQuietly } from "./booking.service";
+import { holdRanOut, refundQuietly } from "./booking.service";
 import { latestRequests } from "./cancellation.service";
 import { removalNotices } from "./refund.service";
 import type { DeskStaff } from "./checkIn.service";
@@ -106,7 +107,7 @@ const liveMembership = (membership: MembershipDoc | null, now: Date) => {
 };
 
 export const createAppOrder = async (memberId: string, membershipRef: string, input: AppOrderInput, requestKey: string) => {
-  if (!Types.ObjectId.isValid(memberId) || !/^m-\d{12}$/.test(membershipRef)) throw membershipNotFound();
+  if (!Types.ObjectId.isValid(memberId) || !isRef("membership", membershipRef)) throw membershipNotFound();
   const repeat = await AddonOrder.findOne({ memberId, requestKey }).lean<AddonOrderDoc>();
   if (repeat) return withCheckout(repeat);
 
@@ -120,7 +121,7 @@ export const createAppOrder = async (memberId: string, membershipRef: string, in
   try {
     const [created] = await AddonOrder.create([
       {
-        ref: `a-${newRef()}`,
+        ref: await freshRef("addon-order", (candidate) => AddonOrder.exists({ ref: candidate })),
         channel: "app",
         venueId: venue._id,
         venueSlug: venue.slug,
@@ -164,7 +165,7 @@ export const createAppOrder = async (memberId: string, membershipRef: string, in
 };
 
 const getOwn = async (memberId: string, ref: string) => {
-  if (!/^a-\d{12}$/.test(ref) || !Types.ObjectId.isValid(memberId)) throw notFound();
+  if (!isRef("addon-order", ref) || !Types.ObjectId.isValid(memberId)) throw notFound();
   const order = await AddonOrder.findOne({ ref, memberId, channel: "app" }).lean<AddonOrderDoc>();
   if (!order) throw notFound();
   return order;
@@ -299,7 +300,7 @@ export const listMemberOrders = async (memberId: string, membershipRef?: string)
 const deskTarget = async (staff: DeskStaff, target: DeskOrderTarget, now: Date) => {
   const today = indiaNow(now).date;
   if ("bookingRef" in target) {
-    const booking = /^\d{12}$/.test(target.bookingRef)
+    const booking = isRef("booking", target.bookingRef)
       ? await Booking.findOne({ ref: target.bookingRef, venueSlug: staff.venueSlug }).lean<BookingDoc>()
       : null;
     if (!booking) throw new AppError("That pass isn't for this venue.", 404, "NOT_AT_VENUE");
@@ -308,7 +309,7 @@ const deskTarget = async (staff: DeskStaff, target: DeskOrderTarget, now: Date) 
     }
     return { memberId: booking.memberId, membershipId: null, bookingId: booking._id, targetRef: booking.ref, venueId: booking.venueId, people: booking.people, dates: [booking.date] };
   }
-  const membership = /^m-\d{12}$/.test(target.membershipRef)
+  const membership = isRef("membership", target.membershipRef)
     ? await Membership.findOne({ ref: target.membershipRef, venueSlug: staff.venueSlug }).lean<MembershipDoc>()
     : null;
   if (!membership) throw new AppError("That member isn't at this venue.", 404, "NOT_AT_VENUE");
@@ -326,7 +327,7 @@ export const createDeskOrder = async (staff: DeskStaff, target: DeskOrderTarget,
   const [created] = await AddonOrder.create([
     {
       ...resolved,
-      ref: `a-${newRef()}`,
+      ref: await freshRef("addon-order", (candidate) => AddonOrder.exists({ ref: candidate })),
       channel: "desk",
       venueSlug: venue.slug,
       venueName: venue.name,
@@ -346,7 +347,7 @@ const cancel = async (order: AddonOrderDoc) => {
 
 /** For mistakes: the same India day, at the venue that recorded it. */
 export const voidDeskOrder = async (staff: DeskStaff, ref: string, now = new Date()) => {
-  const order = /^a-\d{12}$/.test(ref)
+  const order = isRef("addon-order", ref)
     ? await AddonOrder.findOne({ ref, channel: "desk", venueSlug: staff.venueSlug, status: "paid" }).lean<AddonOrderDoc>()
     : null;
   if (!order) throw notFound();
@@ -370,7 +371,7 @@ export const listAdminOrders = async (query: { venue?: unknown; channel?: unknow
 };
 
 export const voidAsAdmin = async (ref: string) => {
-  const order = /^a-\d{12}$/.test(ref) ? await AddonOrder.findOne({ ref, status: "paid" }).lean<AddonOrderDoc>() : null;
+  const order = isRef("addon-order", ref) ? await AddonOrder.findOne({ ref, status: "paid" }).lean<AddonOrderDoc>() : null;
   if (!order) throw notFound();
   if (order.channel !== "desk") {
     throw new AppError("App orders are cancelled through a cancellation request.", 409, "NOT_VOIDABLE");

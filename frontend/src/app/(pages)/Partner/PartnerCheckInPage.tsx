@@ -143,7 +143,7 @@ const PartnerCheckInPage = () => {
                 name="code"
                 autoComplete="off"
                 inputMode="text"
-                placeholder="e.g. 091822000102"
+                placeholder="e.g. GH-0004521"
                 value={code}
                 onChange={(event) => setCode(event.target.value)}
                 className="min-w-0 grow rounded-lg border border-tertiary/20 bg-secondary px-3.5 py-2.5 font-mono text-sm text-tertiary outline-none transition-colors placeholder:font-sans placeholder:text-tertiary/40 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20"
@@ -156,7 +156,7 @@ const PartnerCheckInPage = () => {
               </button>
             </div>
             <p className="text-xs text-tertiary/50">
-              Member passes start with m-, for example m-123456789012.
+              Member passes start with GH-M-, for example GH-M-0004521.
             </p>
           </form>
 

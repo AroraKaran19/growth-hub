@@ -113,10 +113,10 @@ const venueFields = z.object({
   image: z.union([imageSchema, z.literal("")]),
   gallery: z.array(imageSchema).max(12, "Up to 12 photos."),
   rating: z.number().min(0).max(5),
-  seatsAvailable: z.number().int().min(0).max(100_000),
-  startingPrice: rupees,
+  startingPrice: rupees.nullable(),
   priceUnit: z.enum(PRICE_UNITS),
-  dayPassPrice: rupees,
+  halfDayPrice: rupees.nullable(),
+  dayPassPrice: rupees.nullable(),
   membershipPrices,
   distanceKm: z.number().min(0).max(1000),
   description: z.string().trim().max(300),
@@ -150,8 +150,6 @@ export const createVenueSchema = venueFields
     name: true,
     locality: true,
     city: true,
-    startingPrice: true,
-    dayPassPrice: true,
     workspaceTypes: true,
   })
   // /admin/venues/new is the create page, so that address can never be a venue.
@@ -165,6 +163,13 @@ export const patchVenueSchema = venueFields
     version: z.number({ error: "Reload the venue and try again." }).int().min(0),
   })
   .strict();
+
+/** What a venue's own staff may change about its prices; blank means not sold. */
+export const venuePricesSchema = venueFields
+  .pick({ startingPrice: true, halfDayPrice: true, dayPassPrice: true, membershipPrices: true })
+  .partial()
+  .strict()
+  .refine((change) => Object.keys(change).length > 0, { message: "Nothing to change." });
 
 export const assignSeatMapSchema = z.object({ seatMapId: objectIdSchema });
 
@@ -232,3 +237,13 @@ export type PatchAddonTypeInput = z.infer<typeof patchAddonTypeSchema>;
 export type VenueAddonsInput = z.infer<typeof venueAddonsSchema>;
 export type InvitePartnerInput = z.infer<typeof invitePartnerSchema>;
 export type UpdatePartnerInput = z.infer<typeof updatePartnerSchema>;
+
+export type VenuePricesInput = z.infer<typeof venuePricesSchema>;
+
+export const labelSchema = z
+  .object({
+    kind: z.enum(["workspace-type", "amenity"]),
+    key: z.string().trim().min(1).max(40),
+    label: z.string().trim().max(40, "Keep it under 40 characters."),
+  })
+  .strict();

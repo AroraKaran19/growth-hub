@@ -15,7 +15,7 @@ import { useVenueMembership } from "@/hooks/useMemberships";
 import type { Venue } from "@/types/venue";
 import { cn } from "@/utils";
 import { formatDay } from "@/utils/date";
-import { lowestMonthlyPrice } from "@/utils/venues";
+import { lowestMonthlyPrice, startingFrom } from "@/utils/venues";
 
 const INFO_ROW =
   "flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-tertiary/3";
@@ -28,6 +28,7 @@ const BookingRail = ({ venue }: { venue: Venue }) => {
   const membership = useVenueMembership(venue.slug);
   const isBookable = venue.published;
   const monthlyFrom = lowestMonthlyPrice(venue);
+  const from = startingFrom(venue);
 
   const location = (
     <>
@@ -87,9 +88,9 @@ const BookingRail = ({ venue }: { venue: Venue }) => {
         {isBookable ? (
           <div className="flex items-center justify-between gap-3 px-4 py-3.5">
             <div>
-              <p className="text-xs text-tertiary/55">Starting From</p>
+              <p className="text-xs text-tertiary/55">Starting from</p>
               <p className="text-lg font-bold text-tertiary">
-                ₹{venue.dayPassPrice} Per Day
+                {from ? `₹${from.amount.toLocaleString("en-IN")} per ${from.unit}` : "See prices"}
               </p>
             </div>
             <Link

@@ -1,10 +1,11 @@
 "use client";
 
 import { useRef, useState, type FormEvent } from "react";
-import { ArrowDown, ArrowUp, CircleCheck, Puzzle } from "lucide-react";
+import { ArrowDown, ArrowUp, Puzzle } from "lucide-react";
 import SelectField from "@/app/components/ui/form/SelectField";
 import { useAddonTypes, type AddonTypeChange } from "@/hooks/useAdminCatalogue";
 import { readApiError } from "@/libs/api/errors";
+import { toastDone, toastFailed } from "@/libs/toast";
 import { ADDON_UNIT_LABELS, type AddonTypeView, type AddonUnit } from "@/types/catalogue";
 import { cn } from "@/utils";
 import {
@@ -44,8 +45,6 @@ const CreateAddonCard = ({
   const [unit, setUnit] = useState<AddonUnit | "">("");
   const [description, setDescription] = useState("");
   const [errors, setErrors] = useState<Errors>({});
-  const [formError, setFormError] = useState<string | null>(null);
-  const [created, setCreated] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
   const handleSubmit = async (event: FormEvent) => {
@@ -56,14 +55,12 @@ const CreateAddonCard = ({
       ...(!unit && { unit: "Pick how it is charged." }),
     };
     setErrors(found);
-    setFormError(null);
-    setCreated(null);
     if (Object.keys(found).length > 0 || !unit) return;
 
     setIsSaving(true);
     try {
       await onCreate({ key, name: name.trim(), description: description.trim(), unit, sortOrder: nextOrder });
-      setCreated(name.trim());
+      toastDone(`${name.trim()} is ready. Venues can now price it in their dashboard.`);
       setName("");
       setKey("");
       setKeyEdited(false);
@@ -73,7 +70,7 @@ const CreateAddonCard = ({
       const info = readApiError(caught);
       if (info.code === "ADDON_KEY_TAKEN") setErrors({ key: "That key is already used." });
       else if (Object.keys(info.fields).length > 0) setErrors({ name: info.fields.name, key: info.fields.key, unit: info.fields.unit });
-      else setFormError(info.message);
+      else toastFailed(info.message);
     } finally {
       setIsSaving(false);
     }
@@ -139,18 +136,6 @@ const CreateAddonCard = ({
           />
         </Field>
       </div>
-
-      {created && (
-        <p role="status" className="mt-4 flex items-start gap-2 text-sm text-green-700">
-          <CircleCheck aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
-          {created} is ready. Venues can now price it in their dashboard.
-        </p>
-      )}
-      {formError && (
-        <p role="alert" className="mt-4 text-sm text-primary">
-          {formError}
-        </p>
-      )}
 
       <button
         type="submit"
@@ -305,7 +290,6 @@ const AddonRow = ({ addon, canMoveUp, canMoveDown, isReordering, onMove, onUpdat
 const AdminAddonsPage = () => {
   const { addonTypes, error, isLoading, create, update, reorder } = useAddonTypes();
   const [isReordering, setIsReordering] = useState(false);
-  const [orderError, setOrderError] = useState<string | null>(null);
   // State lags a key press; the ref stops a second move in the same tick.
   const moving = useRef(false);
 
@@ -313,11 +297,10 @@ const AdminAddonsPage = () => {
     if (moving.current) return;
     moving.current = true;
     setIsReordering(true);
-    setOrderError(null);
     try {
       await reorder(reorderChanges(addonTypes, index, step));
     } catch (caught) {
-      setOrderError(readApiError(caught).message);
+      toastFailed(readApiError(caught).message);
     } finally {
       moving.current = false;
       setIsReordering(false);
@@ -342,11 +325,6 @@ const AdminAddonsPage = () => {
           <h2 id="addons-heading" className="text-base font-bold text-tertiary">
             Add-on types
           </h2>
-          {orderError && (
-            <p role="alert" className="mt-2 text-sm text-primary">
-              {orderError}
-            </p>
-          )}
           {isLoading ? (
             <div className="mt-3">
               <Skeleton />

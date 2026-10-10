@@ -6,6 +6,7 @@ import { Swiper, SwiperSlide } from "swiper/react";
 import { Autoplay } from "swiper/modules";
 import "swiper/css";
 import { CATEGORIES } from "@/data/categories";
+import { useCatalogueLabels } from "@/hooks/useCatalogueLabels";
 import type { Venue } from "@/types/venue";
 import { venuePhotos } from "@/utils/venues";
 
@@ -15,9 +16,11 @@ const MIN_SLIDES = 8;
 
 const VenueCategoryCarousel = ({ venue }: { venue: Venue }) => {
   // Only the types this venue actually offers.
-  const categories = CATEGORIES.filter((category) =>
-    venue.workspaceTypes.includes(category.slug),
-  );
+  const labels = useCatalogueLabels();
+  const categories = CATEGORIES.filter((category) => venue.workspaceTypes.includes(category.slug)).map((category) => ({
+    ...category,
+    name: labels.workspaceType(category.slug, category.name),
+  }));
 
   if (categories.length === 0) return null;
 

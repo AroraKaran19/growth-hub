@@ -7,6 +7,7 @@ import VenueCard from "@/app/components/ui/VenueCard";
 import { PRICE_BANDS } from "@/data/searchOptions";
 import type { SelectOption } from "@/types/search";
 import type { Venue } from "@/types/venue";
+import { cheapestPass } from "@/utils/venues";
 import FilterSidebar, { type Filters } from "./FilterSidebar";
 
 const parseList = (value: string | null) =>
@@ -93,10 +94,8 @@ const WorkspaceBrowser = ({
       ) {
         return false;
       }
-      if (
-        band &&
-        (venue.startingPrice < band.min || venue.startingPrice > band.max)
-      ) {
+      const from = cheapestPass(venue)?.amount ?? null;
+      if (band && (from === null || from < band.min || from > band.max)) {
         return false;
       }
       // Amenities are required, not optional: every ticked box must be present.

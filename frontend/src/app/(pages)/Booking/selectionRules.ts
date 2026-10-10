@@ -7,19 +7,26 @@ import { isOffered } from "./pricing";
 
 type FittingVenue = Pick<
   VenueDetail,
-  "startingPrice" | "dayPassPrice" | "membershipPrices" | "openDays" | "opensAt" | "closesAt" | "addons" | "seatMap"
+  "startingPrice" | "halfDayPrice" | "dayPassPrice" | "membershipPrices" | "openDays" | "opensAt" | "closesAt" | "addons" | "seatMap"
 >;
 
 const SPACE_TYPES = Object.keys(SEAT_TYPE_LABELS) as SeatType[];
 
 /** Spaces on the venue's plan that it sells this pass or plan for. */
 export const spaceTypesFor = (
-  venue: Pick<FittingVenue, "startingPrice" | "dayPassPrice" | "membershipPrices" | "seatMap">,
+  venue: Pick<FittingVenue, "startingPrice" | "halfDayPrice" | "dayPassPrice" | "membershipPrices" | "seatMap">,
   bookingType: BookingType,
 ): SeatType[] => {
   const mapped = venue.seatMap ? new Set(venue.seatMap.seats.map((seat) => seat.type)) : null;
   return SPACE_TYPES.filter((type) => (!mapped || mapped.has(type)) && isOffered(venue, type, bookingType));
 };
+
+const FALLBACK_ORDER: BookingType[] = ["full-day", "half-day", "hourly", "monthly", "weekly", "quarterly", "half-yearly"];
+
+/** The first pass or plan the venue sells on its map, for when a saved choice no longer fits. */
+export const firstOfferedType = (
+  venue: Pick<FittingVenue, "startingPrice" | "halfDayPrice" | "dayPassPrice" | "membershipPrices" | "seatMap">,
+) => FALLBACK_ORDER.find((type) => spaceTypesFor(venue, type).length > 0) ?? "full-day";
 
 /** How long a pass with a start time runs, in minutes. Null for whole-day types. */
 export const durationMinutesFor = (selection: Pick<BookingSelection, "bookingType" | "hours">) => {
@@ -39,10 +46,10 @@ const startFits = (selection: BookingSelection, venue: FittingVenue) => {
 
 /** Drops saved choices the venue no longer offers; same object when all fits. */
 export const fitSelectionToVenue = (selection: BookingSelection, venue: FittingVenue): BookingSelection => {
-  // A saved plan length the space is no longer priced for starts over as a day pass, never a pricier space.
+  // A saved choice the venue no longer prices starts over on something it sells, never a pricier space.
   const offeredSpaces = spaceTypesFor(venue, selection.bookingType);
   const lengthFits = !isMembershipType(selection.bookingType) || offeredSpaces.includes(selection.spaceType);
-  const bookingType = offeredSpaces.length && lengthFits ? selection.bookingType : "full-day";
+  const bookingType = offeredSpaces.length && lengthFits ? selection.bookingType : firstOfferedType(venue);
 
   const spaces = spaceTypesFor(venue, bookingType);
   const spaceType = spaces.length && !spaces.includes(selection.spaceType) ? spaces[0] : selection.spaceType;

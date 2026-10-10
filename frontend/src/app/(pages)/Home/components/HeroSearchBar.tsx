@@ -1,5 +1,6 @@
 "use client";
 
+import { useCatalogueLabels } from "@/hooks/useCatalogueLabels";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight } from "lucide-react";
@@ -20,6 +21,7 @@ const HeroSearchBar = ({
   locations: SelectOption[];
   className?: string;
 }) => {
+  const labels = useCatalogueLabels();
   const router = useRouter();
   const [search, setSearch] = useState<WorkspaceSearchParams>({
     locality: "",
@@ -94,7 +96,7 @@ const HeroSearchBar = ({
         onChange={(value) =>
           update("type", value as WorkspaceSearchParams["type"])
         }
-        options={WORKSPACE_TYPE_OPTIONS}
+        options={WORKSPACE_TYPE_OPTIONS.map((option) => ({ ...option, label: labels.workspaceType(option.value, option.label) }))}
       />
 
       <button

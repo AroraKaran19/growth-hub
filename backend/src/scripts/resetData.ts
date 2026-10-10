@@ -35,13 +35,13 @@ const main = async () => {
     image: sample.image,
     gallery: sample.gallery,
     rating: 0,
-    seatsAvailable: plan.seats.length,
-    startingPrice: 300,
+    // No prices: the admin or the venue sets them, and the venue stays hidden until then.
+    startingPrice: null,
     priceUnit: "hr",
-    dayPassPrice: 300,
+    dayPassPrice: null,
     distanceKm: 0,
     description: "Flexible desks, private cabins and meeting rooms for freelancers, startups and growing teams.",
-    longDescription: "Placeholder details. Update the address, photos, hours and prices from the admin panel before launch.",
+    longDescription: "Placeholder details. Update the address, photos, hours and prices from the admin panel, then publish.",
     openDaysLabel: sample.openDaysLabel,
     openHours: sample.openHours,
     hoursNote: sample.hoursNote,
@@ -51,7 +51,7 @@ const main = async () => {
     amenities: sample.amenities,
   };
   const result = await seedCatalogue({ venues: [growthHub], demoSeats: plan.seats, demoImage: plan.image });
-  console.log(`Created ${result.venuesCreated} venue (GrowthHub) and ${result.mapsCreated} placeholder seat map.`);
+  console.log(`Created ${result.venuesCreated} hidden venue (GrowthHub) and ${result.mapsCreated} placeholder seat map. Set its prices, then publish it.`);
   console.log("Next: npm run create-admin -- --email you@example.com --name \"Your name\" --super");
 };
 

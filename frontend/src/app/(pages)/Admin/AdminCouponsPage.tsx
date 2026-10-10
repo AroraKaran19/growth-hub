@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { CircleCheck, PencilLine } from "lucide-react";
+import { PencilLine } from "lucide-react";
 import SelectField from "@/app/components/ui/form/SelectField";
 import { useAdminCoupons } from "@/hooks/useCoupons";
 import { createAdminCoupon, updateAdminCoupon } from "@/libs/api/coupons";
 import { readApiError } from "@/libs/api/errors";
+import { toastDone, toastFailed } from "@/libs/toast";
 import {
   COUPON_SCOPE_LABELS,
   type AdminCoupon,
@@ -110,8 +111,6 @@ const AdminCouponsPage = () => {
   const [draft, setDraft] = useState<Draft>(() => emptyDraft(today));
   const [editing, setEditing] = useState<AdminCoupon | null>(null);
   const [errors, setErrors] = useState<Errors>({});
-  const [formError, setFormError] = useState<string | null>(null);
-  const [saved, setSaved] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
@@ -119,8 +118,6 @@ const AdminCouponsPage = () => {
 
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) => {
     setDraft((current) => ({ ...current, [key]: value }));
-    setSaved(null);
-    setFormError(null);
     if (errors[key]) setErrors((current) => ({ ...current, [key]: undefined }));
   };
 
@@ -128,15 +125,12 @@ const AdminCouponsPage = () => {
     setEditing(coupon);
     setDraft(draftOf(coupon));
     setErrors({});
-    setSaved(null);
-    setFormError(null);
   };
 
   const reset = () => {
     setEditing(null);
     setDraft(emptyDraft(today));
     setErrors({});
-    setFormError(null);
   };
 
   const validate = (): Errors => {
@@ -192,10 +186,10 @@ const AdminCouponsPage = () => {
         delete patch.code;
         delete patch.active;
         await updateAdminCoupon(editing.id, patch);
-        setSaved(`${input.code} saved.`);
+        toastDone(`${input.code} saved.`);
       } else {
         await createAdminCoupon(input);
-        setSaved(`${input.code} is live. Members can use it from ${formatDay(input.startsOn)}.`);
+        toastDone(`${input.code} is live. Members can use it from ${formatDay(input.startsOn)}.`);
       }
       await mutate();
       setEditing(null);
@@ -205,7 +199,7 @@ const AdminCouponsPage = () => {
       const fields = info.fields as Errors;
       if (info.code === "CODE_TAKEN") setErrors({ code: info.message });
       else if (Object.keys(fields).length) setErrors(fields);
-      else setFormError(info.message);
+      else toastFailed(info.message);
     } finally {
       setIsSaving(false);
     }
@@ -216,8 +210,9 @@ const AdminCouponsPage = () => {
     try {
       await updateAdminCoupon(coupon.id, { active: !coupon.active });
       await mutate();
+      toastDone(coupon.active ? `${coupon.code} is paused.` : `${coupon.code} is live again.`);
     } catch (caught) {
-      setFormError(readApiError(caught).message);
+      toastFailed(readApiError(caught).message);
     } finally {
       setTogglingId(null);
     }
@@ -376,18 +371,6 @@ const AdminCouponsPage = () => {
               options={VISIBILITY_OPTIONS}
             />
           </div>
-
-          {formError && (
-            <p role="alert" className="mt-4 rounded-lg bg-primary/8 px-3 py-2 text-sm text-primary">
-              {formError}
-            </p>
-          )}
-          {saved && (
-            <p role="status" className="mt-4 flex items-center gap-2 text-sm text-green-700">
-              <CircleCheck aria-hidden="true" className="size-4" />
-              {saved}
-            </p>
-          )}
 
           <button
             type="submit"

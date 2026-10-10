@@ -9,7 +9,7 @@ import { cn } from "@/utils";
 const MAX_DETAILS = 500;
 
 type CancelRequestModalProps = {
-  /** "Pass 123456789012" or "Membership m-123456789012", shown in the header. */
+  /** "Pass GH-0004521" or "Membership GH-M-0004521", shown in the header. */
   subject: string;
   venueName: string;
   onClose: () => void;

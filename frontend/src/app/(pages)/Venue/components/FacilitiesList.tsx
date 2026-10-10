@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { AMENITIES } from "@/data/amenities";
+import { useCatalogueLabels } from "@/hooks/useCatalogueLabels";
 import type { Venue } from "@/types/venue";
 import { cn } from "@/utils";
 
@@ -11,9 +12,11 @@ const VISIBLE_COUNT = 4;
 const FacilitiesList = ({ venue }: { venue: Venue }) => {
   const [showAll, setShowAll] = useState(false);
 
-  const facilities = AMENITIES.filter((amenity) =>
-    venue.amenities.includes(amenity.id),
-  );
+  const labels = useCatalogueLabels();
+  const facilities = AMENITIES.filter((amenity) => venue.amenities.includes(amenity.id)).map((amenity) => ({
+    ...amenity,
+    label: labels.amenity(amenity.id, amenity.label),
+  }));
   const visible = showAll ? facilities : facilities.slice(0, VISIBLE_COUNT);
 
   return (

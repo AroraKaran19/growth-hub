@@ -6,6 +6,7 @@ import SelectField from "@/app/components/ui/form/SelectField";
 import { usePayouts } from "@/hooks/usePayouts";
 import { generateStatements } from "@/libs/api/payouts";
 import { readApiError } from "@/libs/api/errors";
+import { toastDone, toastFailed } from "@/libs/toast";
 import { STATEMENT_STATUS_LABELS } from "@/types/payout";
 import { cn } from "@/utils";
 import { todayIso } from "@/utils/date";
@@ -31,19 +32,25 @@ const AdminPayoutsPage = () => {
   const [openId, setOpenId] = useState<string | null>(null);
   const [bankFor, setBankFor] = useState<{ slug: string; name: string } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const [view, setView] = useState<"statements" | "refunds">("statements");
   const { data: dueRefunds, mutate: refreshRefunds } = useSWR(["admin/refunds", "due"], () => fetchRefunds("due"));
 
   const generate = async (venueSlug?: string) => {
     setBusy(venueSlug ?? "all");
-    setNotice(null);
     try {
       const { statements } = await generateStatements(month, venueSlug);
       await mutate();
-      if (!venueSlug) setNotice(statements.length ? `${statements.length} statements are ready to check.` : "Nothing payable for this month.");
+      if (!venueSlug) {
+        toastDone(
+          statements.length === 1
+            ? "1 statement is ready to check."
+            : statements.length
+              ? `${statements.length} statements are ready to check.`
+              : "Nothing payable for this month.",
+        );
+      }
     } catch (caught) {
-      setNotice(readApiError(caught).message);
+      toastFailed(readApiError(caught).message);
     } finally {
       setBusy(null);
     }
@@ -91,12 +98,6 @@ const AdminPayoutsPage = () => {
           {busy === "all" ? "Generating..." : "Generate drafts"}
         </button>
       </div>
-
-      {notice && (
-        <p role="status" className="mt-3 rounded-lg bg-tertiary/5 px-3 py-2 text-sm text-tertiary/75">
-          {notice}
-        </p>
-      )}
 
       <dl className="mt-5 grid grid-cols-2 gap-4 xl:grid-cols-4">
         <Stat label="Owed for the month" value={rupees(owed)} hint="Drafts, statements and items not yet on one" />

@@ -12,11 +12,13 @@ import {
   deleteVenueSeatMap,
   getAdminVenueDetail,
   getAdminVenues,
+  getLabels,
   getSeatMapDetail,
   getSeatMaps,
   patchAdminVenue,
   postAdminVenue,
   putOutOfService,
+  putLabel,
   putVenueSeatMap,
 } from "../controllers/catalogue.controller";
 import {
@@ -49,6 +51,7 @@ import {
   putVenuePayoutAccount,
 } from "../controllers/payout.controller";
 import { getReport, getReportCsv } from "../controllers/report.controller";
+import { getVenueAddonChoices, putVenueAddonChoices } from "../controllers/partner.controller";
 import { deleteAdminVenue, getDeletionImpact, getRefunds, postRefundDone } from "../controllers/venueRemoval.controller";
 import { panelRateLimit, requireAuth, requirePermission, requireSuperAdmin } from "../middlewares";
 
@@ -66,8 +69,14 @@ adminVenueRoutes.patch("/:slug", patchAdminVenue);
 adminVenueRoutes.put("/:slug/seat-map", putVenueSeatMap);
 adminVenueRoutes.delete("/:slug/seat-map", deleteVenueSeatMap);
 adminVenueRoutes.put("/:slug/out-of-service", putOutOfService);
+adminVenueRoutes.get("/:slug/addons", getVenueAddonChoices);
+adminVenueRoutes.put("/:slug/addons", putVenueAddonChoices);
 adminVenueRoutes.get("/:slug/deletion-impact", requireSuperAdmin, getDeletionImpact);
 adminVenueRoutes.delete("/:slug", requireSuperAdmin, deleteAdminVenue);
+
+export const adminLabelRoutes = guarded("venues");
+adminLabelRoutes.get("/", getLabels);
+adminLabelRoutes.put("/", putLabel);
 
 export const adminSeatMapRoutes = guarded("venues");
 adminSeatMapRoutes.get("/", getSeatMaps);

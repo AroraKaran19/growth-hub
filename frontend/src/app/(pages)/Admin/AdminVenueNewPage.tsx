@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { createVenue } from "@/hooks/useAdminCatalogue";
 import { readApiError } from "@/libs/api/errors";
+import { toastFailed } from "@/libs/toast";
 import VenueForm from "./components/venue/VenueForm";
 import {
   EMPTY_DRAFT,
@@ -23,7 +24,6 @@ const AdminVenueNewPage = () => {
   // The address follows the name until the admin types their own.
   const [slugEdited, setSlugEdited] = useState(false);
   const [errors, setErrors] = useState<DraftErrors>({});
-  const [formError, setFormError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
   const handleChange = <K extends keyof VenueDraft>(key: K, value: VenueDraft[K]) => {
@@ -39,8 +39,10 @@ const AdminVenueNewPage = () => {
   const handleSubmit = async () => {
     const found = validateDraft(draft, "create");
     setErrors(found);
-    setFormError(Object.keys(found).length > 0 ? "Check the highlighted fields." : null);
-    if (Object.keys(found).length > 0) return;
+    if (Object.keys(found).length > 0) {
+      toastFailed("Check the highlighted fields.");
+      return;
+    }
 
     setIsSaving(true);
     try {
@@ -49,7 +51,7 @@ const AdminVenueNewPage = () => {
     } catch (caught) {
       const mapped = errorsFromApi(readApiError(caught));
       setErrors(mapped.errors);
-      setFormError(mapped.formError);
+      if (mapped.formError) toastFailed(mapped.formError);
       setIsSaving(false);
     }
   };
@@ -75,13 +77,6 @@ const AdminVenueNewPage = () => {
         onChange={handleChange}
         onSubmit={handleSubmit}
         isSaving={isSaving}
-        status={
-          formError && (
-            <p role="alert" className="text-sm text-primary">
-              {formError}
-            </p>
-          )
-        }
       />
     </>
   );

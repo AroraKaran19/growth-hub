@@ -5,6 +5,7 @@ import { ShieldCheck } from "lucide-react";
 import { permissionLabel } from "@/config/adminPermissions";
 import type { TeamChange, TeamMember } from "@/hooks/useTeam";
 import { readApiError } from "@/libs/api/errors";
+import { toastDone, toastFailed } from "@/libs/toast";
 import { cn } from "@/utils";
 import { timeAgo } from "@/utils/date";
 import PermissionPicker from "./PermissionPicker";
@@ -43,9 +44,17 @@ const TeamMemberCard = ({ member, isYou, onUpdate }: TeamMemberCardProps) => {
     try {
       await onUpdate(change);
       setMode("view");
+      toastDone(
+        change.status === "disabled"
+          ? `${member.name} is disabled and signed out.`
+          : change.status === "active"
+            ? `${member.name} can sign in again.`
+            : `${member.name}'s access is updated.`,
+      );
     } catch (caught) {
       const info = readApiError(caught);
-      setError(info.fields.permissions ?? info.message);
+      if (mode === "edit") setError(info.fields.permissions ?? info.message);
+      else toastFailed(info.message);
     } finally {
       setIsSaving(false);
     }
@@ -161,7 +170,6 @@ const TeamMemberCard = ({ member, isYou, onUpdate }: TeamMemberCardProps) => {
               Keep active
             </button>
           </div>
-          {error && <p className="mt-2 text-primary">{error}</p>}
         </div>
       )}
 
@@ -197,7 +205,6 @@ const TeamMemberCard = ({ member, isYou, onUpdate }: TeamMemberCardProps) => {
           </div>
         )}
       </div>
-      {mode === "view" && error && <p className="mt-2 text-sm text-primary">{error}</p>}
     </article>
   );
 };

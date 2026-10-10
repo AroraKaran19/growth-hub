@@ -8,7 +8,7 @@ export type PassType = (typeof PASS_TYPES)[number];
 
 export const HALF_DAY_MINUTES = 240;
 
-type PricedVenue = { startingPrice: number; dayPassPrice: number };
+type PricedVenue = { startingPrice: number | null; halfDayPrice: number | null; dayPassPrice: number | null };
 
 /** A venue add-on as offered to customers, priced in rupees. */
 export type AddonOffer = { key: string; name: string; unit: AddonUnit; price: number };
@@ -36,9 +36,11 @@ export const toPaise = (rupees: number) => Math.round(rupees * 100);
 export const unitsFor = (spaceType: SeatType, people: number) => (spaceType === "desk" ? people : 1);
 
 export const passRate = (venue: PricedVenue, passType: PassType) => {
-  if (passType === "hourly") return toPaise(venue.startingPrice);
-  if (passType === "half-day") return toPaise(Math.round(venue.dayPassPrice * 0.6));
-  return toPaise(venue.dayPassPrice);
+  const price = passType === "hourly" ? venue.startingPrice : passType === "half-day" ? venue.halfDayPrice : venue.dayPassPrice;
+  if (price === null || price === undefined) {
+    throw new AppError("This venue doesn't sell that pass.", 422, "PRICE_UNAVAILABLE");
+  }
+  return toPaise(price);
 };
 
 const priceUnavailable = (message: string) => new AppError(message, 422, "PRICE_UNAVAILABLE");

@@ -12,6 +12,7 @@ import {
   LogOut,
   MapPin,
   MessageSquareText,
+  IndianRupee,
   Puzzle,
   ReceiptText,
   ScanLine,
@@ -31,6 +32,7 @@ export const PARTNER_LINKS = [
   { label: "Seats", href: "/partner/seats", icon: Armchair },
   { label: "Members", href: "/partner/members", icon: Crown },
   { label: "Requests", href: "/partner/requests", icon: MessageSquareText },
+  { label: "Prices", href: "/partner/prices", icon: IndianRupee },
   { label: "Add-ons", href: "/partner/addons", icon: Puzzle },
   { label: "Statements", href: "/partner/statements", icon: ReceiptText },
 ];

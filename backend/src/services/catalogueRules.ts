@@ -11,6 +11,7 @@ export const toLocalityId = (locality: string) =>
 
 export type PublishInput = {
   hasMap: boolean;
+  hasPrice: boolean;
   image: string;
   openDays: number[];
   opensAt: string;
@@ -20,17 +21,20 @@ export type PublishInput = {
 export const publishBlocker = (venue: PublishInput): AppError | null => {
   if (!venue.hasMap) return new AppError("Assign a seat map before publishing.", 422, "MAP_REQUIRED");
   if (!venue.image) return new AppError("Add a cover photo before publishing.", 422, "COVER_REQUIRED");
+  if (!venue.hasPrice) return new AppError("Set at least one price before publishing.", 422, "PRICE_REQUIRED");
   if (venue.openDays.length === 0 || !venue.opensAt || !venue.closesAt) {
     return new AppError("Set opening days and hours before publishing.", 422, "HOURS_REQUIRED");
   }
   return null;
 };
 
-export type CrossFieldInput = { startingPrice: number; dayPassPrice: number; opensAt: string; closesAt: string };
+export type CrossFieldInput = { startingPrice: number | null; dayPassPrice: number | null; opensAt: string; closesAt: string };
 
 export const crossFieldErrors = (venue: CrossFieldInput) => {
   const fields: Record<string, string> = {};
-  if (venue.dayPassPrice < venue.startingPrice) fields.dayPassPrice = "A day pass can't cost less than one hour.";
+  if (venue.dayPassPrice !== null && venue.startingPrice !== null && venue.dayPassPrice < venue.startingPrice) {
+    fields.dayPassPrice = "A day pass can't cost less than one hour.";
+  }
   if (venue.opensAt && venue.closesAt && venue.closesAt <= venue.opensAt) {
     fields.closesAt = "Closing time must be after opening time.";
   }
@@ -61,13 +65,16 @@ export const parseOpenHours = (display: string) => {
   return { opensAt: to24(match[1], match[2], match[3]), closesAt: to24(match[4], match[5], match[6]) };
 };
 
-// Today's mock formula, so seeded prices do not jump at launch.
-export const seedMembershipPrices = (dayPassPrice: number): MembershipPriceTable => {
-  const row = {
-    weekly: dayPassPrice * 5,
-    monthly: Math.round(dayPassPrice * 18),
-    quarterly: Math.round(dayPassPrice * 18 * 3 * 0.95),
-    halfYearly: Math.round(dayPassPrice * 18 * 6 * 0.9),
-  };
-  return { desk: { ...row }, "private-cabin": { ...row }, office: { ...row } };
+type Priced = {
+  startingPrice: number | null;
+  halfDayPrice: number | null;
+  dayPassPrice: number | null;
+  membershipPrices?: Partial<Record<string, Partial<Record<string, number>>>> | null;
 };
+
+/** Whether anything at the venue can be bought. */
+export const hasAnyPrice = (venue: Priced) =>
+  venue.startingPrice !== null ||
+  venue.halfDayPrice !== null ||
+  venue.dayPassPrice !== null ||
+  Object.values(venue.membershipPrices ?? {}).some((row) => Object.values(row ?? {}).some((price) => typeof price === "number"));

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import BarChart, { formatValue } from "@/app/components/shared/BarChart";
 import { ArrowRight, CircleAlert } from "lucide-react";
 import { useAdminBookings, useAdminMemberships } from "@/hooks/useStaffBookings";
 import { isLiveMembership } from "@/types/membership";
@@ -165,6 +166,21 @@ const AdminOverviewPage = () => {
         />
         <Stat label="Live coupon codes" value={overview ? String(overview.liveCoupons) : "Unavailable"} />
       </dl>
+
+      {operations && (
+        <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <BarChart
+            title="Collected, last 30 days"
+            total={formatValue(operations.trend.reduce((sum, day) => sum + day.collected, 0), "money")}
+            series={operations.trend.map((day) => ({ label: day.date, value: day.collected, kind: "money" }))}
+          />
+          <BarChart
+            title="Bookings made, last 30 days"
+            total={String(operations.trend.reduce((sum, day) => sum + day.bookings, 0))}
+            series={operations.trend.map((day) => ({ label: day.date, value: day.bookings, kind: "count" }))}
+          />
+        </div>
+      )}
 
       <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
         <section className={`${CARD} p-5 sm:p-6`}>

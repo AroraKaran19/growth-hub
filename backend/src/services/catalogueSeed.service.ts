@@ -1,7 +1,7 @@
 import { AddonType, SeatMap, Venue } from "../models";
 import { parseBody } from "../utils/validate";
 import { createVenueSchema, seatListSchema } from "../validators/catalogue";
-import { parseOpenHours, seedMembershipPrices, toLocalityId } from "./catalogueRules";
+import { hasAnyPrice, parseOpenHours, toLocalityId } from "./catalogueRules";
 import { promoteLegacyAdmins } from "./team.service";
 
 export const STARTER_ADDON_TYPES = [
@@ -31,10 +31,9 @@ export type SeedVenue = {
   image: string;
   gallery: string[];
   rating: number;
-  seatsAvailable: number;
-  startingPrice: number;
+  startingPrice: number | null;
   priceUnit: "hr" | "day" | "month";
-  dayPassPrice: number;
+  dayPassPrice: number | null;
   distanceKm: number;
   description: string;
   longDescription: string;
@@ -76,11 +75,9 @@ export const seedCatalogue = async ({ venues, demoSeats, demoImage }: SeedInput)
       image: seed.image,
       gallery: seed.gallery,
       rating: seed.rating,
-      seatsAvailable: seed.seatsAvailable,
       startingPrice: seed.startingPrice,
       priceUnit: seed.priceUnit,
       dayPassPrice: seed.dayPassPrice,
-      membershipPrices: seedMembershipPrices(seed.dayPassPrice),
       distanceKm: seed.distanceKm,
       description: seed.description,
       longDescription: seed.longDescription,
@@ -94,7 +91,12 @@ export const seedCatalogue = async ({ venues, demoSeats, demoImage }: SeedInput)
       workspaceTypes: seed.workspaceTypes,
       amenities: seed.amenities,
     });
-    const venue = await Venue.create({ ...fields, localityId: toLocalityId(fields.locality), published: false });
+    const venue = await Venue.create({
+      ...fields,
+      localityId: toLocalityId(fields.locality),
+      seatsAvailable: seats.length,
+      published: false,
+    });
     venuesCreated += 1;
 
     const baseName = `Placeholder: ${seed.name}`;
@@ -102,7 +104,10 @@ export const seedCatalogue = async ({ venues, demoSeats, demoImage }: SeedInput)
     await SeatMap.create({ name, image: demoImage, seats, venueId: venue._id, assignedAt: new Date() });
     mapsCreated += 1;
 
-    await Venue.updateOne({ _id: venue._id }, { $set: { published: true } });
+    // A venue with nothing to buy stays hidden until someone sets its prices.
+    if (hasAnyPrice({ startingPrice: fields.startingPrice ?? null, halfDayPrice: null, dayPassPrice: fields.dayPassPrice ?? null })) {
+      await Venue.updateOne({ _id: venue._id }, { $set: { published: true } });
+    }
   }
 
   return { promotedAdmins, addonTypesCreated, venuesCreated, mapsCreated };

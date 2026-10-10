@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Puzzle } from "lucide-react";
+import { Puzzle } from "lucide-react";
 import { usePartnerVenue } from "@/hooks/useVenues";
 import { readApiError } from "@/libs/api/errors";
+import { toastDone, toastFailed } from "@/libs/toast";
 import { ADDON_UNIT_LABELS, type AddonUnit } from "@/types/catalogue";
-import type { PartnerVenue } from "@/types/venue";
+import type { AddonChoice } from "@/types/venue";
+import type { AddonPriceInput } from "@/hooks/useVenues";
 import { cn } from "@/utils";
 import Toggle from "../Admin/components/Toggle";
 import {
@@ -27,20 +29,18 @@ const UNIT_HINT: Record<AddonUnit, string> = {
 type Edit = Pick<AddonRow, "price" | "enabled">;
 
 type EditorProps = {
-  venue: PartnerVenue;
-  onSave: ReturnType<typeof usePartnerVenue>["saveAddons"];
+  choices: AddonChoice[];
+  onSave: (addons: AddonPriceInput[]) => Promise<unknown>;
   onRefresh: () => void;
 };
 
-const AddonsEditor = ({ venue, onSave, onRefresh }: EditorProps) => {
+/** Prices for each add-on Growth Hub offers; used by the venue and by admins on its behalf. */
+export const AddonsEditor = ({ choices, onSave, onRefresh }: EditorProps) => {
   // Only edited rows are held, so a refreshed list never shows stale values.
   const [edits, setEdits] = useState<Record<string, Edit>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [formError, setFormError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [isSaved, setIsSaved] = useState(false);
 
-  const choices = venue.addonChoices;
   const rows = toRows(choices).map((row) => ({
     ...row,
     ...edits[row.addonTypeId],
@@ -58,34 +58,30 @@ const AddonsEditor = ({ venue, onSave, onRefresh }: EditorProps) => {
         Object.entries(current).filter(([id]) => id !== row.addonTypeId),
       ),
     );
-    setIsSaved(false);
   };
 
   const handleSave = async () => {
     const found = validateRows(rows);
     setErrors(found);
     if (Object.keys(found).length > 0) {
-      setFormError("Fix the highlighted add-ons, then save.");
+      toastFailed("Fix the highlighted add-ons, then save.");
       return;
     }
 
     const payload = toPayload(rows);
     setIsSaving(true);
-    setFormError(null);
     try {
       await onSave(payload);
       setEdits({});
-      setIsSaved(true);
+      toastDone("Saved. Members see these prices within a few minutes.");
     } catch (caught) {
       const info = readApiError(caught);
       setErrors(errorsFromFields(info.fields, payload));
       if (info.code === "ADDON_UNKNOWN") {
         onRefresh();
-        setFormError(
-          "Growth Hub has retired one of these add-ons, so the list was refreshed. Check it and save again.",
-        );
+        toastFailed("Growth Hub has retired one of these add-ons, so the list was refreshed. Check it and save again.");
       } else {
-        setFormError(info.message);
+        toastFailed(info.message);
       }
     } finally {
       setIsSaving(false);
@@ -213,24 +209,8 @@ const AddonsEditor = ({ venue, onSave, onRefresh }: EditorProps) => {
 
       <div className="sticky bottom-0 z-20 -mx-4 mt-6 border-t border-tertiary/10 bg-secondary/95 px-4 py-4 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <p
-            aria-live="polite"
-            className={cn(
-              "text-sm",
-              formError ? "text-primary" : "text-tertiary/60",
-            )}
-          >
-            {formError ??
-              (isSaved && !hasChanges ? (
-                <span className="inline-flex items-center gap-1.5 text-green-700">
-                  <Check aria-hidden="true" className="size-4" />
-                  Saved. Members see these prices within a few minutes.
-                </span>
-              ) : hasChanges ? (
-                "You have unsaved changes."
-              ) : (
-                "Prices are in whole rupees, GST included."
-              ))}
+          <p aria-live="polite" className="text-sm text-tertiary/60">
+            {hasChanges ? "You have unsaved changes." : "Prices are in whole rupees, GST included."}
           </p>
           <button
             type="button"
@@ -260,7 +240,7 @@ const PartnerAddonsPage = () => {
         }
       />
       {venue ? (
-        <AddonsEditor venue={venue} onSave={saveAddons} onRefresh={refresh} />
+        <AddonsEditor choices={venue.addonChoices} onSave={saveAddons} onRefresh={refresh} />
       ) : (
         <div className="mt-6">
           <PartnerSkeleton />

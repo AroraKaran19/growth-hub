@@ -1,0 +1,4 @@
+/** Names admins gave the fixed workspace types and amenities; a missing key keeps the built-in name. */
+export type CatalogueLabels = { workspaceTypes: Record<string, string>; amenities: Record<string, string> };
+
+export const NO_LABELS: CatalogueLabels = { workspaceTypes: {}, amenities: {} };

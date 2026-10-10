@@ -11,11 +11,12 @@ import {
   type SeatMapSeat,
   type VenueDoc,
 } from "../models";
-import type { CreateVenueInput, PatchVenueInput } from "../validators/catalogue";
+import type { CreateVenueInput, PatchVenueInput, VenuePricesInput } from "../validators/catalogue";
 import { refuseSeatsInUse, refuseStrandedBookings, seatsInUse } from "./catalogueGuards";
 import {
   crossFieldErrors,
   formatOpenHours,
+  hasAnyPrice,
   publishBlocker,
   toLocalityId,
   unknownSeatIds,
@@ -32,9 +33,10 @@ export type PublicVenue = {
   gallery: string[];
   rating: number;
   seatsAvailable: number;
-  startingPrice: number;
+  startingPrice: number | null;
   priceUnit: VenueDoc["priceUnit"];
-  dayPassPrice: number;
+  halfDayPrice: number | null;
+  dayPassPrice: number | null;
   membershipPrices: VenueDoc["membershipPrices"];
   distanceKm: number;
   description: string;
@@ -101,9 +103,10 @@ export const toPublicVenue = (venue: VenueDoc): PublicVenue => ({
   gallery: venue.gallery,
   rating: venue.rating,
   seatsAvailable: venue.seatsAvailable,
-  startingPrice: venue.startingPrice,
+  startingPrice: venue.startingPrice ?? null,
   priceUnit: venue.priceUnit,
-  dayPassPrice: venue.dayPassPrice,
+  halfDayPrice: venue.halfDayPrice ?? null,
+  dayPassPrice: venue.dayPassPrice ?? null,
   membershipPrices: venue.membershipPrices ?? {},
   distanceKm: venue.distanceKm,
   description: venue.description,
@@ -219,8 +222,8 @@ export const getAdminVenue = async (slug: string) => toAdminVenue(await findVenu
 
 export const createVenue = async (input: CreateVenueInput, actor: Actor) => {
   const fields = crossFieldErrors({
-    startingPrice: input.startingPrice,
-    dayPassPrice: input.dayPassPrice,
+    startingPrice: input.startingPrice ?? null,
+    dayPassPrice: input.dayPassPrice ?? null,
     opensAt: input.opensAt ?? "",
     closesAt: input.closesAt ?? "",
   });
@@ -249,9 +252,12 @@ export const patchVenue = async (slug: string, patch: PatchVenueInput, actor: Ac
   const { version, ...changes } = patch;
   if (version !== venue.__v) throw stale();
 
+  // A price sent as null clears it, so presence decides, not ??.
+  const next = <K extends keyof typeof changes & keyof VenueDoc>(key: K) =>
+    (key in changes ? changes[key] : venue[key]) as VenueDoc[K];
   const fields = crossFieldErrors({
-    startingPrice: changes.startingPrice ?? venue.startingPrice,
-    dayPassPrice: changes.dayPassPrice ?? venue.dayPassPrice,
+    startingPrice: next("startingPrice"),
+    dayPassPrice: next("dayPassPrice"),
     opensAt: changes.opensAt ?? venue.opensAt,
     closesAt: changes.closesAt ?? venue.closesAt,
   });
@@ -273,6 +279,12 @@ export const patchVenue = async (slug: string, patch: PatchVenueInput, actor: Ac
   if (changes.published ?? venue.published) {
     const blocker = publishBlocker({
       hasMap: Boolean(await SeatMap.exists({ venueId: venue._id })),
+      hasPrice: hasAnyPrice({
+        startingPrice: next("startingPrice"),
+        halfDayPrice: next("halfDayPrice"),
+        dayPassPrice: next("dayPassPrice"),
+        membershipPrices: next("membershipPrices"),
+      }),
       image: changes.image ?? venue.image,
       openDays: changes.openDays ?? venue.openDays,
       opensAt: changes.opensAt ?? venue.opensAt,
@@ -304,6 +316,7 @@ export const assignSeatMap = async (slug: string, seatMapId: string, actor: Acto
   const venue = await findVenue(slug);
   if (await SeatMap.exists({ venueId: venue._id })) throw venueHasMap();
 
+  let seatCount = 0;
   try {
     const claimed = await SeatMap.findOneAndUpdate(
       { _id: seatMapId, venueId: null },
@@ -315,12 +328,14 @@ export const assignSeatMap = async (slug: string, seatMapId: string, actor: Acto
       }
       throw new AppError("Another venue just took this map. Pick a different one.", 409, "MAP_TAKEN");
     }
+    seatCount = claimed.seats.length;
   } catch (error) {
     if ((error as { code?: number }).code === 11000) throw venueHasMap();
     throw error;
   }
 
-  await bump(venue._id, { outOfServiceSeatIds: [] }, actor);
+  // Seats listed always follows the map, never a typed number.
+  await bump(venue._id, { outOfServiceSeatIds: [], seatsAvailable: seatCount }, actor);
   return getAdminVenue(slug);
 };
 
@@ -334,7 +349,7 @@ export const unassignSeatMap = async (slug: string, actor: Actor) => {
       // Gated inside the transaction, so a publish landing meanwhile wins or loses cleanly.
       const hidden = await Venue.updateOne(
         { _id: venue._id, published: false },
-        { $set: { outOfServiceSeatIds: [], updatedBy: actor }, $inc: { __v: 1 } },
+        { $set: { outOfServiceSeatIds: [], seatsAvailable: 0, updatedBy: actor }, $inc: { __v: 1 } },
         { session },
       );
       if (hidden.matchedCount === 0) {
@@ -367,6 +382,24 @@ export const setOutOfService = async (slug: string, seatIds: string[], actor: Ac
   }
   const added = seatIds.filter((id) => !venue.outOfServiceSeatIds.includes(id));
   refuseSeatsInUse(await seatsInUse(venue._id, added), "take seats out of service");
-  await bump(venue._id, { outOfServiceSeatIds: seatIds }, actor);
+  await bump(venue._id, { outOfServiceSeatIds: seatIds, seatsAvailable: map.seats.length - seatIds.length }, actor);
+  return getAdminVenue(slug);
+};
+
+/** The venue's own staff set its pass and membership prices; blank means not sold. */
+export const setVenuePrices = async (slug: string, prices: VenuePricesInput, actor: Actor) => {
+  const venue = await findVenue(slug);
+  const next = {
+    startingPrice: "startingPrice" in prices ? (prices.startingPrice ?? null) : (venue.startingPrice ?? null),
+    halfDayPrice: "halfDayPrice" in prices ? (prices.halfDayPrice ?? null) : (venue.halfDayPrice ?? null),
+    dayPassPrice: "dayPassPrice" in prices ? (prices.dayPassPrice ?? null) : (venue.dayPassPrice ?? null),
+    membershipPrices: prices.membershipPrices ?? venue.membershipPrices,
+  };
+  const fields = crossFieldErrors({ ...next, opensAt: venue.opensAt, closesAt: venue.closesAt });
+  if (Object.keys(fields).length > 0) throw validationFailed(fields);
+  if (venue.published && !hasAnyPrice(next)) {
+    throw new AppError("A live venue needs at least one price.", 422, "PRICE_REQUIRED");
+  }
+  await bump(venue._id, prices, actor);
   return getAdminVenue(slug);
 };

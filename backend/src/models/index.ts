@@ -22,3 +22,4 @@ export * from "./couponRedemption.schema";
 export * from "./memberCoupon.schema";
 export * from "./payoutStatement.schema";
 export * from "./refundDue.schema";
+export * from "./catalogueLabel.schema";

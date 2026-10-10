@@ -1,5 +1,6 @@
 import { AppError } from "../middlewares/error.middleware";
 import { Booking, Membership, MembershipCharge, type BookingDoc, type MembershipDoc } from "../models";
+import { isRef } from "../utils/refs";
 import type { AdminRescheduleInput } from "../validators/booking";
 import { rescheduleAsAdmin } from "./booking.service";
 import { requestHistory } from "./cancellation.service";
@@ -14,7 +15,7 @@ const bookingNotFound = () => new AppError("We couldn't find that booking.", 404
 const membershipNotFound = () => new AppError("We couldn't find that membership.", 404, "MEMBERSHIP_NOT_FOUND");
 
 const findBooking = async (ref: string) => {
-  const booking = /^\d{12}$/.test(ref)
+  const booking = isRef("booking", ref)
     ? await Booking.findOne({ ref, status: { $nin: HIDDEN_BOOKINGS } }).lean<BookingDoc>()
     : null;
   if (!booking) throw bookingNotFound();
@@ -22,7 +23,7 @@ const findBooking = async (ref: string) => {
 };
 
 const findMembership = async (ref: string) => {
-  const membership = /^m-\d{12}$/.test(ref)
+  const membership = isRef("membership", ref)
     ? await Membership.findOne({ ref, status: { $nin: HIDDEN_MEMBERSHIPS } }).lean<MembershipDoc>()
     : null;
   if (!membership) throw membershipNotFound();

@@ -2,6 +2,7 @@ import type { QueryFilter, Types } from "mongoose";
 import { AppError } from "../middlewares/error.middleware";
 import { Booking, Member, type BookingDoc, type MemberDoc } from "../models";
 import { addDays, indiaNow, isIsoDate, timeLabel } from "../utils/indiaTime";
+import { canonicalRef, isRef } from "../utils/refs";
 import { effectiveStatus } from "./bookingRules";
 
 const HIDDEN = ["pending-payment", "expired"];
@@ -119,7 +120,7 @@ export const listAdminBookings = async (query: AdminBookingQuery) => {
   }
 
   const search = typeof query.q === "string" ? query.q.trim().slice(0, 80) : "";
-  if (/^\d{12}$/.test(search)) filter.ref = search;
+  if (isRef("booking", canonicalRef(search))) filter.ref = canonicalRef(search);
   else if (search) filter.memberId = { $in: await membersMatching(search) };
 
   const now = new Date();

@@ -44,9 +44,11 @@ export type ApiVenue = {
   gallery: string[];
   rating: number;
   seatsAvailable: number;
-  startingPrice: number;
+  /** Rupees an hour; null when hourly passes aren't sold. Every price is set by a person, never derived. */
+  startingPrice: number | null;
   priceUnit: "hr" | "day" | "month";
-  dayPassPrice: number;
+  halfDayPrice: number | null;
+  dayPassPrice: number | null;
   membershipPrices: MembershipPriceTable;
   distanceKm: number;
   description: string;
@@ -136,4 +138,6 @@ export type OperationsOverview = {
   today: { bookings: number; checkIns: number; walkIns: number; requestsWaiting: number; oldestRequestAt: string | null };
   monthToDate: { collected: number; newMemberships: number; lapses: number };
   attention: { pastDue: number; staleRequests: number; unpaidStatements: number; venuesWithoutBankDetails: number };
+  /** The last 30 India days, oldest first. */
+  trend: { date: string; collected: number; bookings: number }[];
 };

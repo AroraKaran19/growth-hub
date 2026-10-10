@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { CircleCheck, UserPlus } from "lucide-react";
+import { UserPlus } from "lucide-react";
 import type { InviteAdminInput } from "@/hooks/useTeam";
 import { readApiError } from "@/libs/api/errors";
+import { toastFailed, toastInvited } from "@/libs/toast";
 import { cn } from "@/utils";
 import { passwordProblem } from "@/utils/password";
 import TemporaryPasswordField from "../TemporaryPasswordField";
@@ -25,8 +26,6 @@ const InviteAdminCard = ({ onInvite }: InviteAdminCardProps) => {
   const [permissions, setPermissions] = useState<string[]>([]);
   const [temporaryPassword, setTemporaryPassword] = useState("");
   const [errors, setErrors] = useState<Errors>({});
-  const [formError, setFormError] = useState<string | null>(null);
-  const [invited, setInvited] = useState<{ email: string; password: string } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
   const validate = (): Errors => ({
@@ -40,14 +39,12 @@ const InviteAdminCard = ({ onInvite }: InviteAdminCardProps) => {
     event.preventDefault();
     const found = validate();
     setErrors(found);
-    setFormError(null);
-    setInvited(null);
     if (Object.keys(found).length > 0) return;
 
     setIsSaving(true);
     try {
       await onInvite({ name: name.trim(), email: email.trim(), permissions, temporaryPassword });
-      setInvited({ email: email.trim().toLowerCase(), password: temporaryPassword });
+      toastInvited({ email: email.trim().toLowerCase(), password: temporaryPassword, portal: "admin" });
       setName("");
       setEmail("");
       setPermissions([]);
@@ -64,7 +61,7 @@ const InviteAdminCard = ({ onInvite }: InviteAdminCardProps) => {
           temporaryPassword: info.fields.temporaryPassword,
         });
       } else {
-        setFormError(info.message);
+        toastFailed(info.message);
       }
     } finally {
       setIsSaving(false);
@@ -135,21 +132,6 @@ const InviteAdminCard = ({ onInvite }: InviteAdminCardProps) => {
           error={errors.temporaryPassword}
         />
       </div>
-
-      {invited && (
-        <p role="status" className="mt-4 flex items-start gap-2 text-sm text-green-700">
-          <CircleCheck aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
-          <span>
-            {invited.email} can sign in at /admin/login with{" "}
-            <span className="font-mono font-semibold">{invited.password}</span>, then choose their own password.
-          </span>
-        </p>
-      )}
-      {formError && (
-        <p role="alert" className="mt-4 text-sm text-primary">
-          {formError}
-        </p>
-      )}
 
       <button
         type="submit"

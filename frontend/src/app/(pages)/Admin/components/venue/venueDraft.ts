@@ -10,7 +10,6 @@ export type VenueDraft = {
   description: string;
   longDescription: string;
   rating: string;
-  seatsAvailable: string;
   distanceKm: string;
   googleMapsUrl: string;
   openDays: number[];
@@ -24,6 +23,7 @@ export type VenueDraft = {
   workspaceTypes: string[];
   rules: string[];
   startingPrice: string;
+  halfDayPrice: string;
   dayPassPrice: string;
   priceUnit: "hr" | "day" | "month";
   membershipPrices: PriceCells;
@@ -51,7 +51,6 @@ export const EMPTY_DRAFT: VenueDraft = {
   description: "",
   longDescription: "",
   rating: "0",
-  seatsAvailable: "0",
   distanceKm: "0",
   googleMapsUrl: "",
   openDays: [1, 2, 3, 4, 5, 6],
@@ -65,6 +64,7 @@ export const EMPTY_DRAFT: VenueDraft = {
   workspaceTypes: [],
   rules: [],
   startingPrice: "",
+  halfDayPrice: "",
   dayPassPrice: "",
   priceUnit: "hr",
   membershipPrices: emptyCells(),
@@ -91,7 +91,6 @@ export const toDraft = (venue: AdminVenue): VenueDraft => {
     description: venue.description,
     longDescription: venue.longDescription,
     rating: String(venue.rating),
-    seatsAvailable: String(venue.seatsAvailable),
     distanceKm: String(venue.distanceKm),
     googleMapsUrl: venue.googleMapsUrl,
     openDays: venue.openDays,
@@ -104,8 +103,9 @@ export const toDraft = (venue: AdminVenue): VenueDraft => {
     amenities: venue.amenities,
     workspaceTypes: venue.workspaceTypes,
     rules: venue.rules,
-    startingPrice: String(venue.startingPrice),
-    dayPassPrice: String(venue.dayPassPrice),
+    startingPrice: priceText(venue.startingPrice),
+    halfDayPrice: priceText(venue.halfDayPrice),
+    dayPassPrice: priceText(venue.dayPassPrice),
     priceUnit: venue.priceUnit,
     membershipPrices: cells,
     hasOffer: Boolean(venue.offer),
@@ -126,6 +126,10 @@ export const slugFromName = (name: string) =>
 const SLUG = /^[a-z0-9][a-z0-9-]{1,62}$/;
 const GOOGLE_HOSTS = ["google.com", "www.google.com", "maps.google.com", "maps.app.goo.gl", "goo.gl"];
 
+const priceText = (price: number | null) => (price === null ? "" : String(price));
+/** Empty means the venue doesn't sell it. */
+const priceOrNull = (value: string) => (value.trim() === "" ? null : Number(value));
+
 const wholeNumber = (value: string) => (/^\d+$/.test(value.trim()) ? Number(value) : NaN);
 const decimal = (value: string) => (/^\d+(\.\d+)?$/.test(value.trim()) ? Number(value) : NaN);
 
@@ -143,8 +147,10 @@ const isGoogleMapsUrl = (value: string) => {
 
 export const validateDraft = (draft: VenueDraft, mode: "create" | "edit"): DraftErrors => {
   const errors: DraftErrors = {};
-  const hourly = wholeNumber(draft.startingPrice);
-  const day = wholeNumber(draft.dayPassPrice);
+  const optionalRate = (value: string) => (value.trim() === "" ? null : wholeNumber(value));
+  const hourly = optionalRate(draft.startingPrice);
+  const halfDay = optionalRate(draft.halfDayPrice);
+  const day = optionalRate(draft.dayPassPrice);
   const rating = decimal(draft.rating);
 
   if (mode === "create") {
@@ -155,11 +161,12 @@ export const validateDraft = (draft: VenueDraft, mode: "create" | "edit"): Draft
   if (draft.locality.trim().length < 2) errors.locality = "Enter a locality.";
   if (draft.city.trim().length < 2) errors.city = "Enter a city.";
 
-  if (!(hourly > 0)) errors.startingPrice = "Enter an hourly rate above ₹0.";
-  if (!(day > 0)) errors.dayPassPrice = "Enter a day pass rate above ₹0.";
-  else if (hourly > day) errors.dayPassPrice = "A day pass can't cost less than one hour.";
+  const notSoldHint = "Enter a price above ₹0, or leave it empty if it isn't sold.";
+  if (hourly !== null && !(hourly > 0)) errors.startingPrice = notSoldHint;
+  if (halfDay !== null && !(halfDay > 0)) errors.halfDayPrice = notSoldHint;
+  if (day !== null && !(day > 0)) errors.dayPassPrice = notSoldHint;
+  else if (day !== null && hourly !== null && hourly > day) errors.dayPassPrice = "A day pass can't cost less than one hour.";
 
-  if (!(wholeNumber(draft.seatsAvailable) >= 0)) errors.seatsAvailable = "Enter a whole number of seats.";
   if (!(rating >= 0 && rating <= 5)) errors.rating = "Enter a rating from 0 to 5.";
   if (!(decimal(draft.distanceKm) >= 0)) errors.distanceKm = "Enter a distance of 0 or more.";
 
@@ -208,7 +215,6 @@ export const toPayload = (draft: VenueDraft, mode: "create" | "edit"): Record<st
     description: draft.description.trim(),
     longDescription: draft.longDescription.trim(),
     rating: Number(draft.rating),
-    seatsAvailable: Number(draft.seatsAvailable),
     distanceKm: Number(draft.distanceKm),
     googleMapsUrl: draft.googleMapsUrl.trim(),
     openDays: draft.openDays,
@@ -221,8 +227,9 @@ export const toPayload = (draft: VenueDraft, mode: "create" | "edit"): Record<st
     amenities: draft.amenities,
     workspaceTypes: draft.workspaceTypes,
     rules: draft.rules.map((rule) => rule.trim()).filter(Boolean),
-    startingPrice: Number(draft.startingPrice),
-    dayPassPrice: Number(draft.dayPassPrice),
+    startingPrice: priceOrNull(draft.startingPrice),
+    halfDayPrice: priceOrNull(draft.halfDayPrice),
+    dayPassPrice: priceOrNull(draft.dayPassPrice),
     priceUnit: draft.priceUnit,
     membershipPrices,
     offer: draft.hasOffer ? { label: draft.offerLabel.trim(), details: draft.offerDetails.trim() } : null,

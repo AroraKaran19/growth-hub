@@ -1,4 +1,5 @@
 import { PHASE_PRODUCTION_BUILD } from "next/constants";
+import { NO_LABELS, type CatalogueLabels } from "@/types/catalogueLabels";
 import type { Venue, VenueDetail } from "@/types/venue";
 
 const API_URL = process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "";
@@ -32,3 +33,12 @@ export const getPublishedVenues = async (): Promise<Venue[]> => {
 export const getVenue = async (slug: string): Promise<VenueDetail | null> =>
   (await load<{ venue: VenueDetail }>(`/venues/${encodeURIComponent(slug)}`, ["venues", `venue:${slug}`]))
     ?.venue ?? null;
+
+/** Admin names for workspace types and amenities; built-in names when the API can't be reached. */
+export const getCatalogueLabels = async (): Promise<CatalogueLabels> => {
+  try {
+    return (await load<{ labels: CatalogueLabels }>("/catalogue/labels", ["venues"]))?.labels ?? NO_LABELS;
+  } catch {
+    return NO_LABELS;
+  }
+};

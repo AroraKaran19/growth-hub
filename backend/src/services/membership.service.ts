@@ -13,8 +13,9 @@ import {
 } from "../models";
 import { MEMBERSHIP_RESERVE_AHEAD_DAYS } from "../constants/booking";
 import { addDays, indiaNow } from "../utils/indiaTime";
+import { freshRef, isRef } from "../utils/refs";
 import type { MembershipInput, MembershipQuoteInput, SubscriptionConfirmInput } from "../validators/membership";
-import { holdRanOut, loadBookable, newRef, refundQuietly, ruleError } from "./booking.service";
+import { holdRanOut, loadBookable, refundQuietly, ruleError } from "./booking.service";
 import { seatError } from "./bookingRules";
 import { nextInvoiceNumber } from "./invoiceNumber.service";
 import { couponFor, recordRedemption, rememberCoupon } from "./coupon.service";
@@ -157,7 +158,7 @@ export const createMembership = async (memberId: string, input: MembershipInput,
   // The seat stays the member's past the pass horizon, so no pass can ever take a paid day.
   const reservedThrough = reserveThrough(input.startDate, input.length, indiaNow().date);
   const seatsById = new Map(map.seats.map((seat) => [seat.id, seat]));
-  const ref = `m-${newRef()}`;
+  const ref = await freshRef("membership", (candidate) => Membership.exists({ ref: candidate }));
 
   try {
     await mongoose.connection.transaction(async (session) => {
@@ -229,7 +230,7 @@ export const createMembership = async (memberId: string, input: MembershipInput,
 };
 
 const getOwn = async (memberId: string, ref: string) => {
-  if (!/^m-\d{12}$/.test(ref) || !Types.ObjectId.isValid(memberId)) throw notFound();
+  if (!isRef("membership", ref) || !Types.ObjectId.isValid(memberId)) throw notFound();
   const membership = await Membership.findOne({ ref, memberId }).lean<MembershipDoc>();
   if (!membership) throw notFound();
   return membership;

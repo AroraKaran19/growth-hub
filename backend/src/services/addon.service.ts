@@ -57,28 +57,30 @@ export const updateAddonType = async (id: string, change: PatchAddonTypeInput) =
   return toView(updated);
 };
 
-export const getPartnerVenue = async (venueSlug: string): Promise<PartnerVenue> => {
-  const detail = await getPublicVenue(venueSlug);
+/** Every active add-on type with this venue's price, hidden venues included. */
+export const addonChoicesFor = async (venueSlug: string) => {
   const venue = await Venue.findOne({ slug: venueSlug }, { addons: 1 }).lean<Pick<VenueDoc, "addons">>();
-  const prices = new Map((venue?.addons ?? []).map((addon) => [addon.addonTypeId.toString(), addon]));
+  if (!venue) throw new AppError("That venue doesn't exist.", 404, "VENUE_NOT_FOUND");
+  const prices = new Map(venue.addons.map((addon) => [addon.addonTypeId.toString(), addon]));
   const types = await AddonType.find({ active: true }).sort(byOrder).lean<AddonTypeDoc[]>();
-
-  return {
-    ...detail,
-    addonChoices: types.map((type) => {
-      const saved = prices.get(type._id.toString());
-      return {
-        addonTypeId: type._id.toString(),
-        key: type.key,
-        name: type.name,
-        description: type.description,
-        unit: type.unit,
-        price: saved?.price ?? null,
-        enabled: saved?.enabled ?? false,
-      };
-    }),
-  };
+  return types.map((type) => {
+    const saved = prices.get(type._id.toString());
+    return {
+      addonTypeId: type._id.toString(),
+      key: type.key,
+      name: type.name,
+      description: type.description,
+      unit: type.unit,
+      price: saved?.price ?? null,
+      enabled: saved?.enabled ?? false,
+    };
+  });
 };
+
+export const getPartnerVenue = async (venueSlug: string): Promise<PartnerVenue> => ({
+  ...(await getPublicVenue(venueSlug)),
+  addonChoices: await addonChoicesFor(venueSlug),
+});
 
 export const setVenueAddons = async (venueSlug: string, input: VenueAddonsInput, actor: Actor) => {
   const ids = input.addons.map((addon) => addon.addonTypeId);

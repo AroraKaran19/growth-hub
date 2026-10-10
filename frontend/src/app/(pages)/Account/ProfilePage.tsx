@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowRight, CircleCheck, Pencil } from "lucide-react";
+import { ArrowRight, Pencil } from "lucide-react";
 import SelectField from "@/app/components/ui/form/SelectField";
 import {
   GENDER_OPTIONS,
@@ -15,6 +15,7 @@ import { useMemberships } from "@/hooks/useMemberships";
 import { usePublishedVenues } from "@/hooks/useVenues";
 import { memberApi } from "@/libs/api/client";
 import { readApiError } from "@/libs/api/errors";
+import { toastDone, toastFailed } from "@/libs/toast";
 import { useAuthStore } from "@/stores/auth";
 import type { MemberAccount } from "@/types/auth";
 import { isLiveMembership } from "@/types/membership";
@@ -152,9 +153,7 @@ const ProfileView = ({ account }: { account: MemberAccount }) => {
   // Null while reading; a draft only exists between Edit and Save.
   const [draft, setDraft] = useState<ProfileDraft | null>(null);
   const [errors, setErrors] = useState<ProfileErrors>({});
-  const [formError, setFormError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [isSaved, setIsSaved] = useState(false);
 
   const { venues } = usePublishedVenues();
   const { bookings } = useBookings();
@@ -182,14 +181,11 @@ const ProfileView = ({ account }: { account: MemberAccount }) => {
   const startEditing = () => {
     setDraft(toDraft(account));
     setErrors({});
-    setFormError(null);
-    setIsSaved(false);
   };
 
   const stopEditing = () => {
     setDraft(null);
     setErrors({});
-    setFormError(null);
   };
 
   const change = (key: FieldKey, next: string) => {
@@ -202,7 +198,7 @@ const ProfileView = ({ account }: { account: MemberAccount }) => {
     const found = validateDraft(draft, todayIso());
     setErrors(found);
     if (Object.keys(found).length > 0) {
-      setFormError("Check the highlighted fields.");
+      toastFailed("Check the highlighted fields.");
       return;
     }
 
@@ -213,21 +209,16 @@ const ProfileView = ({ account }: { account: MemberAccount }) => {
     }
 
     setIsSaving(true);
-    setFormError(null);
     try {
       const { data } = await memberApi.patch("/members/me", patch);
       setAccount(data.data.account as MemberAccount);
       stopEditing();
-      setIsSaved(true);
+      toastDone("Your details are saved.");
     } catch (caught) {
       const info = readApiError(caught);
       const mapped = errorsFromApi(info);
       setErrors(mapped);
-      setFormError(
-        Object.keys(mapped).length > 0
-          ? "Check the highlighted fields."
-          : info.message,
-      );
+      toastFailed(Object.keys(mapped).length > 0 ? "Check the highlighted fields." : info.message);
     } finally {
       setIsSaving(false);
     }
@@ -275,21 +266,6 @@ const ProfileView = ({ account }: { account: MemberAccount }) => {
           </button>
         )}
       </div>
-
-      {formError && (
-        <p role="alert" className="mt-4 text-sm text-primary">
-          {formError}
-        </p>
-      )}
-      {isSaved && !isEditing && (
-        <p
-          role="status"
-          className="mt-4 flex items-center gap-2 text-sm text-green-700"
-        >
-          <CircleCheck aria-hidden="true" className="size-4" />
-          Your details are saved.
-        </p>
-      )}
 
       <dl className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
         {tiles.map((stat) => (

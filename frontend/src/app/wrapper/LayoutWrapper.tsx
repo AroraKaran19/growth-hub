@@ -55,7 +55,7 @@ const LayoutWrapper = ({ children }: { children: React.ReactNode }) => {
         pauseOnHover={false}
         theme="light"
         className="toast-container"
-        limit={1}
+        limit={3}
       />
     </>
   );

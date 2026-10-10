@@ -2,8 +2,8 @@
 
 import type { FormEvent, ReactNode } from "react";
 import { Plus, X } from "lucide-react";
-import SelectField from "@/app/components/ui/form/SelectField";
 import { AMENITIES } from "@/data/amenities";
+import { useCatalogueLabels } from "@/hooks/useCatalogueLabels";
 import { WORKSPACE_TYPE_OPTIONS } from "@/data/searchOptions";
 import {
   MEMBERSHIP_LENGTH_KEYS,
@@ -27,12 +27,6 @@ const DAYS = [
   { value: 6, short: "S", name: "Saturday" },
 ];
 
-const PRICE_UNIT_OPTIONS = [
-  { value: "hr", label: "Per hour" },
-  { value: "day", label: "Per day" },
-  { value: "month", label: "Per month" },
-];
-
 const MAX_RULES = 20;
 
 const VALID_SLUG = /^[a-z0-9][a-z0-9-]{1,62}$/;
@@ -54,6 +48,7 @@ type VenueFormProps = {
 };
 
 const VenueForm = ({ mode, draft, errors, onChange, onSubmit, isSaving, status, extra }: VenueFormProps) => {
+  const labels = useCatalogueLabels();
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
     onSubmit();
@@ -85,8 +80,6 @@ const VenueForm = ({ mode, draft, errors, onChange, onSubmit, isSaving, status, 
       draft.rules.map((rule, item) => (item === index ? value : rule)),
     );
 
-  const hourly = Number(draft.startingPrice) || 0;
-  const day = Number(draft.dayPassPrice) || 0;
   const publishError = errors.published;
 
   return (
@@ -187,16 +180,7 @@ const VenueForm = ({ mode, draft, errors, onChange, onSubmit, isSaving, status, 
             </Field>
           </div>
 
-          <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-3">
-            <Field id="venue-seats" label="Seats listed" error={errors.seatsAvailable}>
-              <input
-                id="venue-seats"
-                inputMode="numeric"
-                value={draft.seatsAvailable}
-                onChange={(event) => onChange("seatsAvailable", digits(event.target.value))}
-                className={inputClass(Boolean(errors.seatsAvailable))}
-              />
-            </Field>
+          <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2">
             <Field id="venue-rating" label="Rating (0 to 5)" error={errors.rating}>
               <input
                 id="venue-rating"
@@ -315,7 +299,7 @@ const VenueForm = ({ mode, draft, errors, onChange, onSubmit, isSaving, status, 
               {WORKSPACE_TYPE_OPTIONS.map((option) => (
                 <Chip
                   key={option.value}
-                  label={option.label}
+                  label={labels.workspaceType(option.value, option.label)}
                   isOn={draft.workspaceTypes.includes(option.value)}
                   onToggle={() => toggleIn("workspaceTypes", option.value)}
                 />
@@ -330,7 +314,7 @@ const VenueForm = ({ mode, draft, errors, onChange, onSubmit, isSaving, status, 
               {AMENITIES.map((amenity) => (
                 <Chip
                   key={amenity.id}
-                  label={amenity.label}
+                  label={labels.amenity(amenity.id, amenity.label)}
                   isOn={draft.amenities.includes(amenity.id)}
                   onToggle={() => toggleIn("amenities", amenity.id)}
                 />
@@ -387,32 +371,38 @@ const VenueForm = ({ mode, draft, errors, onChange, onSubmit, isSaving, status, 
           )}
         </Section>
 
-        <Section title="Pass rates" hint="Hourly and full-day passes. Half day is 60% of the day pass. GST included.">
+        <Section title="Pass prices" hint="Set each price yourself, GST included. Leave a box empty if the venue doesn't sell that pass.">
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
-            <Field id="venue-hourly" label="Hourly rate (₹)" error={errors.startingPrice}>
+            <Field id="venue-hourly" label="Hourly (₹)" error={errors.startingPrice}>
               <input
                 id="venue-hourly"
                 inputMode="numeric"
+                placeholder="Not sold"
                 value={draft.startingPrice}
                 onChange={(event) => onChange("startingPrice", digits(event.target.value))}
                 className={inputClass(Boolean(errors.startingPrice))}
               />
             </Field>
-            <Field id="venue-day" label="Day pass rate (₹)" error={errors.dayPassPrice}>
+            <Field id="venue-half" label="Half day (₹)" error={errors.halfDayPrice}>
+              <input
+                id="venue-half"
+                inputMode="numeric"
+                placeholder="Not sold"
+                value={draft.halfDayPrice}
+                onChange={(event) => onChange("halfDayPrice", digits(event.target.value))}
+                className={inputClass(Boolean(errors.halfDayPrice))}
+              />
+            </Field>
+            <Field id="venue-day" label="Day pass (₹)" error={errors.dayPassPrice}>
               <input
                 id="venue-day"
                 inputMode="numeric"
+                placeholder="Not sold"
                 value={draft.dayPassPrice}
                 onChange={(event) => onChange("dayPassPrice", digits(event.target.value))}
                 className={inputClass(Boolean(errors.dayPassPrice))}
               />
             </Field>
-            <SelectField
-              label="Price shown on cards"
-              value={draft.priceUnit}
-              onChange={(value) => onChange("priceUnit", value as VenueDraft["priceUnit"])}
-              options={PRICE_UNIT_OPTIONS}
-            />
           </div>
         </Section>
 
@@ -506,15 +496,21 @@ const VenueForm = ({ mode, draft, errors, onChange, onSubmit, isSaving, status, 
           <h2 className="text-base font-bold text-tertiary">Price preview</h2>
           <dl className="mt-3 flex flex-col gap-2 text-sm">
             {[
-              { label: "Hourly", value: hourly, unit: "hr" },
-              { label: "Half day", value: Math.round(day * 0.6), unit: "half day" },
-              { label: "Full day", value: day, unit: "day" },
+              { label: "Hourly", value: draft.startingPrice, unit: "hr" },
+              { label: "Half day", value: draft.halfDayPrice, unit: "half day" },
+              { label: "Full day", value: draft.dayPassPrice, unit: "day" },
             ].map((row) => (
               <div key={row.label} className="flex items-center justify-between gap-3">
                 <dt className="text-tertiary/60">{row.label}</dt>
-                <dd className="font-medium text-tertiary">
-                  ₹{row.value.toLocaleString("en-IN")}
-                  <span className="font-normal text-tertiary/50">/{row.unit}</span>
+                <dd className={row.value ? "font-medium text-tertiary" : "text-tertiary/45"}>
+                  {row.value ? (
+                    <>
+                      ₹{Number(row.value).toLocaleString("en-IN")}
+                      <span className="font-normal text-tertiary/50">/{row.unit}</span>
+                    </>
+                  ) : (
+                    "Not sold"
+                  )}
                 </dd>
               </div>
             ))}

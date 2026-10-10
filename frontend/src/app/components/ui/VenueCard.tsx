@@ -3,12 +3,7 @@ import Link from "next/link";
 import { ArrowRight, Star } from "lucide-react";
 import type { Venue } from "@/types/venue";
 import { cn } from "@/utils";
-
-const PRICE_UNIT_LABEL: Record<Venue["priceUnit"], string> = {
-  hr: "Hr",
-  day: "Day",
-  month: "Month",
-};
+import { startingFrom } from "@/utils/venues";
 
 const VenueCard = ({
   venue,
@@ -17,6 +12,7 @@ const VenueCard = ({
   venue: Venue;
   className?: string;
 }) => {
+  const from = startingFrom(venue);
   return (
     <article
       className={cn(
@@ -59,8 +55,7 @@ const VenueCard = ({
 
         <div className="mt-auto flex items-center justify-between gap-3 pt-9">
           <p className="text-sm text-tertiary/65">
-            Starting From ₹{venue.startingPrice}/
-            {PRICE_UNIT_LABEL[venue.priceUnit]}
+            {from ? `Starting from ₹${from.amount.toLocaleString("en-IN")}/${from.unit}` : ""}
           </p>
           <Link
             href={`/workspaces/${venue.slug}`}

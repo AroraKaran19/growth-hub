@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { CircleCheck, Store } from "lucide-react";
+import { Store } from "lucide-react";
 import SelectField from "@/app/components/ui/form/SelectField";
 import type { InvitePartnerInput, VenueOption } from "@/hooks/usePartnerAccounts";
 import { readApiError } from "@/libs/api/errors";
+import { toastFailed, toastInvited } from "@/libs/toast";
 import { cn } from "@/utils";
 import { passwordProblem } from "@/utils/password";
 import TemporaryPasswordField from "../TemporaryPasswordField";
@@ -26,8 +27,6 @@ const InvitePartnerCard = ({ venues, onInvite }: InvitePartnerCardProps) => {
   const [venueSlug, setVenueSlug] = useState("");
   const [temporaryPassword, setTemporaryPassword] = useState("");
   const [errors, setErrors] = useState<Errors>({});
-  const [formError, setFormError] = useState<string | null>(null);
-  const [invited, setInvited] = useState<{ email: string; password: string } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
   const handleSubmit = async (event: FormEvent) => {
@@ -39,14 +38,12 @@ const InvitePartnerCard = ({ venues, onInvite }: InvitePartnerCardProps) => {
       ...(passwordProblem(temporaryPassword) && { temporaryPassword: passwordProblem(temporaryPassword)! }),
     };
     setErrors(found);
-    setFormError(null);
-    setInvited(null);
     if (Object.keys(found).length > 0) return;
 
     setIsSaving(true);
     try {
       await onInvite({ name: name.trim(), email: email.trim(), venueSlug, temporaryPassword });
-      setInvited({ email: email.trim().toLowerCase(), password: temporaryPassword });
+      toastInvited({ email: email.trim().toLowerCase(), password: temporaryPassword, portal: "partner" });
       setName("");
       setEmail("");
       setVenueSlug("");
@@ -65,7 +62,7 @@ const InvitePartnerCard = ({ venues, onInvite }: InvitePartnerCardProps) => {
           temporaryPassword: info.fields.temporaryPassword,
         });
       } else {
-        setFormError(info.message);
+        toastFailed(info.message);
       }
     } finally {
       setIsSaving(false);
@@ -87,7 +84,7 @@ const InvitePartnerCard = ({ venues, onInvite }: InvitePartnerCardProps) => {
         </span>
         <div>
           <h2 className="text-base font-bold text-tertiary">Invite a venue admin</h2>
-          <p className="text-sm text-tertiary/55">They sign in at /partner/login with this email and a temporary password.</p>
+          <p className="text-sm text-tertiary/55">They sign in to the venue portal with this email and a temporary password you set.</p>
         </div>
       </div>
 
@@ -137,21 +134,6 @@ const InvitePartnerCard = ({ venues, onInvite }: InvitePartnerCardProps) => {
           error={errors.temporaryPassword}
         />
       </div>
-
-      {invited && (
-        <p role="status" className="mt-4 flex items-start gap-2 text-sm text-green-700">
-          <CircleCheck aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
-          <span>
-            {invited.email} can sign in at /partner/login with{" "}
-            <span className="font-mono font-semibold">{invited.password}</span>, then choose their own password.
-          </span>
-        </p>
-      )}
-      {formError && (
-        <p role="alert" className="mt-4 text-sm text-primary">
-          {formError}
-        </p>
-      )}
 
       <button
         type="submit"

@@ -16,7 +16,9 @@ const app = express();
 if (config.trustProxy !== null) app.set("trust proxy", config.trustProxy);
 
 app.use(favicon(path.join(__dirname, "../public/favicon.ico")));
-app.use(cors({ origin: config.frontendUrl }));
+const allowedOrigins = new Set(config.corsOrigins);
+// Requests without an Origin header (server to server, webhooks) aren't subject to CORS.
+app.use(cors({ origin: (origin, done) => done(null, !origin || allowedOrigins.has(origin)) }));
 app.use(
   express.json({
     limit: "100mb",

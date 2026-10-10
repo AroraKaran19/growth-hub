@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import useSWR from "swr";
 import { ArrowRight, Crown, ReceiptText, ScanLine } from "lucide-react";
@@ -24,7 +23,6 @@ const PartnerOverviewPage = () => {
   const desk = usePartnerDesk();
   const { account } = usePartnerSession();
   const { data: sales } = useSWR(account ? ["partner/sales-summary", account.id] : null, fetchSalesSummary);
-  const [notice, setNotice] = useState<string | null>(null);
 
   if (!desk.isReady) return <PartnerSkeleton />;
 
@@ -53,10 +51,7 @@ const PartnerOverviewPage = () => {
     {} as Partial<Record<SeatStatus, number>>,
   );
 
-  const handleCheckIn = (id: string, name: string) => {
-    void desk.quickCheckIn(id);
-    setNotice(`${name} is checked in.`);
-  };
+  const handleCheckIn = (id: string) => void desk.quickCheckIn(id);
 
   return (
     <>
@@ -73,12 +68,6 @@ const PartnerOverviewPage = () => {
           </Link>
         }
       />
-
-      {notice && (
-        <p role="status" className="mt-5 rounded-xl bg-green-500/10 px-4 py-3 text-sm text-green-800">
-          {notice}
-        </p>
-      )}
 
       <dl className="mt-6 grid grid-cols-2 gap-4 xl:grid-cols-4">
         <PartnerStat
@@ -157,7 +146,7 @@ const PartnerOverviewPage = () => {
                     {booking.status === "upcoming" && (
                       <button
                         type="button"
-                        onClick={() => handleCheckIn(booking.bookingId, booking.memberName)}
+                        onClick={() => handleCheckIn(booking.bookingId)}
                         className={CHECK_IN_BUTTON}
                       >
                         Check in
@@ -197,7 +186,7 @@ const PartnerOverviewPage = () => {
                   ) : (
                     <button
                       type="button"
-                      onClick={() => handleCheckIn(member.membershipId, member.memberName)}
+                      onClick={() => handleCheckIn(member.membershipId)}
                       className="text-sm font-medium text-primary transition-opacity hover:opacity-75"
                     >
                       Check in

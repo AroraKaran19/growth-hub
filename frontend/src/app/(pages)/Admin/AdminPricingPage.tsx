@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { patchVenueRow, useAdminVenues } from "@/hooks/useAdminCatalogue";
 import { readApiError } from "@/libs/api/errors";
+import { toastDone } from "@/libs/toast";
 import type { AdminVenueRow } from "@/types/catalogue";
 import { cn } from "@/utils";
 import {
@@ -18,28 +20,29 @@ const INPUT =
 const PriceRow = ({ venue, onSaved }: { venue: AdminVenueRow; onSaved: () => Promise<void> }) => {
   // Null means untouched, so the box follows the server and typing is never lost.
   const [typedHourly, setTypedHourly] = useState<string | null>(null);
+  const [typedHalf, setTypedHalf] = useState<string | null>(null);
   const [typedDay, setTypedDay] = useState<string | null>(null);
   // The version the admin started typing against; a newer one refuses the save once.
   const [editVersion, setEditVersion] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   const hourly = rateField(typedHourly, venue.startingPrice);
+  const half = rateField(typedHalf, venue.halfDayPrice);
   const day = rateField(typedDay, venue.dayPassPrice);
-  const hourlyValue = hourly.value;
-  const dayValue = day.value;
-  const isDirty = hourly.isEdited || day.isEdited;
-  const monthly = venue.membershipPrices.desk?.monthly;
+  const isDirty = hourly.isEdited || half.isEdited || day.isEdited;
+  const planCount = Object.values(venue.membershipPrices).reduce(
+    (count, row) => count + Object.values(row ?? {}).filter((price) => typeof price === "number").length,
+    0,
+  );
 
   const type = (set: (value: string) => void, value: string) => {
     set(value.replace(/\D/g, ""));
     setEditVersion((current) => current ?? venue.version);
-    setSaved(false);
   };
 
   const handleSave = async () => {
-    const invalid = rateError(hourlyValue, dayValue);
+    const invalid = rateError(hourly.value, half.value, day.value);
     if (invalid) {
       setError(invalid);
       return;
@@ -48,15 +51,17 @@ const PriceRow = ({ venue, onSaved }: { venue: AdminVenueRow; onSaved: () => Pro
     setError(null);
     try {
       await patchVenueRow(venue.slug, {
-        startingPrice: hourlyValue,
-        dayPassPrice: dayValue,
+        startingPrice: hourly.value,
+        halfDayPrice: half.value,
+        dayPassPrice: day.value,
         version: editVersion ?? venue.version,
       });
       await onSaved();
       setTypedHourly(null);
+      setTypedHalf(null);
       setTypedDay(null);
       setEditVersion(null);
-      setSaved(true);
+      toastDone(`${venue.name} rates saved.`);
     } catch (caught) {
       const info = readApiError(caught);
       if (info.code === "STALE_EDIT") {
@@ -64,7 +69,7 @@ const PriceRow = ({ venue, onSaved }: { venue: AdminVenueRow; onSaved: () => Pro
         void onSaved();
         setError("This venue changed since you started typing. Check the rates, then save again.");
       } else {
-        setError(info.fields.dayPassPrice ?? info.fields.startingPrice ?? info.message);
+        setError(info.fields.dayPassPrice ?? info.fields.startingPrice ?? info.fields.halfDayPrice ?? info.message);
       }
     } finally {
       setIsSaving(false);
@@ -84,8 +89,22 @@ const PriceRow = ({ venue, onSaved }: { venue: AdminVenueRow; onSaved: () => Pro
         <input
           id={`hourly-${venue.slug}`}
           inputMode="numeric"
+          placeholder="Not sold"
           value={hourly.text}
           onChange={(event) => type(setTypedHourly, event.target.value)}
+          className={cn(INPUT, error ? "border-primary" : "border-tertiary/20")}
+        />
+      </td>
+      <td className="px-5 py-3.5">
+        <label className="sr-only" htmlFor={`half-${venue.slug}`}>
+          {venue.name} half day rate
+        </label>
+        <input
+          id={`half-${venue.slug}`}
+          inputMode="numeric"
+          placeholder="Not sold"
+          value={half.text}
+          onChange={(event) => type(setTypedHalf, event.target.value)}
           className={cn(INPUT, error ? "border-primary" : "border-tertiary/20")}
         />
       </td>
@@ -96,27 +115,25 @@ const PriceRow = ({ venue, onSaved }: { venue: AdminVenueRow; onSaved: () => Pro
         <input
           id={`day-${venue.slug}`}
           inputMode="numeric"
+          placeholder="Not sold"
           value={day.text}
           onChange={(event) => type(setTypedDay, event.target.value)}
           className={cn(INPUT, error ? "border-primary" : "border-tertiary/20")}
         />
       </td>
-      <td className="px-5 py-3.5 text-tertiary/70">
-        ₹{Math.round(dayValue * 0.6 || 0).toLocaleString("en-IN")}
-      </td>
-      <td className="px-5 py-3.5 text-tertiary/70">
-        {monthly ? `₹${monthly.toLocaleString("en-IN")}` : "Not offered"}
+      <td className="px-5 py-3.5">
+        <Link
+          href={`/admin/venues/${venue.slug}`}
+          className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+        >
+          {planCount ? `${planCount} ${planCount === 1 ? "price" : "prices"} set` : "Set plan prices"}
+        </Link>
       </td>
       <td className="px-5 py-3.5">
         <div className="flex items-center justify-end gap-3">
           {error && (
             <span role="alert" className="text-xs text-primary">
               {error}
-            </span>
-          )}
-          {saved && !isDirty && (
-            <span role="status" className="text-xs text-green-700">
-              Saved
             </span>
           )}
           <button
@@ -143,7 +160,7 @@ const AdminPricingPage = () => {
     <>
       <PageHeader
         title="Pricing"
-        description="Set each venue's hourly and day pass rates. Half day is 60% of a day pass. Membership prices are set on each venue's own page."
+        description="Set each venue's own hourly, half day and day pass prices. Leave a box empty if the venue doesn't sell that pass. Venues can also set their prices from the partner panel."
       />
 
       <div className={`${CARD} mt-6 overflow-x-auto shadow-lg shadow-tertiary/5`}>
@@ -157,9 +174,9 @@ const AdminPricingPage = () => {
               <tr>
                 <th scope="col" className="px-5 py-3 font-semibold">Venue</th>
                 <th scope="col" className="px-5 py-3 font-semibold">Hourly (₹)</th>
+                <th scope="col" className="px-5 py-3 font-semibold">Half day (₹)</th>
                 <th scope="col" className="px-5 py-3 font-semibold">Day pass (₹)</th>
-                <th scope="col" className="px-5 py-3 font-semibold">Half day</th>
-                <th scope="col" className="px-5 py-3 font-semibold">Desk, 1 month</th>
+                <th scope="col" className="px-5 py-3 font-semibold">Memberships</th>
                 <th scope="col" className="px-5 py-3 font-semibold">
                   <span className="sr-only">Save</span>
                 </th>

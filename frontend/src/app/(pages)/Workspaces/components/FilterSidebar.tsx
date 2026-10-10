@@ -1,6 +1,7 @@
 "use client";
 
 import { AMENITIES } from "@/data/amenities";
+import { useCatalogueLabels } from "@/hooks/useCatalogueLabels";
 import { PRICE_BANDS, WORKSPACE_TYPE_OPTIONS } from "@/data/searchOptions";
 import type { SelectOption } from "@/types/search";
 import { cn } from "@/utils";
@@ -37,6 +38,7 @@ const FilterSidebar = ({
   activeCount,
   className,
 }: FilterSidebarProps) => {
+  const labels = useCatalogueLabels();
   return (
     <aside className={cn("flex flex-col gap-7", className)}>
       <div className="flex items-center justify-between gap-3">
@@ -79,7 +81,7 @@ const FilterSidebar = ({
               checked={filters.type.includes(option.value)}
               onChange={() => onToggle("type", option.value)}
             />
-            {option.label}
+            {labels.workspaceType(option.value, option.label)}
           </label>
         ))}
       </fieldset>
@@ -119,7 +121,7 @@ const FilterSidebar = ({
               checked={filters.amenities.includes(amenity.id)}
               onChange={() => onToggle("amenities", amenity.id)}
             />
-            {amenity.label}
+            {labels.amenity(amenity.id, amenity.label)}
           </label>
         ))}
       </fieldset>

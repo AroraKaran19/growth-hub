@@ -53,6 +53,8 @@ export type AppEnv = {
   cronSecret: string | null;
   /** 32 bytes for encrypting venue bank account numbers. */
   payoutEncryptionKey: Buffer | null;
+  /** Browser origins allowed to call the API: the frontend plus CORS_ORIGINS. */
+  corsOrigins: string[];
   /** Optional everywhere: a missing template id skips that message. */
   notifications: NotificationTemplates;
 };
@@ -118,6 +120,10 @@ export const loadEnv = (source: NodeJS.ProcessEnv = process.env): AppEnv => {
   const revalidateSecret = optionalSecret("REVALIDATE_SECRET");
   const qrSigningSecret = optionalSecret("QR_SIGNING_SECRET");
   const cronSecret = optionalSecret("CRON_SECRET");
+  const origin = (value: string) => value.trim().replace(/\/+$/, "");
+  const corsOrigins = [
+    ...new Set([origin(read("FRONTEND_URL") ?? ""), ...(read("CORS_ORIGINS") ?? "").split(",").map(origin)].filter(Boolean)),
+  ];
   const payoutKeyText = read("PAYOUT_ENCRYPTION_KEY");
   const payoutEncryptionKey = payoutKeyText ? Buffer.from(payoutKeyText, "base64") : null;
   if (payoutEncryptionKey && payoutEncryptionKey.length !== 32) {
@@ -177,6 +183,7 @@ export const loadEnv = (source: NodeJS.ProcessEnv = process.env): AppEnv => {
     qrSigningSecret,
     cronSecret,
     payoutEncryptionKey,
+    corsOrigins,
     notifications,
   };
 

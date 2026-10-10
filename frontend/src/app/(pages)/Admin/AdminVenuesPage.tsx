@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ExternalLink, Plus, Search, Star } from "lucide-react";
 import { CATEGORIES } from "@/data/categories";
+import { useCatalogueLabels } from "@/hooks/useCatalogueLabels";
 import { patchVenueRow, useAdminVenues } from "@/hooks/useAdminCatalogue";
 import { readApiError } from "@/libs/api/errors";
 import type { AdminVenueRow } from "@/types/catalogue";
@@ -21,6 +22,13 @@ type StatusFilter = "all" | "published" | "hidden";
 const TYPE_LABELS = Object.fromEntries(CATEGORIES.map((category) => [category.slug, category.name]));
 
 const PLACEHOLDER_PREFIX = "Placeholder:";
+
+const passLines = (venue: AdminVenueRow) =>
+  [
+    venue.startingPrice !== null && `₹${venue.startingPrice}/hr`,
+    venue.halfDayPrice !== null && `₹${venue.halfDayPrice}/half day`,
+    venue.dayPassPrice !== null && `₹${venue.dayPassPrice}/day`,
+  ].filter((line): line is string => Boolean(line));
 
 const MapCell = ({ seatMap }: { seatMap: AdminVenueRow["seatMap"] }) => {
   if (!seatMap) return <span className="text-tertiary/45">No map</span>;
@@ -40,6 +48,7 @@ const MapCell = ({ seatMap }: { seatMap: AdminVenueRow["seatMap"] }) => {
 };
 
 const AdminVenuesPage = () => {
+  const labels = useCatalogueLabels();
   const { venues, error, isLoading, refresh } = useAdminVenues();
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<StatusFilter>("all");
@@ -171,14 +180,21 @@ const AdminVenuesPage = () => {
                     <div className="flex max-w-56 flex-wrap gap-1">
                       {venue.workspaceTypes.map((type) => (
                         <span key={type} className="rounded-full bg-tertiary/5 px-2 py-0.5 text-xs text-tertiary/70">
-                          {TYPE_LABELS[type] ?? type}
+                          {labels.workspaceType(type, TYPE_LABELS[type] ?? type)}
                         </span>
                       ))}
                     </div>
                   </td>
                   <td className="px-5 py-3.5 text-tertiary/75">
-                    <p>₹{venue.startingPrice}/hr</p>
-                    <p className="text-xs text-tertiary/55">₹{venue.dayPassPrice}/day</p>
+                    {passLines(venue).length ? (
+                      passLines(venue).map((line, index) => (
+                        <p key={line} className={index === 0 ? "text-tertiary/75" : "text-xs text-tertiary/55"}>
+                          {line}
+                        </p>
+                      ))
+                    ) : (
+                      <p className="text-xs text-tertiary/45">No pass prices</p>
+                    )}
                   </td>
                   <td className="px-5 py-3.5">
                     <MapCell seatMap={venue.seatMap} />

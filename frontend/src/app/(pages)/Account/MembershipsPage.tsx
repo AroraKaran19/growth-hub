@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowRight, ChevronDown, CircleCheck } from "lucide-react";
+import { ArrowRight, ChevronDown } from "lucide-react";
 import { useAddonOrders } from "@/hooks/useAddonOrders";
 import { useMemberships } from "@/hooks/useMemberships";
 import { readApiError } from "@/libs/api/errors";
+import { toastDone } from "@/libs/toast";
 import { askToCancel, withdrawCancellation } from "@/libs/api/cancellations";
 import { stopRenewal } from "@/libs/api/memberships";
 import type { ApiAddonOrder } from "@/types/addonOrder";
@@ -31,7 +32,6 @@ const MembershipsPage = () => {
   const { memberships, error, isLoading, mutate } = useMemberships();
   const addonOrders = useAddonOrders();
   const [dialog, setDialog] = useState<Dialog | null>(null);
-  const [stopped, setStopped] = useState<ApiMembership | null>(null);
   const [historyShown, setHistoryShown] = useState(HISTORY_PAGE_SIZE);
 
   const live = memberships.filter(isLiveMembership);
@@ -61,7 +61,9 @@ const MembershipsPage = () => {
     const updated = await stopRenewal(membership.ref);
     // Refetched rather than swapped in, so the card keeps its cancellation request.
     await mutate();
-    setStopped(updated);
+    toastDone(
+      `${updated.venue.name} will not renew. Your seat stays yours until ${updated.paidThrough ? formatDay(updated.paidThrough) : "the end of the paid period"}.`,
+    );
     setDialog(null);
   };
 
@@ -82,17 +84,6 @@ const MembershipsPage = () => {
           <ArrowRight aria-hidden="true" className="size-4" />
         </Link>
       </div>
-
-      {stopped && (
-        <p
-          role="status"
-          className="mt-5 flex items-center gap-2 rounded-xl bg-green-500/10 px-4 py-3 text-sm text-green-800"
-        >
-          <CircleCheck aria-hidden="true" className="size-4 shrink-0" />
-          {stopped.venue.name} will not renew. Your seat stays yours until{" "}
-          {stopped.paidThrough ? formatDay(stopped.paidThrough) : "the end of the paid period"}.
-        </p>
-      )}
 
       <dl className="mt-6 grid grid-cols-1 gap-4 border-t border-tertiary/10 pt-6 sm:grid-cols-3">
         {stats.map((stat) => (

@@ -1,4 +1,4 @@
-import { rateFor, type PricedVenue } from "@/app/(pages)/Booking/pricing";
+import { passPriceFor, type PricedVenue } from "@/app/(pages)/Booking/pricing";
 import type { PassType } from "@/types/booking";
 import type { MembershipLengthKey, MembershipPriceTable, MembershipSpace } from "@/types/catalogue";
 import type { SelectOption } from "@/types/search";
@@ -18,18 +18,28 @@ export const lowestMonthlyPrice = (venue: Pick<Venue, "membershipPrices">): numb
   return prices.length ? Math.min(...prices) : null;
 };
 
-/** Lowest and highest pass rate across venues; null when there are none. */
+/** The cheapest pass a venue sells, with its type; null when it sells no passes. */
+export const cheapestPass = (venue: PricedVenue) => {
+  const options = (["hourly", "half-day", "full-day"] as const)
+    .map((type) => ({ type, amount: passPriceFor(venue, type) }))
+    .filter((option): option is { type: "hourly" | "half-day" | "full-day"; amount: number } => option.amount !== null);
+  return options.length ? options.reduce((low, option) => (option.amount < low.amount ? option : low)) : null;
+};
+
+/** Lowest and highest pass rate across the venues that sell it; null when none do. */
 export const passPriceRange = (venues: PricedVenue[], type: PassType) => {
-  if (venues.length === 0) return null;
-  const amounts = venues.map((venue) => rateFor(venue, type).amount);
+  const amounts = venues
+    .map((venue) => passPriceFor(venue, type as "hourly" | "half-day" | "full-day"))
+    .filter((amount): amount is number => amount !== null);
+  if (amounts.length === 0) return null;
   return { min: Math.min(...amounts), max: Math.max(...amounts) };
 };
 
-export type LocalitySummary = SelectOption & { count: number; fromPrice: number; image: string };
+export type LocalitySummary = SelectOption & { count: number; fromPrice: number | null; image: string };
 
 /** One entry per neighbourhood with venues, busiest first. */
 export const localitySummaries = (
-  venues: Pick<Venue, "locality" | "localityId" | "startingPrice" | "image">[],
+  venues: Pick<Venue, "locality" | "localityId" | "startingPrice" | "halfDayPrice" | "dayPassPrice" | "membershipPrices" | "image">[],
 ): LocalitySummary[] => {
   const byId = new Map<string, LocalitySummary>();
   for (const venue of venues) {
@@ -39,13 +49,14 @@ export const localitySummaries = (
         value: venue.localityId,
         label: venue.locality,
         count: 1,
-        fromPrice: venue.startingPrice,
+        fromPrice: cheapestPass(venue)?.amount ?? null,
         image: venue.image,
       });
       continue;
     }
     entry.count += 1;
-    entry.fromPrice = Math.min(entry.fromPrice, venue.startingPrice);
+    const cheapest = cheapestPass(venue)?.amount ?? null;
+    if (cheapest !== null) entry.fromPrice = entry.fromPrice === null ? cheapest : Math.min(entry.fromPrice, cheapest);
     entry.image ||= venue.image;
   }
   return [...byId.values()].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
@@ -83,4 +94,14 @@ export const venueStats = (venues: Pick<Venue, "localityId" | "seatsAvailable" |
     seats: Math.round(seats / 10) * 10,
     rating: rating.toFixed(1),
   };
+};
+
+const PASS_UNIT_LABELS = { hourly: "hr", "half-day": "half day", "full-day": "day" } as const;
+
+/** "Starting from" for cards: the cheapest pass the venue sells, else its cheapest monthly plan. */
+export const startingFrom = (venue: PricedVenue): { amount: number; unit: string } | null => {
+  const pass = cheapestPass(venue);
+  if (pass) return { amount: pass.amount, unit: PASS_UNIT_LABELS[pass.type] };
+  const monthly = lowestMonthlyPrice(venue);
+  return monthly === null ? null : { amount: monthly, unit: "month" };
 };

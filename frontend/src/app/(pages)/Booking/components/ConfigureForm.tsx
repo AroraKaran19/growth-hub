@@ -111,6 +111,7 @@ const ConfigureForm = ({
   const setBookingType = (value: string) =>
     onChange("bookingType", value as BookingType);
 
+  const passOptions = PASS_TYPE_OPTIONS.filter((option) => spaceTypesFor(venue, option.value as BookingType).length > 0);
   const membershipOptions = MEMBERSHIP_TYPE_OPTIONS.filter(
     (option) => spaceTypesFor(venue, option.value as BookingType).length > 0,
   );
@@ -123,13 +124,15 @@ const ConfigureForm = ({
   return (
     <div className="flex flex-col gap-6 rounded-2xl border border-tertiary/10 bg-secondary p-5 lg:p-6">
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <ChipGroup
-          label="Pass"
-          hint="(one visit)"
-          options={PASS_TYPE_OPTIONS}
-          value={selection.bookingType}
-          onChange={setBookingType}
-        />
+        {passOptions.length > 0 && (
+          <ChipGroup
+            label="Pass"
+            hint="(one visit)"
+            options={passOptions}
+            value={selection.bookingType}
+            onChange={setBookingType}
+          />
+        )}
         {membershipOptions.length > 0 && (
           <ChipGroup
             label="Membership"

@@ -14,7 +14,13 @@ export type Rate = {
   unit: string;
 };
 
-export type PricedVenue = Pick<Venue, "startingPrice" | "dayPassPrice" | "membershipPrices">;
+export type PricedVenue = Pick<Venue, "startingPrice" | "halfDayPrice" | "dayPassPrice" | "membershipPrices">;
+
+const PASS_UNITS = { hourly: "hr", "half-day": "half day", "full-day": "day" } as const;
+
+/** The price the venue set for a pass, or null when it does not sell it. */
+export const passPriceFor = (venue: PricedVenue, passType: keyof typeof PASS_UNITS) =>
+  passType === "hourly" ? venue.startingPrice : passType === "half-day" ? venue.halfDayPrice : venue.dayPassPrice;
 
 export const LENGTH_KEYS: Record<MembershipLength, MembershipLengthKey> = {
   weekly: "weekly",
@@ -34,7 +40,9 @@ export const membershipPriceFor = (
 };
 
 export const isOffered = (venue: PricedVenue, spaceType: SeatType, bookingType: BookingType) =>
-  !isMembershipType(bookingType) || membershipPriceFor(venue, spaceType, bookingType) !== null;
+  isMembershipType(bookingType)
+    ? membershipPriceFor(venue, spaceType, bookingType) !== null
+    : passPriceFor(venue, bookingType as keyof typeof PASS_UNITS) !== null;
 
 export const rateFor = (venue: PricedVenue, bookingType: BookingType, spaceType: SeatType = "desk"): Rate => {
   if (isMembershipType(bookingType)) {
@@ -43,14 +51,8 @@ export const rateFor = (venue: PricedVenue, bookingType: BookingType, spaceType:
       unit: MEMBERSHIP_LENGTH_DETAILS[bookingType].unit,
     };
   }
-  switch (bookingType) {
-    case "hourly":
-      return { amount: venue.startingPrice, unit: "hr" };
-    case "half-day":
-      return { amount: Math.round(venue.dayPassPrice * 0.6), unit: "half day" };
-    default:
-      return { amount: venue.dayPassPrice, unit: "day" };
-  }
+  const passType = bookingType as keyof typeof PASS_UNITS;
+  return { amount: passPriceFor(venue, passType) ?? 0, unit: PASS_UNITS[passType] };
 };
 
 export type AddonLine = { key: string; name: string; unit: AddonUnit; amount: number };

@@ -38,9 +38,11 @@ export interface VenueDoc {
   gallery: string[];
   rating: number;
   seatsAvailable: number;
-  startingPrice: number;
+  /** Rupees per hour; null when the venue doesn't sell hourly passes. Each price is set by a person, never derived. */
+  startingPrice: number | null;
   priceUnit: PriceUnit;
-  dayPassPrice: number;
+  halfDayPrice: number | null;
+  dayPassPrice: number | null;
   membershipPrices: MembershipPriceTable;
   distanceKm: number;
   description: string;
@@ -109,9 +111,10 @@ const venueSchema = new Schema<VenueDoc>(
     gallery: { type: [String], default: [] },
     rating: { type: Number, default: 0 },
     seatsAvailable: { type: Number, default: 0 },
-    startingPrice: { type: Number, required: true },
+    startingPrice: { type: Number, default: null },
     priceUnit: { type: String, enum: [...PRICE_UNITS], default: "hr" },
-    dayPassPrice: { type: Number, required: true },
+    halfDayPrice: { type: Number, default: null },
+    dayPassPrice: { type: Number, default: null },
     membershipPrices: { type: Schema.Types.Mixed, default: {} },
     distanceKm: { type: Number, default: 0 },
     description: { type: String, default: "" },

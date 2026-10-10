@@ -6,11 +6,13 @@ import { Autoplay } from "swiper/modules";
 import type { Swiper as SwiperType } from "swiper";
 import "swiper/css";
 import { CATEGORIES } from "@/data/categories";
+import { useCatalogueLabels } from "@/hooks/useCatalogueLabels";
 import CategoryCard from "./CategoryCard";
 
 const SLIDES = [...CATEGORIES, ...CATEGORIES];
 
 const CategoryCarousel = () => {
+  const labels = useCatalogueLabels();
   const [activeIndex, setActiveIndex] = useState(0);
 
   return (
@@ -29,7 +31,7 @@ const CategoryCarousel = () => {
       onSlideChange={(swiper: SwiperType) => setActiveIndex(swiper.realIndex)}
       className="w-full [&_.swiper-slide]:h-auto!"
     >
-      {SLIDES.map((category, index) => (
+      {SLIDES.map((slide) => ({ ...slide, name: labels.workspaceType(slide.slug, slide.name) })).map((category, index) => (
         <SwiperSlide key={`${category.slug}-${index}`}>
           <CategoryCard category={category} isActive={index === activeIndex} />
         </SwiperSlide>

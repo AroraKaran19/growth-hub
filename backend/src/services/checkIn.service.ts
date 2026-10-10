@@ -11,6 +11,7 @@ import {
   type MembershipDoc,
 } from "../models";
 import { dateLabel, indiaNow, instantOf, timeLabel } from "../utils/indiaTime";
+import { isRef } from "../utils/refs";
 import { readCode } from "../utils/qr";
 import { withdrawForCheckIn } from "./cancellation.service";
 import { effectiveMembershipStatus } from "./membershipView";
@@ -44,10 +45,10 @@ const targetOf = (input: CheckInInput): { kind: "b" | "m"; ref: string } => {
     return read;
   }
   if ("bookingRef" in input) {
-    if (!/^\d{12}$/.test(input.bookingRef)) throw notAtVenue();
+    if (!isRef("booking", input.bookingRef)) throw notAtVenue();
     return { kind: "b", ref: input.bookingRef };
   }
-  if (!/^m-\d{12}$/.test(input.membershipRef)) throw notAtVenue();
+  if (!isRef("membership", input.membershipRef)) throw notAtVenue();
   return { kind: "m", ref: input.membershipRef };
 };
 

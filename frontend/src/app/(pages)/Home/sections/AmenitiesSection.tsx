@@ -1,7 +1,9 @@
 import Image from "next/image";
 import { AMENITIES } from "@/data/amenities";
+import { getCatalogueLabels } from "@/libs/api/venues";
 
-const AmenitiesSection = () => {
+const AmenitiesSection = async () => {
+  const labels = await getCatalogueLabels();
   return (
     <section className="relative overflow-hidden py-16 lg:py-24">
       <Image
@@ -39,7 +41,7 @@ const AmenitiesSection = () => {
                   className="size-8 text-secondary"
                 />
                 <span className="mt-3 text-xs text-secondary">
-                  {amenity.label}
+                  {labels.amenities[amenity.id] ?? amenity.label}
                 </span>
               </li>
             );

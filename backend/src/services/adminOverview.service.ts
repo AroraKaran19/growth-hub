@@ -12,7 +12,7 @@ import {
   Venue,
   type VenueDoc,
 } from "../models";
-import { indiaNow, instantOf } from "../utils/indiaTime";
+import { addDays, indiaNow, instantOf } from "../utils/indiaTime";
 
 const ATTENTION_THRESHOLD = 3;
 
@@ -48,6 +48,38 @@ const UNPAID_STATEMENT_MS = 7 * DAY_MS;
 const sumOf = async (model: Model<any>, match: Record<string, unknown>, field: string) => {
   const [row] = await model.aggregate<{ total: number }>([{ $match: match }, { $group: { _id: null, total: { $sum: field } } }]);
   return row?.total ?? 0;
+};
+
+const TREND_DAYS = 30;
+const TZ = "Asia/Kolkata";
+
+const byDay = async (model: Model<any>, match: Record<string, unknown>, dateField: string, amount: string | number) => {
+  const rows = await model.aggregate<{ _id: string; total: number }>([
+    { $match: match },
+    { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: dateField, timezone: TZ } }, total: { $sum: amount } } },
+  ]);
+  return new Map(rows.map((row) => [row._id, row.total]));
+};
+
+/** Money collected and bookings made on each of the last 30 India days, zeros included. */
+const dailyTrend = async (now: Date) => {
+  const today = indiaNow(now).date;
+  const first = addDays(today, -(TREND_DAYS - 1));
+  const since = { $gte: instantOf(first, 0) };
+  const [passes, plans, addons, made] = await Promise.all([
+    byDay(Booking, { "payment.capturedAt": since }, "$payment.capturedAt", "$payment.amount"),
+    byDay(MembershipCharge, { chargedAt: since }, "$chargedAt", "$amount"),
+    byDay(AddonOrder, { channel: "app", "payment.capturedAt": since }, "$payment.capturedAt", "$payment.amount"),
+    byDay(Booking, { createdAt: since, status: { $nin: ["pending-payment", "expired"] } }, "$createdAt", 1),
+  ]);
+  return Array.from({ length: TREND_DAYS }, (_, index) => {
+    const date = addDays(first, index);
+    return {
+      date,
+      collected: (passes.get(date) ?? 0) + (plans.get(date) ?? 0) + (addons.get(date) ?? 0),
+      bookings: made.get(date) ?? 0,
+    };
+  });
 };
 
 /** Today, the month so far, and what needs someone's attention. */
@@ -100,5 +132,6 @@ export const operationsOverview = async (now = new Date()) => {
     },
     monthToDate: { collected: passTakings + planTakings + addonTakings, newMemberships, lapses },
     attention: { pastDue, staleRequests, unpaidStatements, venuesWithoutBankDetails: missingBank },
+    trend: await dailyTrend(now),
   };
 };

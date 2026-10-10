@@ -1,4 +1,3 @@
-import crypto from "crypto";
 import mongoose, { Types } from "mongoose";
 import { env } from "../config/env";
 import { SLOT_MINUTES } from "../constants/booking";
@@ -15,6 +14,7 @@ import {
   type VenueDoc,
 } from "../models";
 import { addDays, indiaNow, instantOf, isIsoDate, timeLabel, weekdayOf } from "../utils/indiaTime";
+import { freshRef, isRef } from "../utils/refs";
 import type { AdminRescheduleInput, BookingInput, ConfirmInput, QuoteInput, RescheduleInput } from "../validators/booking";
 import { effectiveStatus, scheduleError, seatError, windowFor, type TimeWindow } from "./bookingRules";
 import { toBookingView } from "./bookingView";
@@ -66,8 +66,6 @@ export const holdRanOut = () =>
   new AppError("Your seat hold has run out. Start again to pick your seat.", 409, "HOLD_EXPIRED");
 
 const isPaid = (status: string) => PAID_STATUSES.includes(status);
-
-export const newRef = () => String(crypto.randomInt(100_000_000_000, 1_000_000_000_000));
 
 const view = (booking: BookingDoc) => toBookingView(booking);
 
@@ -122,7 +120,7 @@ export const quoteBooking = async (input: QuoteInput) => {
 };
 
 const getOwn = async (memberId: string, ref: string) => {
-  if (!/^\d{12}$/.test(ref) || !Types.ObjectId.isValid(memberId)) throw notFound();
+  if (!isRef("booking", ref) || !Types.ObjectId.isValid(memberId)) throw notFound();
   const booking = await Booking.findOne({ ref, memberId }).lean<BookingDoc>();
   if (!booking) throw notFound();
   return booking;
@@ -156,7 +154,7 @@ export const createBooking = async (memberId: string, input: BookingInput, reque
 
   const doc = {
     _id: bookingId,
-    ref: newRef(),
+    ref: await freshRef("booking", (ref) => Booking.exists({ ref })),
     memberId: new Types.ObjectId(memberId),
     venueId: venue._id,
     venueSlug: venue.slug,
@@ -558,7 +556,7 @@ export const rescheduleBooking = async (memberId: string, ref: string, input: Re
   view(await moveBooking(await getOwn(memberId, ref), input));
 
 export const rescheduleAsAdmin = async (ref: string, input: AdminRescheduleInput) => {
-  const booking = /^\d{12}$/.test(ref) ? await Booking.findOne({ ref }).lean<BookingDoc>() : null;
+  const booking = isRef("booking", ref) ? await Booking.findOne({ ref }).lean<BookingDoc>() : null;
   if (!booking) throw notFound();
   return moveBooking(booking, input, input.seatIds);
 };

@@ -5,7 +5,6 @@ import Image from "next/image";
 import Link from "next/link";
 import {
   ArrowLeft,
-  CalendarCheck,
   CalendarDays,
   CircleX,
   Clock,
@@ -21,6 +20,7 @@ import { useVenue } from "@/hooks/useVenues";
 import { rescheduleBooking } from "@/libs/api/bookings";
 import { askToCancel, withdrawCancellation } from "@/libs/api/cancellations";
 import { readApiError } from "@/libs/api/errors";
+import { toastDone, toastFailed } from "@/libs/toast";
 import { BOOKING_STATUS_LABELS, type MemberBooking } from "@/types/memberBooking";
 import { cn } from "@/utils";
 import { formatDay } from "@/utils/date";
@@ -44,14 +44,11 @@ const SECONDARY_ACTION =
   "inline-flex items-center justify-center gap-2 rounded-lg border border-tertiary/20 px-4 py-2.5 text-sm font-medium text-tertiary transition-colors hover:bg-tertiary/5";
 
 type Dialog = "qr" | "reschedule" | "cancel" | null;
-type Notice = "rescheduled" | null;
 
 const BookingDetailPage = ({ bookingId }: { bookingId: string }) => {
   const { booking: fromApi, error, isLoading, mutate } = useBooking(bookingId);
   const [dialog, setDialog] = useState<Dialog>(null);
-  const [notice, setNotice] = useState<Notice>(null);
   const [isWithdrawing, setIsWithdrawing] = useState(false);
-  const [withdrawError, setWithdrawError] = useState<string | null>(null);
 
   const booking = fromApi ? toMemberBooking(fromApi) : null;
   const { venue } = useVenue(booking?.venueSlug);
@@ -88,7 +85,8 @@ const BookingDetailPage = ({ bookingId }: { bookingId: string }) => {
     const moved = await rescheduleBooking(booking.bookingId, date, startMin);
     await mutate(moved, { revalidate: false });
     setDialog(null);
-    setNotice("rescheduled");
+    const next = toMemberBooking(moved);
+    toastDone(`Rescheduled to ${next.dateRange}, ${next.time}. Your check-in QR stays the same.`);
   };
 
   const request = booking.request ?? null;
@@ -97,12 +95,12 @@ const BookingDetailPage = ({ bookingId }: { bookingId: string }) => {
 
   const handleWithdraw = async () => {
     setIsWithdrawing(true);
-    setWithdrawError(null);
     try {
       await withdrawCancellation("booking", booking.bookingId);
       await mutate();
+      toastDone("Your cancellation request is withdrawn. The booking stays as it was.");
     } catch (caught) {
-      setWithdrawError(readApiError(caught).message);
+      toastFailed(readApiError(caught).message);
     } finally {
       setIsWithdrawing(false);
     }
@@ -133,16 +131,6 @@ const BookingDetailPage = ({ bookingId }: { bookingId: string }) => {
         {booking.bookingId}
       </p>
 
-      {notice === "rescheduled" && (
-        <p
-          role="status"
-          className="mt-5 flex items-center gap-2 rounded-xl bg-green-500/10 px-4 py-3 text-sm text-green-800"
-        >
-          <CalendarCheck aria-hidden="true" className="size-4 shrink-0" />
-          Rescheduled to {booking.dateRange}, {booking.time}. Your check-in QR
-          stays the same.
-        </p>
-      )}
 
       {booking.missed && (
         <p className="mt-5 flex items-start gap-2 rounded-xl bg-tertiary/5 px-4 py-3 text-sm text-tertiary/75">
@@ -195,11 +183,6 @@ const BookingDetailPage = ({ bookingId }: { bookingId: string }) => {
             </button>
           )}
         </div>
-      )}
-      {withdrawError && (
-        <p role="alert" className="mt-2 text-sm text-primary">
-          {withdrawError}
-        </p>
       )}
 
       <div className="mt-6 grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">

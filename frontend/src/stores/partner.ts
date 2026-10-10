@@ -21,7 +21,7 @@ import type { PartnerVenue } from "@/types/venue";
 import { todayIso } from "@/utils/date";
 import { useIsClient } from "@/utils/storage";
 import { BOOKING_SPACE_LABELS } from "@/app/(pages)/Booking/membershipBooking";
-import { outcomeOfCheckIn, outcomeOfError } from "@/app/(pages)/Partner/verify";
+import { isMemberRef, outcomeOfCheckIn, outcomeOfError } from "@/app/(pages)/Partner/verify";
 import { useAuthStore } from "./auth";
 
 const NO_SEATS: Seat[] = [];
@@ -141,7 +141,7 @@ export const usePartnerDesk = () => {
     const input =
       typeof target !== "string"
         ? target
-        : target.startsWith("m-")
+        : isMemberRef(target)
           ? { membershipRef: target }
           : { bookingRef: target };
     const result = await checkInAtDesk(input);

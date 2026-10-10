@@ -3,6 +3,7 @@
 import useSWR from "swr";
 import { partnerApi, publicApi } from "@/libs/api/client";
 import { useAuthStore } from "@/stores/auth";
+import type { MembershipPriceTable } from "@/types/catalogue";
 import type { PartnerVenue, Venue, VenueDetail } from "@/types/venue";
 
 type Envelope<T> = { data: { data: T } };
@@ -24,6 +25,14 @@ export const usePublishedVenues = () => {
 
 export type AddonPriceInput = { addonTypeId: string; price: number; enabled: boolean };
 
+/** Rupees; null clears a price so that option is not sold. */
+export type VenuePricesInput = {
+  startingPrice: number | null;
+  halfDayPrice: number | null;
+  dayPassPrice: number | null;
+  membershipPrices: MembershipPriceTable;
+};
+
 /** The signed-in partner's own venue. Keyed by account so a new sign-in never sees the last one's. */
 export const usePartnerVenue = () => {
   const accountId = useAuthStore("partner", (state) => state.account?.id);
@@ -38,5 +47,10 @@ export const usePartnerVenue = () => {
     await mutate(response.data.data.venue, { revalidate: false });
   };
 
-  return { venue: data, error, isLoading, saveAddons, refresh: () => mutate() };
+  const savePrices = async (prices: VenuePricesInput) => {
+    const response = (await partnerApi.put("/partner/venue/prices", prices)) as Envelope<{ venue: PartnerVenue }>;
+    await mutate(response.data.data.venue, { revalidate: false });
+  };
+
+  return { venue: data, error, isLoading, saveAddons, savePrices, refresh: () => mutate() };
 };
