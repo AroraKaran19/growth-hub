@@ -1,0 +1,298 @@
+"use client";
+
+import { useEffect, useState, type FormEvent } from "react";
+import { KeyRound, X } from "lucide-react";
+import SelectField from "@/app/components/ui/form/SelectField";
+import { readApiError } from "@/libs/api/errors";
+import { toastDone, toastFailed, toastInvited } from "@/libs/toast";
+import { cn } from "@/utils";
+import { passwordProblem } from "@/utils/password";
+import PermissionPicker from "./team/PermissionPicker";
+import TemporaryPasswordField from "./TemporaryPasswordField";
+
+export type AccountChange = {
+  name?: string;
+  email?: string;
+  temporaryPassword?: string;
+  venueSlug?: string;
+  permissions?: string[];
+};
+
+type Field = keyof AccountChange;
+
+type EditAccountModalProps = {
+  portal: "admin" | "partner";
+  account: { id: string; name: string; email: string };
+  canEditDetails: boolean;
+  venue?: { slug: string; options: { slug: string; name: string }[] };
+  access?: { permissions: string[]; grantable?: string[] };
+  onSave: (change: AccountChange) => Promise<void>;
+  onClose: () => void;
+};
+
+const INPUT =
+  "w-full rounded-lg border bg-secondary px-3.5 py-2.5 text-sm text-tertiary outline-none transition-colors placeholder:text-tertiary/40 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20";
+const LABEL = "mb-1.5 block text-sm font-medium text-tertiary";
+
+const initials = (name: string) =>
+  name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
+
+const sameSet = (a: string[], b: string[]) => a.length === b.length && a.every((item) => b.includes(item));
+
+const EditAccountModal = ({ portal, account, canEditDetails, venue, access, onSave, onClose }: EditAccountModalProps) => {
+  const [name, setName] = useState(account.name);
+  const [email, setEmail] = useState(account.email);
+  const [venueSlug, setVenueSlug] = useState(venue?.slug ?? "");
+  const [permissions, setPermissions] = useState(access?.permissions ?? []);
+  const [isResetting, setIsResetting] = useState(false);
+  const [password, setPassword] = useState("");
+  const [errors, setErrors] = useState<Partial<Record<Field, string>>>({});
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
+  const nextEmail = email.trim().toLowerCase();
+  const change: AccountChange = {
+    ...(canEditDetails && name.trim() !== account.name && { name: name.trim() }),
+    ...(canEditDetails && nextEmail !== account.email && { email: nextEmail }),
+    ...(canEditDetails && isResetting && password && { temporaryPassword: password }),
+    ...(venue && venueSlug !== venue.slug && { venueSlug }),
+    ...(access && !sameSet(permissions, access.permissions) && { permissions }),
+  };
+  const hasChanges = Object.keys(change).length > 0;
+
+  const clearError = (field: Field) => setErrors((current) => ({ ...current, [field]: undefined }));
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    const found: Partial<Record<Field, string>> = {
+      ...(change.name !== undefined && change.name.length < 2 && { name: "Enter a name." }),
+      ...(change.email !== undefined && !/^\S+@\S+\.\S+$/.test(change.email) && { email: "Enter a valid email address." }),
+      ...(canEditDetails && isResetting && passwordProblem(password) && { temporaryPassword: passwordProblem(password)! }),
+      ...(access && permissions.length === 0 && { permissions: "Pick at least one section." }),
+    };
+    setErrors(found);
+    if (Object.keys(found).length > 0 || !hasChanges) return;
+
+    setIsSaving(true);
+    try {
+      await onSave(change);
+      const shownName = change.name ?? account.name;
+      const venueName = venue?.options.find((option) => option.slug === change.venueSlug)?.name;
+      if (change.temporaryPassword) {
+        toastInvited({ email: change.email ?? account.email, password: change.temporaryPassword, portal });
+      } else if (change.email) {
+        toastDone(`Saved. ${shownName} now signs in with ${change.email} and has been signed out.`);
+      } else if (venueName) {
+        toastDone(`${shownName} now manages ${venueName}. They sign in again to see it.`);
+      } else {
+        toastDone(`${shownName}'s details are saved.`);
+      }
+      onClose();
+    } catch (caught) {
+      const info = readApiError(caught);
+      if (info.code === "EMAIL_TAKEN") setErrors({ email: "That email already has a Growth Hub account." });
+      else if (Object.keys(info.fields).length > 0) setErrors(info.fields as Partial<Record<Field, string>>);
+      else toastFailed(info.message);
+      setIsSaving(false);
+    }
+  };
+
+  const field = (key: Field) => cn(INPUT, errors[key] ? "border-primary" : "border-tertiary/20 hover:border-tertiary/35");
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-tertiary/50 p-4 sm:items-center" onClick={onClose}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={`edit-${account.id}-title`}
+        onClick={(event) => event.stopPropagation()}
+        className="relative flex max-h-[92vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl bg-secondary shadow-2xl"
+      >
+        <div className="relative shrink-0 overflow-hidden bg-tertiary px-6 py-5 text-secondary">
+          <div aria-hidden="true" className="absolute -right-12 -top-16 size-44 rounded-full bg-primary/40 blur-3xl" />
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="absolute right-4 top-4 rounded-md p-1 text-secondary/60 transition-colors hover:text-secondary"
+          >
+            <X aria-hidden="true" className="size-5" />
+          </button>
+          <div className="relative flex items-center gap-3.5">
+            <span
+              aria-hidden="true"
+              className="cta-gradient flex size-12 shrink-0 items-center justify-center rounded-full text-sm font-semibold"
+            >
+              {initials(account.name)}
+            </span>
+            <div className="min-w-0">
+              <h2 id={`edit-${account.id}-title`} className="text-xl font-bold">
+                {canEditDetails ? "Edit details" : "Move venue"}
+              </h2>
+              <p className="truncate text-sm text-secondary/70">
+                {account.name} · {account.email}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <form onSubmit={submit} noValidate className="flex flex-col overflow-hidden">
+          <div className="flex flex-col gap-5 overflow-y-auto p-6">
+            {canEditDetails && (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label htmlFor={`edit-${account.id}-name`} className={LABEL}>
+                    Name
+                  </label>
+                  <input
+                    id={`edit-${account.id}-name`}
+                    value={name}
+                    autoFocus
+                    onChange={(event) => {
+                      setName(event.target.value);
+                      clearError("name");
+                    }}
+                    placeholder="Their full name"
+                    className={field("name")}
+                  />
+                  {errors.name && <p className="mt-1.5 text-sm text-primary">{errors.name}</p>}
+                </div>
+                <div>
+                  <label htmlFor={`edit-${account.id}-email`} className={LABEL}>
+                    Email
+                  </label>
+                  <input
+                    id={`edit-${account.id}-email`}
+                    type="email"
+                    autoComplete="off"
+                    value={email}
+                    onChange={(event) => {
+                      setEmail(event.target.value);
+                      clearError("email");
+                    }}
+                    placeholder="Their work email"
+                    className={field("email")}
+                  />
+                  {errors.email && <p className="mt-1.5 text-sm text-primary">{errors.email}</p>}
+                </div>
+                {change.email && !errors.email && (
+                  <p className="rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-900 sm:col-span-2">
+                    They&apos;ll be signed out and sign in again with {change.email}. Any reset link sent to the old
+                    address stops working.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {venue && (
+              <div>
+                <SelectField
+                  label="Venue they manage"
+                  value={venueSlug}
+                  onChange={(value) => {
+                    setVenueSlug(value);
+                    clearError("venueSlug");
+                  }}
+                  options={venue.options.map((option) => ({ value: option.slug, label: option.name }))}
+                />
+                {errors.venueSlug ? (
+                  <p className="mt-1.5 text-sm text-primary">{errors.venueSlug}</p>
+                ) : (
+                  venueSlug !== venue.slug && (
+                    <p className="mt-1.5 text-xs text-tertiary/55">They are signed out and sign in again to the new venue.</p>
+                  )
+                )}
+              </div>
+            )}
+
+            {access && (
+              <PermissionPicker
+                value={permissions}
+                onChange={(next) => {
+                  setPermissions(next);
+                  clearError("permissions");
+                }}
+                grantable={access.grantable}
+                error={errors.permissions}
+                idPrefix={`edit-${account.id}-access`}
+              />
+            )}
+
+            {canEditDetails &&
+              (isResetting ? (
+                <div className="rounded-xl border border-tertiary/10 bg-tertiary/3 p-4">
+                  <TemporaryPasswordField
+                    id={`edit-${account.id}-password`}
+                    value={password}
+                    onChange={(value) => {
+                      setPassword(value);
+                      clearError("temporaryPassword");
+                    }}
+                    error={errors.temporaryPassword}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsResetting(false);
+                      setPassword("");
+                      clearError("temporaryPassword");
+                    }}
+                    className="mt-3 text-sm font-medium text-tertiary/60 transition-opacity hover:opacity-75"
+                  >
+                    Keep their current password
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setIsResetting(true)}
+                  className="flex items-center gap-3 rounded-xl border border-dashed border-tertiary/20 px-4 py-3 text-left transition-all hover:-translate-y-0.5 hover:border-tertiary/35 hover:shadow-sm"
+                >
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-tertiary/5 text-tertiary/70">
+                    <KeyRound aria-hidden="true" className="size-4" />
+                  </span>
+                  <span>
+                    <span className="block text-sm font-medium text-tertiary">Set a new temporary password</span>
+                    <span className="block text-xs text-tertiary/55">
+                      Signs them out. They choose their own the next time they sign in.
+                    </span>
+                  </span>
+                </button>
+              ))}
+          </div>
+
+          <div className="flex shrink-0 items-center justify-end gap-4 border-t border-tertiary/8 px-6 py-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-sm font-medium text-tertiary/60 transition-opacity hover:opacity-75"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isSaving || !hasChanges}
+              className="cta-gradient rounded-lg px-5 py-2.5 text-sm font-medium text-secondary shadow-sm transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isSaving ? "Saving..." : "Save changes"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+export default EditAccountModal;

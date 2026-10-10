@@ -5,6 +5,7 @@ import type { AccountStatus } from "../types/auth";
 import type { InvitePartnerInput, UpdatePartnerInput } from "../validators/catalogue";
 import { lastActiveAt, revokeAccountSessions } from "./session.service";
 import { hashPassword } from "./staffAuth.service";
+import { detailsUpdate, emailTaken, isDuplicateKey } from "./staffDetails";
 
 export type PartnerAccountView = {
   id: string;
@@ -89,15 +90,30 @@ export const updatePartner = async (id: string, change: UpdatePartnerInput) => {
   if (!staff) throw notFound();
   if (change.venueSlug && !(await Venue.exists({ slug: change.venueSlug }))) throw venueUnknown();
 
-  const updated = await PartnerStaff.findByIdAndUpdate(
-    staff._id,
-    { $set: change },
-    { returnDocument: "after" },
-  ).lean<PartnerStaffDoc>();
+  const details = await detailsUpdate(staff, change);
+  let updated: PartnerStaffDoc | null;
+  try {
+    updated = await PartnerStaff.findByIdAndUpdate(
+      staff._id,
+      {
+        $set: {
+          ...details.set,
+          ...(change.status && { status: change.status }),
+          ...(change.venueSlug && { venueSlug: change.venueSlug }),
+        },
+      },
+      { returnDocument: "after" },
+    ).lean<PartnerStaffDoc>();
+  } catch (error) {
+    if (isDuplicateKey(error)) throw emailTaken();
+    throw error;
+  }
   if (!updated) throw notFound();
 
   if (change.status === "disabled" && staff.status !== "disabled") {
     await revokeAccountSessions("partner", staff._id, "disabled");
+  } else if (details.signOut) {
+    await revokeAccountSessions("partner", staff._id, "details-changed");
   } else if (change.venueSlug && change.venueSlug !== staff.venueSlug) {
     await revokeAccountSessions("partner", staff._id, "venue-changed");
   }

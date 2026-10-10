@@ -13,16 +13,17 @@ const AdminTeamPage = () => {
   const { account } = useAdminSession();
   const { members, error, isLoading, invite, update } = useTeam();
   const activeCount = members.filter((member) => member.status === "active").length;
+  const grantable = account?.role === "super-admin" ? undefined : account?.permissions;
 
   return (
     <>
       <PageHeader
         title="Team"
-        description="Invite Growth Hub staff and choose which sections of the admin panel each person can open."
+        description="Invite Growth Hub staff, edit their details and choose which sections of the admin panel each person can open."
       />
 
       <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-[420px_minmax(0,1fr)]">
-        <InviteAdminCard onInvite={invite} />
+        <InviteAdminCard grantable={grantable} onInvite={invite} />
 
         <section aria-labelledby="team-heading">
           <div className="flex items-baseline justify-between gap-3">
@@ -49,6 +50,7 @@ const AdminTeamPage = () => {
                   <TeamMemberCard
                     member={member}
                     isYou={member.id === account?.id}
+                    grantable={grantable}
                     onUpdate={(change) => update(member.id, change)}
                   />
                 </li>

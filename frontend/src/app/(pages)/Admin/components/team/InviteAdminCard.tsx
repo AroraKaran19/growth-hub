@@ -17,10 +17,11 @@ const LABEL = "mb-1.5 block text-sm font-medium text-tertiary";
 type Errors = Partial<Record<"name" | "email" | "permissions" | "temporaryPassword", string>>;
 
 type InviteAdminCardProps = {
+  grantable?: string[];
   onInvite: (input: InviteAdminInput) => Promise<void>;
 };
 
-const InviteAdminCard = ({ onInvite }: InviteAdminCardProps) => {
+const InviteAdminCard = ({ grantable, onInvite }: InviteAdminCardProps) => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [permissions, setPermissions] = useState<string[]>([]);
@@ -121,6 +122,7 @@ const InviteAdminCard = ({ onInvite }: InviteAdminCardProps) => {
         <PermissionPicker
           value={permissions}
           onChange={setPermissions}
+          grantable={grantable}
           error={errors.permissions}
           idPrefix="invite-permissions"
         />

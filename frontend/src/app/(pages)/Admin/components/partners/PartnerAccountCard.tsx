@@ -2,18 +2,20 @@
 
 import { useState } from "react";
 import { MapPin } from "lucide-react";
-import SelectField from "@/app/components/ui/form/SelectField";
 import type { PartnerAccountRow, PartnerChange, VenueOption } from "@/hooks/usePartnerAccounts";
 import { readApiError } from "@/libs/api/errors";
 import { toastDone, toastFailed } from "@/libs/toast";
 import { cn } from "@/utils";
 import { timeAgo } from "@/utils/date";
+import EditAccountModal from "../EditAccountModal";
 
-type Mode = "view" | "move" | "confirm-disable";
+type Mode = "view" | "edit" | "confirm-disable";
 
 type PartnerAccountCardProps = {
   account: PartnerAccountRow;
   venues: VenueOption[];
+  /** Name, email and password need the Team accounts section. */
+  canEditDetails: boolean;
   onUpdate: (change: PartnerChange) => Promise<void>;
 };
 
@@ -27,35 +29,22 @@ const initials = (name: string) =>
     .map((part) => part[0]?.toUpperCase())
     .join("");
 
-const PartnerAccountCard = ({ account, venues, onUpdate }: PartnerAccountCardProps) => {
+const PartnerAccountCard = ({ account, venues, canEditDetails, onUpdate }: PartnerAccountCardProps) => {
   const [mode, setMode] = useState<Mode>("view");
-  const [target, setTarget] = useState(account.venueSlug);
   const [isSaving, setIsSaving] = useState(false);
   const isDisabled = account.status === "disabled";
 
-  const save = async (change: PartnerChange) => {
+  const setStatus = async (status: "active" | "disabled") => {
     setIsSaving(true);
     try {
-      await onUpdate(change);
+      await onUpdate({ status });
       setMode("view");
-      const venue = venues.find((option) => option.slug === change.venueSlug);
-      toastDone(
-        change.status === "disabled"
-          ? `${account.name} is disabled and signed out.`
-          : change.status === "active"
-            ? `${account.name} can sign in again.`
-            : `${account.name} now manages ${venue?.name ?? "the new venue"}.`,
-      );
+      toastDone(status === "disabled" ? `${account.name} is disabled and signed out.` : `${account.name} can sign in again.`);
     } catch (caught) {
       toastFailed(readApiError(caught).message);
     } finally {
       setIsSaving(false);
     }
-  };
-
-  const cancel = () => {
-    setTarget(account.venueSlug);
-    setMode("view");
   };
 
   return (
@@ -86,37 +75,10 @@ const PartnerAccountCard = ({ account, venues, onUpdate }: PartnerAccountCardPro
         </span>
       </div>
 
-      {mode === "move" ? (
-        <div className="mt-4">
-          <SelectField
-            label="Move to venue"
-            value={target}
-            onChange={setTarget}
-            options={venues.map((venue) => ({ value: venue.slug, label: venue.name }))}
-          />
-          <p className="mt-2 text-xs text-tertiary/55">
-            They are signed out and sign in again to the new venue.
-          </p>
-          <div className="mt-3 flex items-center gap-4">
-            <button
-              type="button"
-              disabled={isSaving || target === account.venueSlug}
-              onClick={() => save({ venueSlug: target })}
-              className="cta-gradient rounded-lg px-4 py-2 text-sm font-medium text-secondary transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {isSaving ? "Moving..." : "Move"}
-            </button>
-            <button type="button" onClick={cancel} className={cn(QUIET, "text-tertiary/60")}>
-              Cancel
-            </button>
-          </div>
-        </div>
-      ) : (
-        <p className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-tertiary/5 px-3 py-1 text-xs font-medium text-tertiary/75">
-          <MapPin aria-hidden="true" className="size-3.5" />
-          {account.venueName ?? `${account.venueSlug} (not found)`}
-        </p>
-      )}
+      <p className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-tertiary/5 px-3 py-1 text-xs font-medium text-tertiary/75">
+        <MapPin aria-hidden="true" className="size-3.5" />
+        {account.venueName ?? "Venue no longer listed"}
+      </p>
 
       {mode === "confirm-disable" && (
         <div role="alert" className="mt-4 rounded-xl bg-primary/5 p-3.5 text-sm text-tertiary">
@@ -125,12 +87,12 @@ const PartnerAccountCard = ({ account, venues, onUpdate }: PartnerAccountCardPro
             <button
               type="button"
               disabled={isSaving}
-              onClick={() => save({ status: "disabled" })}
+              onClick={() => setStatus("disabled")}
               className={cn(QUIET, "text-primary")}
             >
               {isSaving ? "Disabling..." : "Yes, disable"}
             </button>
-            <button type="button" onClick={cancel} className={cn(QUIET, "text-tertiary/60")}>
+            <button type="button" onClick={() => setMode("view")} className={cn(QUIET, "text-tertiary/60")}>
               Keep active
             </button>
           </div>
@@ -141,18 +103,16 @@ const PartnerAccountCard = ({ account, venues, onUpdate }: PartnerAccountCardPro
         <p className="text-xs text-tertiary/50">
           {account.lastActiveAt ? `Active ${timeAgo(account.lastActiveAt)}` : "No recent activity"}
         </p>
-        {mode === "view" && (
+        {mode !== "confirm-disable" && (
           <div className="flex items-center gap-4">
-            {!isDisabled && (
-              <button type="button" onClick={() => setMode("move")} className={cn(QUIET, "text-tertiary")}>
-                Move venue
-              </button>
-            )}
+            <button type="button" onClick={() => setMode("edit")} className={cn(QUIET, "text-tertiary")}>
+              {canEditDetails ? "Edit details" : "Move venue"}
+            </button>
             {isDisabled ? (
               <button
                 type="button"
                 disabled={isSaving}
-                onClick={() => save({ status: "active" })}
+                onClick={() => setStatus("active")}
                 className={cn(QUIET, "text-green-700")}
               >
                 Enable
@@ -169,6 +129,17 @@ const PartnerAccountCard = ({ account, venues, onUpdate }: PartnerAccountCardPro
           </div>
         )}
       </div>
+
+      {mode === "edit" && (
+        <EditAccountModal
+          portal="partner"
+          account={account}
+          canEditDetails={canEditDetails}
+          venue={{ slug: account.venueSlug, options: venues }}
+          onSave={onUpdate}
+          onClose={() => setMode("view")}
+        />
+      )}
     </article>
   );
 };

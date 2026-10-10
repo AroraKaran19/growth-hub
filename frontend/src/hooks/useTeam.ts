@@ -16,7 +16,13 @@ export type TeamMember = {
 
 export type InviteAdminInput = { name: string; email: string; permissions: string[]; temporaryPassword: string };
 
-export type TeamChange = { permissions?: string[]; status?: "active" | "disabled" };
+export type TeamChange = {
+  name?: string;
+  email?: string;
+  temporaryPassword?: string;
+  permissions?: string[];
+  status?: "active" | "disabled";
+};
 
 const fetchTeam = async () =>
   (await adminApi.get<{ data: { members: TeamMember[] } }>("/admin/team")).data.data.members;

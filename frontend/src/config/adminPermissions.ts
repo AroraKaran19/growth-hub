@@ -45,7 +45,7 @@ export const ADMIN_SECTIONS: AdminSection[] = [
   { label: "Partners", href: "/admin/partners", icon: Store, permission: "partners" },
   { label: "Payouts", href: "/admin/payouts", icon: Landmark, permission: "payouts" },
   { label: "Reports", href: "/admin/reports", icon: BarChart3, permission: "reports" },
-  { label: "Team", href: "/admin/team", icon: UsersRound, permission: SUPER_ADMIN_ONLY },
+  { label: "Team", href: "/admin/team", icon: UsersRound, permission: "team" },
 ];
 
 const KNOWN = new Set(ADMIN_PERMISSIONS.map((entry) => entry.key));

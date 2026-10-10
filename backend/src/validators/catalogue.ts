@@ -223,8 +223,14 @@ export const invitePartnerSchema = z.object({
 });
 
 export const updatePartnerSchema = z
-  .object({ status: z.enum(["active", "disabled"]).optional(), venueSlug: slugSchema.optional() })
-  .refine((change) => change.status !== undefined || change.venueSlug !== undefined, {
+  .object({
+    name: nameSchema.optional(),
+    email: emailSchema.optional(),
+    temporaryPassword: passwordSchema.optional(),
+    status: z.enum(["active", "disabled"]).optional(),
+    venueSlug: slugSchema.optional(),
+  })
+  .refine((change) => Object.values(change).some((value) => value !== undefined), {
     message: "Nothing to change.",
   });
 

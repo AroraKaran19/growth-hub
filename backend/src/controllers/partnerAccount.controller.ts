@@ -1,6 +1,8 @@
 import type { Request, Response } from "express";
-import { asyncHandler, sendSuccessResponse } from "../middlewares/error.middleware";
+import { AppError, asyncHandler, sendSuccessResponse } from "../middlewares/error.middleware";
 import { invitePartner, listPartnerAccounts, updatePartner } from "../services/partnerAccount.service";
+import { canAccess } from "../services/permissions";
+import { hasDetails } from "../services/staffDetails";
 import { parseBody } from "../utils/validate";
 import { invitePartnerSchema, updatePartnerSchema } from "../validators/catalogue";
 
@@ -15,6 +17,10 @@ export const postPartnerAccount = asyncHandler(async (req: Request, res: Respons
 });
 
 export const patchPartnerAccount = asyncHandler(async (req: Request, res: Response) => {
-  const account = await updatePartner(String(req.params.id), parseBody(updatePartnerSchema, req.body));
+  const change = parseBody(updatePartnerSchema, req.body);
+  if (hasDetails(change) && !canAccess(req.auth!.account, "team")) {
+    throw new AppError("You don't have access to edit account details.", 403, "PERMISSION_DENIED", { permission: "team" });
+  }
+  const account = await updatePartner(String(req.params.id), change);
   sendSuccessResponse(res, { account }, "Partner updated");
 });

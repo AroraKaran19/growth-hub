@@ -140,7 +140,7 @@ export const isSessionLive = async (sessionId: string, accountType: AccountType)
   return Boolean(found);
 };
 
-export type RevokeReason = "disabled" | "venue-changed" | "password-changed";
+export type RevokeReason = "disabled" | "venue-changed" | "password-changed" | "details-changed";
 
 export const revokeAccountSessions = async (
   accountType: AccountType,

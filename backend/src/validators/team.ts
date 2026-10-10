@@ -16,10 +16,13 @@ export const inviteAdminSchema = z.object({
 
 export const updateAdminSchema = z
   .object({
+    name: nameSchema.optional(),
+    email: emailSchema.optional(),
+    temporaryPassword: passwordSchema.optional(),
     permissions: permissions.optional(),
     status: z.enum(["active", "disabled"]).optional(),
   })
-  .refine((change) => change.permissions !== undefined || change.status !== undefined, {
+  .refine((change) => Object.values(change).some((value) => value !== undefined), {
     message: "Nothing to change.",
   });
 

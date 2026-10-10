@@ -1,10 +1,10 @@
 import { Router } from "express";
 import { getTeam, patchTeamMember, postTeamMember } from "../controllers/team.controller";
-import { panelRateLimit, requireAuth, requireSuperAdmin } from "../middlewares";
+import { panelRateLimit, requireAuth, requirePermission } from "../middlewares";
 
 const router = Router();
 
-router.use(requireAuth("admin"), panelRateLimit, requireSuperAdmin);
+router.use(requireAuth("admin"), panelRateLimit, requirePermission("team"));
 router.get("/", getTeam);
 router.post("/", postTeamMember);
 router.patch("/:id", patchTeamMember);

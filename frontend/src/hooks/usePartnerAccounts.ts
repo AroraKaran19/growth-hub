@@ -17,7 +17,13 @@ export type VenueOption = { slug: string; name: string };
 
 export type InvitePartnerInput = { name: string; email: string; venueSlug: string; temporaryPassword: string };
 
-export type PartnerChange = { status?: "active" | "disabled"; venueSlug?: string };
+export type PartnerChange = {
+  name?: string;
+  email?: string;
+  temporaryPassword?: string;
+  status?: "active" | "disabled";
+  venueSlug?: string;
+};
 
 type Listing = { accounts: PartnerAccountRow[]; venues: VenueOption[] };
 

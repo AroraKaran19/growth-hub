@@ -1,4 +1,5 @@
 import { Types } from "mongoose";
+import type { AdminRole } from "../constants/permissions";
 import { AppError } from "../middlewares/error.middleware";
 import { Admin, PartnerStaff, type AdminDoc } from "../models";
 import type { AccountStatus } from "../types/auth";
@@ -6,6 +7,9 @@ import type { InviteAdminInput, UpdateAdminInput } from "../validators/team";
 import { adminSummary, type AdminAccount } from "./account.service";
 import { lastActiveAt, revokeAccountSessions } from "./session.service";
 import { hashPassword } from "./staffAuth.service";
+import { detailsUpdate, emailTaken, isDuplicateKey } from "./staffDetails";
+
+export type TeamActor = { id: string; role: AdminRole; permissions: readonly string[] };
 
 export type TeamMember = Pick<AdminAccount, "id" | "name" | "email" | "role" | "permissions"> & {
   status: AccountStatus;
@@ -18,9 +22,10 @@ const toMember = (admin: AdminDoc, seen: Date | undefined): TeamMember => {
 };
 
 const notFound = () => new AppError("That admin no longer exists.", 404, "ADMIN_NOT_FOUND");
-const emailTaken = () => new AppError("That email already has a Growth Hub account.", 409, "EMAIL_TAKEN");
+const cantGrant = () => new AppError("You can only give sections you have yourself.", 403, "PERMISSION_DENIED");
 
-const isDuplicateKey = (error: unknown) => (error as { code?: number })?.code === 11000;
+const beyondActor = (actor: TeamActor, permissions: readonly string[]) =>
+  actor.role === "super-admin" ? [] : permissions.filter((permission) => !actor.permissions.includes(permission));
 
 export const listTeam = async (): Promise<TeamMember[]> => {
   const admins = await Admin.find().sort({ createdAt: 1 }).lean<AdminDoc[]>();
@@ -32,7 +37,8 @@ export const listTeam = async (): Promise<TeamMember[]> => {
   ];
 };
 
-export const inviteAdmin = async (input: InviteAdminInput, invitedById: string): Promise<TeamMember> => {
+export const inviteAdmin = async (input: InviteAdminInput, actor: TeamActor): Promise<TeamMember> => {
+  if (beyondActor(actor, input.permissions).length > 0) throw cantGrant();
   const [admin, partner] = await Promise.all([
     Admin.exists({ email: input.email }),
     PartnerStaff.exists({ email: input.email }),
@@ -47,7 +53,7 @@ export const inviteAdmin = async (input: InviteAdminInput, invitedById: string):
       permissions: input.permissions,
       passwordHash: await hashPassword(input.temporaryPassword),
       mustChangePassword: true,
-      invitedBy: new Types.ObjectId(invitedById),
+      invitedBy: new Types.ObjectId(actor.id),
     });
     return toMember(created.toObject(), undefined);
   } catch (error) {
@@ -59,10 +65,10 @@ export const inviteAdmin = async (input: InviteAdminInput, invitedById: string):
 export const updateAdmin = async (
   targetId: string,
   change: UpdateAdminInput,
-  actorId: string,
+  actor: TeamActor,
 ): Promise<TeamMember> => {
   if (!Types.ObjectId.isValid(targetId)) throw notFound();
-  if (targetId === actorId) throw new AppError("You can't change your own access.", 409, "SELF_CHANGE");
+  if (targetId === actor.id) throw new AppError("You can't change your own access.", 409, "SELF_CHANGE");
 
   const admin = await Admin.findById(targetId).lean<AdminDoc>();
   if (!admin) throw notFound();
@@ -70,20 +76,38 @@ export const updateAdmin = async (
     throw new AppError("Super admins can't be changed here.", 403, "SUPER_ADMIN_LOCKED");
   }
 
-  const updated = await Admin.findByIdAndUpdate(
-    admin._id,
-    {
-      $set: {
-        ...(change.permissions && { permissions: change.permissions }),
-        ...(change.status && { status: change.status }),
+  let permissions: string[] | undefined;
+  if (change.permissions) {
+    // Sections the actor can't give stay exactly as they were.
+    const kept = beyondActor(actor, adminSummary(admin).permissions);
+    if (beyondActor(actor, change.permissions).some((permission) => !kept.includes(permission))) throw cantGrant();
+    permissions = [...new Set([...change.permissions, ...kept])];
+  }
+
+  const details = await detailsUpdate(admin, change);
+  let updated: AdminDoc | null;
+  try {
+    updated = await Admin.findByIdAndUpdate(
+      admin._id,
+      {
+        $set: {
+          ...details.set,
+          ...(permissions && { permissions }),
+          ...(change.status && { status: change.status }),
+        },
       },
-    },
-    { returnDocument: "after" },
-  ).lean<AdminDoc>();
+      { returnDocument: "after" },
+    ).lean<AdminDoc>();
+  } catch (error) {
+    if (isDuplicateKey(error)) throw emailTaken();
+    throw error;
+  }
   if (!updated) throw notFound();
 
   if (change.status === "disabled" && admin.status !== "disabled") {
     await revokeAccountSessions("admin", admin._id, "disabled");
+  } else if (details.signOut) {
+    await revokeAccountSessions("admin", admin._id, "details-changed");
   }
   const activity = await lastActiveAt("admin", [updated._id]);
   return toMember(updated, activity.get(updated._id.toString()));

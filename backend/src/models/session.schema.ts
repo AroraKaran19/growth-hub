@@ -10,7 +10,7 @@ export interface SessionDoc {
   idleExpiresAt: Date;
   absoluteExpiresAt: Date;
   revokedAt: Date | null;
-  revokedReason: "reuse" | "disabled" | "venue-changed" | "password-changed" | null;
+  revokedReason: "reuse" | "disabled" | "venue-changed" | "password-changed" | "details-changed" | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -27,7 +27,7 @@ const sessionSchema = new Schema<SessionDoc>(
     idleExpiresAt: { type: Date, required: true },
     absoluteExpiresAt: { type: Date, required: true },
     revokedAt: { type: Date, default: null },
-    revokedReason: { type: String, enum: ["reuse", "disabled", "venue-changed", "password-changed"], default: null },
+    revokedReason: { type: String, enum: ["reuse", "disabled", "venue-changed", "password-changed", "details-changed"], default: null },
   },
   { timestamps: true },
 );

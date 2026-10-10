@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import SelectField from "@/app/components/ui/form/SelectField";
+import { canAccessSection } from "@/config/adminPermissions";
 import { usePartnerAccounts } from "@/hooks/usePartnerAccounts";
+import { useAdminSession } from "@/stores/admin";
 import {
   PartnerPageHeader as PageHeader,
   PartnerSkeleton as Skeleton,
@@ -13,6 +15,8 @@ import PartnerAccountCard from "./components/partners/PartnerAccountCard";
 const AdminPartnersPage = () => {
   const [venue, setVenue] = useState("");
   const { accounts, venues, error, isLoading, invite, update } = usePartnerAccounts(venue);
+  const { account: me } = useAdminSession();
+  const canEditDetails = me ? canAccessSection(me, "team") : false;
 
   return (
     <>
@@ -61,6 +65,7 @@ const AdminPartnersPage = () => {
                   <PartnerAccountCard
                     account={account}
                     venues={venues}
+                    canEditDetails={canEditDetails}
                     onUpdate={(change) => update(account.id, change)}
                   />
                 </li>

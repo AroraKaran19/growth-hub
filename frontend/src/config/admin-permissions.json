@@ -8,6 +8,7 @@
     { "key": "addons", "label": "Add-on types", "description": "The add-ons venues can offer" },
     { "key": "partners", "label": "Partner accounts", "description": "Partner venue admin logins" },
     { "key": "payouts", "label": "Payouts", "description": "Venue statements and bank details" },
-    { "key": "reports", "label": "Reports", "description": "Sales, bookings and occupancy reports" }
+    { "key": "reports", "label": "Reports", "description": "Sales, bookings and occupancy reports" },
+    { "key": "team", "label": "Team accounts", "description": "Admin logins, and editing any staff member's details" }
   ]
 }
