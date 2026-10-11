@@ -31,7 +31,7 @@ const BarChart = ({ series, title, total, className }: { series: Point[]; title:
   const hovered = active === null ? null : series[active];
 
   return (
-    <figure className={cn("rounded-2xl border border-tertiary/10 bg-secondary p-5 shadow-sm", className)}>
+    <figure className={cn("relative rounded-2xl border border-tertiary/10 bg-secondary p-5 shadow-sm", className)}>
       <figcaption className="flex flex-wrap items-baseline justify-between gap-2">
         <span className="text-sm font-semibold text-tertiary">{title}</span>
         {total && <span className="text-lg font-bold text-tertiary">{total}</span>}
