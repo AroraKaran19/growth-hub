@@ -251,5 +251,7 @@ export const labelSchema = z
     kind: z.enum(["workspace-type", "amenity"]),
     key: z.string().trim().min(1).max(40),
     label: z.string().trim().max(40, "Keep it under 40 characters."),
+    description: z.string().trim().max(200, "Keep it under 200 characters.").optional(),
+    image: z.union([imageSchema, z.literal("")]).optional(),
   })
   .strict();

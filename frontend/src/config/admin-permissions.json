@@ -9,6 +9,7 @@
     { "key": "partners", "label": "Partner accounts", "description": "Partner venue admin logins" },
     { "key": "payouts", "label": "Payouts", "description": "Venue statements and bank details" },
     { "key": "reports", "label": "Reports", "description": "Sales, bookings and occupancy reports" },
-    { "key": "team", "label": "Team accounts", "description": "Admin logins, and editing any staff member's details" }
+    { "key": "team", "label": "Team accounts", "description": "Admin logins, and editing any staff member's details" },
+    { "key": "settings", "label": "Site settings", "description": "Landing page content, workspace types and testimonials" }
   ]
 }

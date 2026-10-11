@@ -5,15 +5,15 @@ import { Swiper, SwiperSlide } from "swiper/react";
 import { Autoplay } from "swiper/modules";
 import type { Swiper as SwiperType } from "swiper";
 import "swiper/css";
-import { CATEGORIES } from "@/data/categories";
-import { useCatalogueLabels } from "@/hooks/useCatalogueLabels";
+import type { WorkspaceCategory } from "@/types/category";
 import CategoryCard from "./CategoryCard";
 
-const SLIDES = [...CATEGORIES, ...CATEGORIES];
+// Loop mode needs about twice the visible slides, and there may be only one type.
+const MIN_SLIDES = 8;
 
-const CategoryCarousel = () => {
-  const labels = useCatalogueLabels();
+const CategoryCarousel = ({ categories }: { categories: WorkspaceCategory[] }) => {
   const [activeIndex, setActiveIndex] = useState(0);
+  const slides = Array.from({ length: Math.ceil(MIN_SLIDES / categories.length) }, () => categories).flat();
 
   return (
     <Swiper
@@ -31,7 +31,7 @@ const CategoryCarousel = () => {
       onSlideChange={(swiper: SwiperType) => setActiveIndex(swiper.realIndex)}
       className="w-full [&_.swiper-slide]:h-auto!"
     >
-      {SLIDES.map((slide) => ({ ...slide, name: labels.workspaceType(slide.slug, slide.name) })).map((category, index) => (
+      {slides.map((category, index) => (
         <SwiperSlide key={`${category.slug}-${index}`}>
           <CategoryCard category={category} isActive={index === activeIndex} />
         </SwiperSlide>

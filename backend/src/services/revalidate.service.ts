@@ -30,3 +30,10 @@ export const notifyVenuesChanged = (...slugs: string[]) => {
   if (!revalidateSecret && !isProduction) console.log(`[dev] revalidation skipped: ${tags.join(", ")}`);
   void revalidateTags(tags, { secret: revalidateSecret, frontendUrl });
 };
+
+/** Landing page content and testimonials share one cache tag. */
+export const notifyHomeChanged = () => {
+  const { revalidateSecret, frontendUrl, isProduction } = env();
+  if (!revalidateSecret && !isProduction) console.log("[dev] revalidation skipped: home");
+  void revalidateTags(["home"], { secret: revalidateSecret, frontendUrl });
+};

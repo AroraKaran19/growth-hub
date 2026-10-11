@@ -8,10 +8,11 @@ import {
   Landmark,
   LayoutDashboard,
   Map as MapIcon,
+  MessageSquareQuote,
   Puzzle,
+  SlidersHorizontal,
   ReceiptText,
   Store,
-  Tags,
   TicketPercent,
   UsersRound,
   type LucideIcon,
@@ -38,7 +39,6 @@ export const ADMIN_SECTIONS: AdminSection[] = [
   { label: "Pricing", href: "/admin/pricing", icon: IndianRupee, permission: "venues" },
   { label: "Availability", href: "/admin/availability", icon: Armchair, permission: "venues" },
   { label: "Seat maps", href: "/admin/seat-maps", icon: MapIcon, permission: "venues" },
-  { label: "Labels", href: "/admin/labels", icon: Tags, permission: "venues" },
   { label: "Bookings", href: "/admin/bookings", icon: CalendarCheck, permission: "bookings" },
   { label: "Memberships", href: "/admin/memberships", icon: Crown, permission: "memberships" },
   { label: "Coupons", href: "/admin/coupons", icon: TicketPercent, permission: "coupons" },
@@ -48,6 +48,8 @@ export const ADMIN_SECTIONS: AdminSection[] = [
   { label: "Invoices", href: "/admin/invoices", icon: ReceiptText, permission: "payouts" },
   { label: "Reports", href: "/admin/reports", icon: BarChart3, permission: "reports" },
   { label: "Team", href: "/admin/team", icon: UsersRound, permission: "team" },
+  { label: "Site settings", href: "/admin/settings", icon: SlidersHorizontal, permission: "settings" },
+  { label: "Testimonials", href: "/admin/testimonials", icon: MessageSquareQuote, permission: "settings" },
 ];
 
 const KNOWN = new Set(ADMIN_PERMISSIONS.map((entry) => entry.key));

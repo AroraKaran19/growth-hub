@@ -74,7 +74,7 @@ adminVenueRoutes.put("/:slug/addons", putVenueAddonChoices);
 adminVenueRoutes.get("/:slug/deletion-impact", requireSuperAdmin, getDeletionImpact);
 adminVenueRoutes.delete("/:slug", requireSuperAdmin, deleteAdminVenue);
 
-export const adminLabelRoutes = guarded("venues");
+export const adminLabelRoutes = guarded("settings");
 adminLabelRoutes.get("/", getLabels);
 adminLabelRoutes.put("/", putLabel);
 

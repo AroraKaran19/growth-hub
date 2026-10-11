@@ -16,7 +16,7 @@ type Ticket = {
 /** Sends one image straight to S3 and returns the URL it is readable at. */
 export const uploadImage = async (
   file: File,
-  kind: "venue-cover" | "venue-gallery",
+  kind: "venue-cover" | "venue-gallery" | "landing",
   ownerId: string,
 ): Promise<string> => {
   if (!IMAGE_TYPES.includes(file.type)) {

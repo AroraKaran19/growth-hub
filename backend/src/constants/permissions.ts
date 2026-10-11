@@ -9,6 +9,7 @@ export const ADMIN_PERMISSIONS = [
   "payouts",
   "reports",
   "team",
+  "settings",
 ] as const;
 
 export type AdminPermission = (typeof ADMIN_PERMISSIONS)[number];

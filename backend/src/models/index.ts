@@ -24,3 +24,5 @@ export * from "./payoutStatement.schema";
 export * from "./refundDue.schema";
 export * from "./catalogueLabel.schema";
 export * from "./invoiceJob.schema";
+export * from "./homeSection.schema";
+export * from "./testimonial.schema";

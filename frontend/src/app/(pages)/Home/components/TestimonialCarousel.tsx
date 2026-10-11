@@ -1,11 +1,12 @@
 "use client";
 
 import { useRef, useState } from "react";
+import Image from "next/image";
 import { Swiper, SwiperSlide } from "swiper/react";
 import type { Swiper as SwiperType } from "swiper";
 import "swiper/css";
 import { ArrowLeft, ArrowRight, Quote } from "lucide-react";
-import { TESTIMONIALS } from "@/data/testimonials";
+import type { Testimonial } from "@/types/homeContent";
 
 const initials = (name: string) =>
   name
@@ -17,25 +18,23 @@ const initials = (name: string) =>
 const NAV_BUTTON =
   "flex h-9 w-16 items-center justify-center rounded-full bg-secondary text-tertiary transition-opacity hover:opacity-80";
 
-const TestimonialCarousel = () => {
+const TestimonialCarousel = ({ testimonials }: { testimonials: Testimonial[] }) => {
   const swiperRef = useRef<SwiperType | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
 
-  const active = TESTIMONIALS[activeIndex];
+  const active = testimonials[activeIndex] ?? testimonials[0];
+  const hasMany = testimonials.length > 1;
 
   // min-w-0: a grid item defaults to min-width:auto, which would let the quote
   // push past its column instead of wrapping.
   return (
     <div className="flex min-w-0 flex-col">
-      <Quote
-        aria-hidden="true"
-        className="size-11 rotate-180 fill-secondary text-secondary"
-      />
+      <Quote aria-hidden="true" className="size-11 rotate-180 fill-secondary text-secondary" />
 
       <Swiper
         autoHeight
         grabCursor
-        loop
+        loop={hasMany}
         slidesPerView={1}
         spaceBetween={40}
         onSwiper={(swiper: SwiperType) => {
@@ -46,47 +45,54 @@ const TestimonialCarousel = () => {
         onSlideChange={(swiper: SwiperType) => setActiveIndex(swiper.realIndex)}
         className="mt-5 w-full"
       >
-        {TESTIMONIALS.map((testimonial) => (
+        {testimonials.map((testimonial) => (
           <SwiperSlide key={testimonial.id}>
-            <blockquote className="text-lg leading-relaxed text-secondary">
-              {testimonial.quote}
-            </blockquote>
+            <blockquote className="text-lg leading-relaxed text-secondary">{testimonial.quote}</blockquote>
           </SwiperSlide>
         ))}
       </Swiper>
 
       <div className="mt-7 flex items-center justify-between gap-4 border-t border-secondary/15 pt-5">
         <div className="flex items-center gap-3">
-          {/* Initials stand in until member avatars exist. */}
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-secondary/15 text-xs font-semibold text-secondary">
-            {initials(active.name)}
-          </span>
+          {active.photo ? (
+            <Image
+              src={active.photo.src}
+              alt={active.photo.alt || active.name}
+              width={36}
+              height={36}
+              className="size-9 shrink-0 rounded-full object-cover"
+            />
+          ) : (
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-secondary/15 text-xs font-semibold text-secondary">
+              {initials(active.name)}
+            </span>
+          )}
           <div>
-            <p className="text-sm font-semibold text-secondary">
-              {active.name}
-            </p>
-            <p className="text-xs text-secondary/55">{active.role}</p>
+            <p className="text-sm font-semibold text-secondary">{active.name}</p>
+            {active.role && <p className="text-xs text-secondary/55">{active.role}</p>}
           </div>
         </div>
 
-        <div className="flex shrink-0 items-center gap-2.5">
-          <button
-            type="button"
-            aria-label="Previous testimonial"
-            onClick={() => swiperRef.current?.slidePrev()}
-            className={NAV_BUTTON}
-          >
-            <ArrowLeft aria-hidden="true" className="size-4" />
-          </button>
-          <button
-            type="button"
-            aria-label="Next testimonial"
-            onClick={() => swiperRef.current?.slideNext()}
-            className={NAV_BUTTON}
-          >
-            <ArrowRight aria-hidden="true" className="size-4" />
-          </button>
-        </div>
+        {hasMany && (
+          <div className="flex shrink-0 items-center gap-2.5">
+            <button
+              type="button"
+              aria-label="Previous testimonial"
+              onClick={() => swiperRef.current?.slidePrev()}
+              className={NAV_BUTTON}
+            >
+              <ArrowLeft aria-hidden="true" className="size-4" />
+            </button>
+            <button
+              type="button"
+              aria-label="Next testimonial"
+              onClick={() => swiperRef.current?.slideNext()}
+              className={NAV_BUTTON}
+            >
+              <ArrowRight aria-hidden="true" className="size-4" />
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

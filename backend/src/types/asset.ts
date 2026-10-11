@@ -5,7 +5,8 @@ export type AssetKind =
   | "venue-cover"
   | "venue-gallery"
   | "category"
-  | "site";
+  | "site"
+  | "landing";
 
 export const ASSET_KINDS: readonly AssetKind[] = [
   "seat-map",
@@ -13,6 +14,7 @@ export const ASSET_KINDS: readonly AssetKind[] = [
   "venue-gallery",
   "category",
   "site",
+  "landing",
 ];
 
 export const isAssetKind = (value: unknown): value is AssetKind =>

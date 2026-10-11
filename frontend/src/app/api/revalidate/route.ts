@@ -2,7 +2,7 @@ import { timingSafeEqual } from "crypto";
 import { revalidateTag } from "next/cache";
 import { NextResponse, type NextRequest } from "next/server";
 
-const TAG = /^(venues|venue:[a-z0-9][a-z0-9-]{1,62})$/;
+const TAG = /^(home|venues|venue:[a-z0-9][a-z0-9-]{1,62})$/;
 
 const sameSecret = (given: string, expected: string) => {
   const a = Buffer.from(given);
