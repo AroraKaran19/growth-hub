@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { AMENITIES } from "@/data/amenities";
+import { useAmenities } from "@/hooks/useAmenities";
 import { useCatalogueLabels } from "@/hooks/useCatalogueLabels";
 import { WORKSPACE_TYPE_OPTIONS, type PriceBand } from "@/data/searchOptions";
 import type { SelectOption } from "@/types/search";
@@ -51,6 +51,7 @@ const FilterSidebar = ({
   className,
 }: FilterSidebarProps) => {
   const labels = useCatalogueLabels();
+  const { amenities } = useAmenities();
   return (
     <aside className={cn("flex flex-col gap-6", className)}>
       <div className="flex items-center justify-between gap-3">
@@ -122,19 +123,21 @@ const FilterSidebar = ({
         </FilterGroup>
       )}
 
-      <FilterGroup title="Amenities">
-        {AMENITIES.map((amenity) => (
-          <label key={amenity.id} className={OPTION_ROW}>
-            <input
-              type="checkbox"
-              className={CONTROL}
-              checked={filters.amenities.includes(amenity.id)}
-              onChange={() => onToggle("amenities", amenity.id)}
-            />
-            {labels.amenity(amenity.id, amenity.label)}
-          </label>
-        ))}
-      </FilterGroup>
+      {amenities.length > 0 && (
+        <FilterGroup title="Amenities">
+          {amenities.map((amenity) => (
+            <label key={amenity.key} className={OPTION_ROW}>
+              <input
+                type="checkbox"
+                className={CONTROL}
+                checked={filters.amenities.includes(amenity.key)}
+                onChange={() => onToggle("amenities", amenity.key)}
+              />
+              {amenity.name}
+            </label>
+          ))}
+        </FilterGroup>
+      )}
     </aside>
   );
 };

@@ -1,12 +1,12 @@
 import { z } from "zod";
 import {
   ADDON_UNITS,
-  AMENITY_IDS,
   PRICE_UNITS,
   ROOM_TYPES,
   SEAT_TYPES,
   WORKSPACE_TYPES,
 } from "../constants/catalogue";
+import { FEATURE_ICONS } from "../constants/featureIcons";
 import { toLocalityId } from "../services/catalogueRules";
 import { emailSchema, nameSchema, objectIdSchema, passwordSchema, slugSchema } from "./common";
 
@@ -141,7 +141,7 @@ const venueFields = z.object({
     })
     .nullable(),
   workspaceTypes: z.array(z.enum(WORKSPACE_TYPES)).min(1, "Pick at least one workspace type."),
-  amenities: z.array(z.enum(AMENITY_IDS)),
+  amenities: z.array(z.string().regex(/^[a-z0-9][a-z0-9-]{0,48}$/, "Pick amenities from the list.")).max(60),
 });
 
 export const createVenueSchema = venueFields
@@ -246,9 +246,22 @@ export type UpdatePartnerInput = z.infer<typeof updatePartnerSchema>;
 
 export type VenuePricesInput = z.infer<typeof venuePricesSchema>;
 
+export const amenitySchema = z
+  .object({
+    name: z.string().trim().min(2, "Enter a name.").max(40, "Keep it under 40 characters."),
+    icon: z.enum(FEATURE_ICONS, "Pick an icon from the list."),
+    description: z.string().trim().max(160, "Keep it under 160 characters."),
+    visible: z.boolean(),
+  })
+  .strict();
+
+export const amenityOrderSchema = z.object({ ids: z.array(z.string().regex(/^[a-f0-9]{24}$/)).min(1).max(200) }).strict();
+
+export type AmenityInput = z.infer<typeof amenitySchema>;
+
 export const labelSchema = z
   .object({
-    kind: z.enum(["workspace-type", "amenity"]),
+    kind: z.literal("workspace-type"),
     key: z.string().trim().min(1).max(40),
     label: z.string().trim().max(40, "Keep it under 40 characters."),
     description: z.string().trim().max(200, "Keep it under 200 characters.").optional(),

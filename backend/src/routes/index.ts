@@ -3,6 +3,7 @@ import {
   adminAddonTypeRoutes,
   adminAddonOrderRoutes,
   adminBookingRoutes,
+  adminAmenityRoutes,
   adminLabelRoutes,
   adminCouponRoutes,
   adminMembershipRoutes,
@@ -52,6 +53,7 @@ router.use("/admin/overview", adminOverviewRoutes);
 router.use("/admin/venues/:slug/payout-account", adminPayoutAccountRoutes);
 router.use("/admin/venues", adminVenueRoutes);
 router.use("/admin/labels", adminLabelRoutes);
+router.use("/admin/amenities", adminAmenityRoutes);
 router.use("/admin/payouts", adminPayoutRoutes);
 router.use("/admin/invoices", adminInvoiceRoutes);
 router.use("/admin/site", adminSiteRoutes);

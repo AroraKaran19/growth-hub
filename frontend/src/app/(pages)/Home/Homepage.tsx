@@ -1,8 +1,7 @@
 import { withDefaults } from "@/config/homeDefaults";
-import { AMENITIES } from "@/data/amenities";
 import { CATEGORIES } from "@/data/categories";
 import { getHomeOverrides, getTestimonials } from "@/libs/api/site";
-import { getCatalogueLabels, getPublishedVenues } from "@/libs/api/venues";
+import { getAmenities, getCatalogueLabels, getPublishedVenues } from "@/libs/api/venues";
 import { withOverrides } from "@/utils/categories";
 import { localityOptionsFrom } from "@/utils/venues";
 import HeroSection from "./sections/HeroSection";
@@ -17,11 +16,12 @@ import TestimonialsSection from "./sections/TestimonialsSection";
 import CtaBannerSection from "./sections/CtaBannerSection";
 
 const Homepage = async () => {
-  const [venues, overrides, testimonials, labels] = await Promise.all([
+  const [venues, overrides, testimonials, labels, allAmenities] = await Promise.all([
     getPublishedVenues(),
     getHomeOverrides(),
     getTestimonials(),
     getCatalogueLabels(),
+    getAmenities(),
   ]);
   const content = withDefaults(overrides);
 
@@ -31,10 +31,7 @@ const Homepage = async () => {
   const categories = CATEGORIES.filter((category) => offeredTypes.has(category.slug)).map((category) =>
     withOverrides(category, labels),
   );
-  const amenities = AMENITIES.filter((amenity) => offeredAmenities.has(amenity.id)).map((amenity) => ({
-    ...amenity,
-    label: labels.amenities[amenity.id] ?? amenity.label,
-  }));
+  const amenities = allAmenities.filter((amenity) => offeredAmenities.has(amenity.key));
 
   return (
     <>

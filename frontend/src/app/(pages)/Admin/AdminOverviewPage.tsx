@@ -55,7 +55,7 @@ const AttentionItem = ({ href, tone, title, detail }: AttentionItemProps) => {
 
 const AdminOverviewPage = () => {
   const { account } = useAdminSession();
-  const canOpenVenues = account ? canAccessSection(account, "venues") : false;
+  const canOpenVenues = account ? canAccessSection(account, "workspaces.venues") : false;
   const canOpenBookings = account ? canAccessSection(account, "bookings") : false;
   const canOpenMemberships = account ? canAccessSection(account, "memberships") : false;
   const { overview, operations, isLoading } = useCatalogueOverview();

@@ -1,20 +1,6 @@
 export const WORKSPACE_TYPES = ["hot-desk", "dedicated-desk", "private-cabin", "meeting-room"] as const;
 export type WorkspaceType = (typeof WORKSPACE_TYPES)[number];
 
-export const AMENITY_IDS = [
-  "wifi",
-  "cafe",
-  "meeting-rooms",
-  "printing",
-  "parking",
-  "air-conditioning",
-  "power-backup",
-  "secure-access",
-  "phone-booths",
-  "networking-lounge",
-] as const;
-export type AmenityId = (typeof AMENITY_IDS)[number];
-
 export const SEAT_TYPES = ["desk", "private-cabin", "office", "meeting-room"] as const;
 export type SeatType = (typeof SEAT_TYPES)[number];
 

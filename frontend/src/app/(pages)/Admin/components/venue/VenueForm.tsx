@@ -2,7 +2,7 @@
 
 import type { FormEvent, ReactNode } from "react";
 import { Plus, X } from "lucide-react";
-import { AMENITIES } from "@/data/amenities";
+import { useAdminAmenities } from "@/hooks/useAmenities";
 import { useCatalogueLabels } from "@/hooks/useCatalogueLabels";
 import { WORKSPACE_TYPE_OPTIONS } from "@/data/searchOptions";
 import {
@@ -49,6 +49,9 @@ type VenueFormProps = {
 
 const VenueForm = ({ mode, draft, errors, onChange, onSubmit, isSaving, status, extra }: VenueFormProps) => {
   const labels = useCatalogueLabels();
+  const { amenities } = useAdminAmenities();
+  // Hidden amenities stay pickable only on venues that already have them.
+  const amenityChoices = amenities.filter((amenity) => amenity.visible || draft.amenities.includes(amenity.key));
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
     onSubmit();
@@ -311,12 +314,12 @@ const VenueForm = ({ mode, draft, errors, onChange, onSubmit, isSaving, status, 
           <fieldset className="mt-5">
             <legend className="text-sm font-medium text-tertiary">Amenities</legend>
             <div className="mt-2 flex flex-wrap gap-2">
-              {AMENITIES.map((amenity) => (
+              {amenityChoices.map((amenity) => (
                 <Chip
-                  key={amenity.id}
-                  label={labels.amenity(amenity.id, amenity.label)}
-                  isOn={draft.amenities.includes(amenity.id)}
-                  onToggle={() => toggleIn("amenities", amenity.id)}
+                  key={amenity.key}
+                  label={amenity.visible ? amenity.name : `${amenity.name} (hidden)`}
+                  isOn={draft.amenities.includes(amenity.key)}
+                  onToggle={() => toggleIn("amenities", amenity.key)}
                 />
               ))}
             </div>

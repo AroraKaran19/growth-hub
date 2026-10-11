@@ -23,6 +23,12 @@
     "Leaf",
     "Lock",
     "BadgeCheck",
-    "Laptop"
+    "Laptop",
+    "Printer",
+    "SquareParking",
+    "Snowflake",
+    "Plug",
+    "Phone",
+    "Network"
   ]
 }

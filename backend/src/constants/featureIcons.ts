@@ -1,4 +1,4 @@
-// Same names, in order, as frontend/src/config/feature-icons.json; a test keeps them equal.
+// Icons for feature cards and amenities; same names, in order, as frontend/src/config/feature-icons.json.
 export const FEATURE_ICONS = [
   "Ticket",
   "Globe",
@@ -24,4 +24,10 @@ export const FEATURE_ICONS = [
   "Lock",
   "BadgeCheck",
   "Laptop",
+  "Printer",
+  "SquareParking",
+  "Snowflake",
+  "Plug",
+  "Phone",
+  "Network",
 ] as const;

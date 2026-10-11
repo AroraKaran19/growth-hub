@@ -1,3 +1,4 @@
+import { assertAmenitiesExist } from "./amenity.service";
 import mongoose, { Types } from "mongoose";
 import type { AddonUnit } from "../constants/catalogue";
 import { AppError } from "../middlewares/error.middleware";
@@ -231,6 +232,7 @@ export const createVenue = async (input: CreateVenueInput, actor: Actor) => {
 
   const slugTaken = () => new AppError("That address is already used.", 409, "SLUG_TAKEN");
   if (await Venue.exists({ slug: input.slug })) throw slugTaken();
+  await assertAmenitiesExist(input.amenities ?? []);
 
   try {
     const venue = await Venue.create({
@@ -251,6 +253,7 @@ export const patchVenue = async (slug: string, patch: PatchVenueInput, actor: Ac
   const venue = await findVenue(slug);
   const { version, ...changes } = patch;
   if (version !== venue.__v) throw stale();
+  if (changes.amenities) await assertAmenitiesExist(changes.amenities);
 
   // A price sent as null clears it, so presence decides, not ??.
   const next = <K extends keyof typeof changes & keyof VenueDoc>(key: K) =>

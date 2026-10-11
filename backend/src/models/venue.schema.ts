@@ -1,9 +1,7 @@
 import { Schema, model, type Types } from "mongoose";
 import {
-  AMENITY_IDS,
   PRICE_UNITS,
   WORKSPACE_TYPES,
-  type AmenityId,
   type MembershipLength,
   type MembershipSpace,
   type PriceUnit,
@@ -56,7 +54,8 @@ export interface VenueDoc {
   rules: string[];
   offer: { label: string; details: string } | null;
   workspaceTypes: WorkspaceType[];
-  amenities: AmenityId[];
+  /** Keys from the amenities collection. */
+  amenities: string[];
   addons: VenueAddonPrice[];
   published: boolean;
   outOfServiceSeatIds: string[];
@@ -128,7 +127,7 @@ const venueSchema = new Schema<VenueDoc>(
     rules: { type: [String], default: [] },
     offer: { type: new Schema({ label: String, details: String }, { _id: false }), default: null },
     workspaceTypes: { type: [{ type: String, enum: [...WORKSPACE_TYPES] }], default: [] },
-    amenities: { type: [{ type: String, enum: [...AMENITY_IDS] }], default: [] },
+    amenities: { type: [String], default: [] },
     addons: { type: [addonPriceSchema], default: [] },
     published: { type: Boolean, default: false },
     outOfServiceSeatIds: { type: [String], default: [] },

@@ -1,5 +1,6 @@
 import { PHASE_PRODUCTION_BUILD } from "next/constants";
 import { NO_LABELS, type CatalogueLabels } from "@/types/catalogueLabels";
+import type { Amenity } from "@/types/amenity";
 import type { Venue, VenueDetail } from "@/types/venue";
 
 const API_URL = process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "";
@@ -40,5 +41,14 @@ export const getCatalogueLabels = async (): Promise<CatalogueLabels> => {
     return (await load<{ labels: CatalogueLabels }>("/catalogue/labels", ["venues"]))?.labels ?? NO_LABELS;
   } catch {
     return NO_LABELS;
+  }
+};
+
+/** Visible amenities, cached with the venue pages; an empty list when the API can't be reached. */
+export const getAmenities = async (): Promise<Amenity[]> => {
+  try {
+    return (await load<{ amenities: Amenity[] }>("/catalogue/amenities", ["venues"]))?.amenities ?? [];
+  } catch {
+    return [];
   }
 };

@@ -12,6 +12,12 @@ import {
   Headphones,
   Laptop,
   Leaf,
+  Network,
+  Phone,
+  Plug,
+  Printer,
+  Snowflake,
+  SquareParking,
   Lock,
   MapPin,
   QrCode,
@@ -53,6 +59,12 @@ export const FEATURE_ICONS: Record<string, LucideIcon> = {
   Lock,
   BadgeCheck,
   Laptop,
+  Printer,
+  SquareParking,
+  Snowflake,
+  Plug,
+  Phone,
+  Network,
 };
 
 export const FEATURE_ICON_NAMES: string[] = catalog.icons;
@@ -62,5 +74,5 @@ if (FEATURE_ICON_NAMES.join() !== Object.keys(FEATURE_ICONS).join()) {
 }
 
 /** Renders a saved icon name; an unknown name falls back to the ticket icon. */
-export const FeatureIcon = ({ name, className }: { name: string; className?: string }) =>
-  createElement(FEATURE_ICONS[name] ?? Ticket, { "aria-hidden": true, className });
+export const FeatureIcon = ({ name, className, strokeWidth }: { name: string; className?: string; strokeWidth?: number }) =>
+  createElement(FEATURE_ICONS[name] ?? Ticket, { "aria-hidden": true, className, strokeWidth });

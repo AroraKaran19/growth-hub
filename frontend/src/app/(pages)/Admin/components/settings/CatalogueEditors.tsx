@@ -3,7 +3,6 @@
 import { useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
 import { RotateCcw } from "lucide-react";
-import { AMENITIES } from "@/data/amenities";
 import { CATEGORIES } from "@/data/categories";
 import { adminApi } from "@/libs/api/client";
 import { readApiError } from "@/libs/api/errors";
@@ -11,12 +10,12 @@ import { toastDone, toastFailed } from "@/libs/toast";
 import { NO_LABELS, type CatalogueLabels } from "@/types/catalogueLabels";
 import type { WorkspaceCategory } from "@/types/category";
 import { cn } from "@/utils";
-import { QUIET, RAISED, inputClass } from "../venue/fields";
+import { QUIET, RAISED } from "../venue/fields";
 import ImageField from "./ImageField";
 import { TextArea, TextInput } from "./inputs";
 
 type Envelope = { data: { data: { labels: CatalogueLabels } } };
-type Entry = { kind: "workspace-type" | "amenity"; key: string; label: string; description?: string; image?: string };
+type Entry = { kind: "workspace-type"; key: string; label: string; description?: string; image?: string };
 
 const fetchLabels = async () => ((await adminApi.get("/admin/labels")) as Envelope).data.data.labels;
 
@@ -118,82 +117,12 @@ export const WorkspaceTypesEditor = () => {
   if (error) return <p role="alert" className="text-sm text-primary">We couldn&apos;t load the workspace types. Refresh to try again.</p>;
   return (
     <section className={cn(RAISED, "p-5 sm:p-6")}>
-      <h2 className="text-lg font-bold text-tertiary">Workspace types</h2>
-      <p className="mt-1 text-sm text-tertiary/60">
-        The home page shows a type only when a published venue offers it. Changes apply everywhere the type appears.
-      </p>
-      <div className="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-2">
+      <p className="text-sm text-tertiary/60">The home page shows a type only when a published venue offers it.</p>
+      <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
         {CATEGORIES.map((category) => (
           <TypeCard key={category.slug} category={category} labels={labels} save={save} />
         ))}
       </div>
-    </section>
-  );
-};
-
-const AmenityRow = ({ id, builtIn, current, save }: { id: string; builtIn: string; current?: string; save: (entry: Entry) => Promise<void> }) => {
-  const [typed, setTyped] = useState<string | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
-  const value = typed ?? current ?? builtIn;
-  const isChanged = value.trim() !== (current ?? builtIn);
-
-  const submit = async (label: string) => {
-    setIsSaving(true);
-    try {
-      await save({ kind: "amenity", key: id, label: label === builtIn ? "" : label });
-      setTyped(null);
-      toastDone(label ? `${builtIn} now shows as "${label}".` : `${builtIn} is back to its built-in name.`);
-    } catch (caught) {
-      toastFailed(readApiError(caught).message);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  return (
-    <li className="flex flex-wrap items-center gap-3 py-3">
-      <div className="min-w-40 grow basis-60">
-        <label htmlFor={`amenity-${id}`} className="sr-only">
-          Name for {builtIn}
-        </label>
-        <input id={`amenity-${id}`} value={value} maxLength={40} onChange={(event) => setTyped(event.target.value)} className={inputClass(false)} />
-        <p className="mt-1 text-xs text-tertiary/50">{current ? `Built-in name: ${builtIn}` : "Built-in name"}</p>
-      </div>
-      <div className="flex items-center gap-3">
-        {current && !isChanged && (
-          <button type="button" disabled={isSaving} onClick={() => void submit("")} className={cn(QUIET, "inline-flex items-center gap-1 text-xs text-tertiary/60")}>
-            <RotateCcw aria-hidden="true" className="size-3.5" />
-            Use built-in name
-          </button>
-        )}
-        <button
-          type="button"
-          disabled={!isChanged || isSaving || !value.trim()}
-          onClick={() => void submit(value.trim())}
-          className="rounded-lg border border-tertiary/20 px-3.5 py-1.5 text-sm font-medium text-tertiary transition-colors hover:bg-tertiary/5 disabled:opacity-40"
-        >
-          {isSaving ? "Saving..." : "Save"}
-        </button>
-      </div>
-    </li>
-  );
-};
-
-export const AmenityLabelsEditor = () => {
-  const { labels, error, isLoading, save } = useAdminLabels();
-  if (isLoading) return <div className="h-40 animate-pulse rounded-xl bg-tertiary/5" />;
-  if (error) return <p role="alert" className="text-sm text-primary">We couldn&apos;t load the amenities. Refresh to try again.</p>;
-  return (
-    <section className={cn(RAISED, "p-5 sm:p-6")}>
-      <h2 className="text-lg font-bold text-tertiary">Amenity names</h2>
-      <p className="mt-1 text-sm text-tertiary/60">
-        The list and icons are fixed. The home page shows an amenity only when a published venue offers it.
-      </p>
-      <ul className="mt-2 grid grid-cols-1 gap-x-8 divide-y divide-tertiary/8 lg:grid-cols-2 lg:divide-y-0">
-        {AMENITIES.map((amenity) => (
-          <AmenityRow key={amenity.id} id={amenity.id} builtIn={amenity.label} current={labels.amenities[amenity.id]} save={save} />
-        ))}
-      </ul>
     </section>
   );
 };

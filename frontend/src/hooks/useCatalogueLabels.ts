@@ -16,7 +16,6 @@ export const useCatalogueLabels = () => {
   return {
     labels,
     workspaceType: (key: string, fallback: string) => labels.workspaceTypes[key] ?? fallback,
-    amenity: (key: string, fallback: string) => labels.amenities[key] ?? fallback,
     category: (category: WorkspaceCategory) => withOverrides(category, labels),
     refresh: () => mutate(),
   };

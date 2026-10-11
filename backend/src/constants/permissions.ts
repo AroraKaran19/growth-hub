@@ -1,6 +1,13 @@
 export const ADMIN_PERMISSIONS = [
   "overview",
-  "venues",
+  // A group key grants every page under it, e.g. "workspaces" covers "workspaces.pricing".
+  "workspaces",
+  "workspaces.venues",
+  "workspaces.types",
+  "workspaces.amenities",
+  "workspaces.pricing",
+  "workspaces.availability",
+  "workspaces.seat-maps",
   "bookings",
   "memberships",
   "coupons",

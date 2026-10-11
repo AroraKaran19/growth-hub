@@ -20,7 +20,6 @@ import { fetchAdminHome } from "@/libs/api/siteAdmin";
 import type { HomeOverrides, HomeSectionKey } from "@/types/homeContent";
 import { cn } from "@/utils";
 import { PartnerPageHeader as PageHeader, PartnerSkeleton as Skeleton } from "../Partner/components/PartnerUi";
-import { AmenityLabelsEditor, WorkspaceTypesEditor } from "./components/settings/CatalogueEditors";
 import SectionEditor from "./components/settings/SectionEditor";
 import {
   AmenitiesForm,
@@ -80,14 +79,18 @@ const AdminSettingsPage = () => {
     categories: (
       <>
         <SectionEditor section="categories" {...shared("categories")}>{(draft, set, errors) => <HeadingForm id="categories" draft={draft} set={set} errors={errors} />}</SectionEditor>
-        <WorkspaceTypesEditor />
+        <Link href="/admin/workspace-types" className="inline-flex w-fit items-center gap-1.5 text-sm font-medium text-primary hover:underline">
+          Edit the workspace types themselves
+        </Link>
       </>
     ),
     steps: <SectionEditor section="steps" {...shared("steps")}>{(draft, set, errors) => <StepsForm draft={draft} set={set} errors={errors} />}</SectionEditor>,
     amenities: (
       <>
         <SectionEditor section="amenities" {...shared("amenities")}>{(draft, set, errors) => <AmenitiesForm draft={draft} set={set} errors={errors} />}</SectionEditor>
-        <AmenityLabelsEditor />
+        <Link href="/admin/amenities" className="inline-flex w-fit items-center gap-1.5 text-sm font-medium text-primary hover:underline">
+          Manage the amenities themselves
+        </Link>
       </>
     ),
     community: <SectionEditor section="community" {...shared("community")}>{(draft, set, errors) => <CommunityForm draft={draft} set={set} errors={errors} />}</SectionEditor>,

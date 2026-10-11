@@ -1,8 +1,9 @@
 import type { Request, Response } from "express";
 import { Types } from "mongoose";
-import { asyncHandler, sendSuccessResponse } from "../middlewares/error.middleware";
+import { AppError, asyncHandler, sendSuccessResponse } from "../middlewares/error.middleware";
 import type { Actor } from "../models";
 import { listLabels, setLabel } from "../services/catalogueLabel.service";
+import { canAccess } from "../services/permissions";
 import { notifyVenuesChanged } from "../services/revalidate.service";
 import { getSeatMap, listSeatMaps } from "../services/seatMap.service";
 import {
@@ -54,8 +55,15 @@ export const getAdminVenueDetail = asyncHandler(async (req: Request, res: Respon
   sendSuccessResponse(res, { venue: await getAdminVenue(slugOf(req)) }, "Venue");
 });
 
+const PRICE_FIELDS = new Set(["startingPrice", "halfDayPrice", "dayPassPrice", "membershipPrices", "version"]);
+
 export const patchAdminVenue = asyncHandler(async (req: Request, res: Response) => {
-  const venue = await patchVenue(slugOf(req), parseBody(patchVenueSchema, req.body), actorOf(req));
+  const patch = parseBody(patchVenueSchema, req.body);
+  // The Pricing page shares this endpoint; without Manage workspaces only prices may change.
+  if (!canAccess(req.auth!.account, "workspaces.venues") && Object.keys(patch).some((key) => !PRICE_FIELDS.has(key))) {
+    throw new AppError("You don't have access to this section.", 403, "PERMISSION_DENIED", { permission: "workspaces.venues" });
+  }
+  const venue = await patchVenue(slugOf(req), patch, actorOf(req));
   notifyVenuesChanged(venue.slug);
   sendSuccessResponse(res, { venue }, "Venue saved");
 });

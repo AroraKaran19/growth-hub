@@ -1,5 +1,6 @@
 import Image from "next/image";
-import type { Amenity } from "@/data/amenities";
+import { FeatureIcon } from "@/config/featureIcons";
+import type { Amenity } from "@/types/amenity";
 import type { HomeContent } from "@/types/homeContent";
 
 const AmenitiesSection = ({ content, amenities }: { content: HomeContent["amenities"]; amenities: Amenity[] }) => {
@@ -17,15 +18,12 @@ const AmenitiesSection = ({ content, amenities }: { content: HomeContent["amenit
         </div>
 
         <ul className="mt-12 grid grid-cols-2 gap-x-6 gap-y-10 sm:grid-cols-3 lg:mt-16 lg:grid-cols-5">
-          {amenities.map((amenity) => {
-            const Icon = amenity.icon;
-            return (
-              <li key={amenity.id} className="flex flex-col items-center text-center">
-                <Icon aria-hidden="true" strokeWidth={1.25} className="size-8 text-secondary" />
-                <span className="mt-3 text-xs text-secondary">{amenity.label}</span>
-              </li>
-            );
-          })}
+          {amenities.map((amenity) => (
+            <li key={amenity.key} className="flex flex-col items-center text-center">
+              <FeatureIcon name={amenity.icon} strokeWidth={1.25} className="size-8 text-secondary" />
+              <span className="mt-3 text-xs text-secondary">{amenity.name}</span>
+            </li>
+          ))}
         </ul>
       </div>
     </section>

@@ -1,3 +1,4 @@
+import { ensureDefaultAmenities } from "./amenity.service";
 import { AddonType, SeatMap, Venue } from "../models";
 import { parseBody } from "../utils/validate";
 import { createVenueSchema, seatListSchema } from "../validators/catalogue";
@@ -53,6 +54,7 @@ const EVERY_DAY = [0, 1, 2, 3, 4, 5, 6];
 
 export const seedCatalogue = async ({ venues, demoSeats, demoImage }: SeedInput) => {
   const promotedAdmins = await promoteLegacyAdmins();
+  await ensureDefaultAmenities();
   const seats = parseBody(seatListSchema, demoSeats);
 
   let addonTypesCreated = 0;

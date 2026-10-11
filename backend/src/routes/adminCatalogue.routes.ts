@@ -51,34 +51,45 @@ import {
   putVenuePayoutAccount,
 } from "../controllers/payout.controller";
 import { getReport, getReportCsv } from "../controllers/report.controller";
+import { getAdminAmenities, postAmenity, putAmenity, putAmenityOrder, removeAmenity } from "../controllers/amenity.controller";
 import { getVenueAddonChoices, putVenueAddonChoices } from "../controllers/partner.controller";
 import { deleteAdminVenue, getDeletionImpact, getRefunds, postRefundDone } from "../controllers/venueRemoval.controller";
 import { panelRateLimit, requireAuth, requirePermission, requireSuperAdmin } from "../middlewares";
 
-const guarded = (permission: AdminPermission) => {
+const guarded = (...permissions: AdminPermission[]) => {
   const router = Router();
-  router.use(requireAuth("admin"), panelRateLimit, requirePermission(permission));
+  router.use(requireAuth("admin"), panelRateLimit, requirePermission(...permissions));
   return router;
 };
 
-export const adminVenueRoutes = guarded("venues");
+const VENUES = "workspaces.venues";
+
+// Each venue endpoint opens to the pages that use it; prices-only edits are checked in the controller.
+export const adminVenueRoutes = guarded(VENUES, "workspaces.pricing", "workspaces.availability");
 adminVenueRoutes.get("/", getAdminVenues);
-adminVenueRoutes.post("/", postAdminVenue);
-adminVenueRoutes.get("/:slug", getAdminVenueDetail);
-adminVenueRoutes.patch("/:slug", patchAdminVenue);
-adminVenueRoutes.put("/:slug/seat-map", putVenueSeatMap);
-adminVenueRoutes.delete("/:slug/seat-map", deleteVenueSeatMap);
-adminVenueRoutes.put("/:slug/out-of-service", putOutOfService);
-adminVenueRoutes.get("/:slug/addons", getVenueAddonChoices);
-adminVenueRoutes.put("/:slug/addons", putVenueAddonChoices);
+adminVenueRoutes.post("/", requirePermission(VENUES), postAdminVenue);
+adminVenueRoutes.get("/:slug", requirePermission(VENUES, "workspaces.availability"), getAdminVenueDetail);
+adminVenueRoutes.patch("/:slug", requirePermission(VENUES, "workspaces.pricing"), patchAdminVenue);
+adminVenueRoutes.put("/:slug/seat-map", requirePermission(VENUES), putVenueSeatMap);
+adminVenueRoutes.delete("/:slug/seat-map", requirePermission(VENUES), deleteVenueSeatMap);
+adminVenueRoutes.put("/:slug/out-of-service", requirePermission(VENUES, "workspaces.availability"), putOutOfService);
+adminVenueRoutes.get("/:slug/addons", requirePermission(VENUES), getVenueAddonChoices);
+adminVenueRoutes.put("/:slug/addons", requirePermission(VENUES), putVenueAddonChoices);
 adminVenueRoutes.get("/:slug/deletion-impact", requireSuperAdmin, getDeletionImpact);
 adminVenueRoutes.delete("/:slug", requireSuperAdmin, deleteAdminVenue);
 
-export const adminLabelRoutes = guarded("settings");
+export const adminLabelRoutes = guarded("workspaces.types");
 adminLabelRoutes.get("/", getLabels);
 adminLabelRoutes.put("/", putLabel);
 
-export const adminSeatMapRoutes = guarded("venues");
+export const adminAmenityRoutes = guarded("workspaces.amenities", VENUES);
+adminAmenityRoutes.get("/", getAdminAmenities);
+adminAmenityRoutes.post("/", requirePermission("workspaces.amenities"), postAmenity);
+adminAmenityRoutes.put("/order", requirePermission("workspaces.amenities"), putAmenityOrder);
+adminAmenityRoutes.put("/:id", requirePermission("workspaces.amenities"), putAmenity);
+adminAmenityRoutes.delete("/:id", requirePermission("workspaces.amenities"), removeAmenity);
+
+export const adminSeatMapRoutes = guarded("workspaces.seat-maps", VENUES);
 adminSeatMapRoutes.get("/", getSeatMaps);
 adminSeatMapRoutes.get("/:id", getSeatMapDetail);
 

@@ -6,6 +6,7 @@ import type { AccountStatus } from "../types/auth";
 import type { InviteAdminInput, UpdateAdminInput } from "../validators/team";
 import { adminSummary, type AdminAccount } from "./account.service";
 import { lastActiveAt, revokeAccountSessions } from "./session.service";
+import { hasPermission } from "./permissions";
 import { hashPassword } from "./staffAuth.service";
 import { detailsUpdate, emailTaken, isDuplicateKey } from "./staffDetails";
 
@@ -25,7 +26,7 @@ const notFound = () => new AppError("That admin no longer exists.", 404, "ADMIN_
 const cantGrant = () => new AppError("You can only give sections you have yourself.", 403, "PERMISSION_DENIED");
 
 const beyondActor = (actor: TeamActor, permissions: readonly string[]) =>
-  actor.role === "super-admin" ? [] : permissions.filter((permission) => !actor.permissions.includes(permission));
+  actor.role === "super-admin" ? [] : permissions.filter((permission) => !hasPermission(actor.permissions, permission));
 
 export const listTeam = async (): Promise<TeamMember[]> => {
   const admins = await Admin.find().sort({ createdAt: 1 }).lean<AdminDoc[]>();

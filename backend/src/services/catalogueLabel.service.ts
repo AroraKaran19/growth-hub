@@ -1,8 +1,9 @@
-import { AMENITY_IDS, WORKSPACE_TYPES } from "../constants/catalogue";
+import { WORKSPACE_TYPES } from "../constants/catalogue";
 import { AppError } from "../middlewares/error.middleware";
 import { CatalogueLabel, type CatalogueLabelDoc, type LabelKind } from "../models";
 
-const KEYS: Record<LabelKind, readonly string[]> = { "workspace-type": WORKSPACE_TYPES, amenity: AMENITY_IDS };
+// Amenity names now live on the amenities themselves; old amenity rows are read once when they are seeded.
+const KEYS: Record<LabelKind, readonly string[]> = { "workspace-type": WORKSPACE_TYPES, amenity: [] };
 
 /** Only the names admins changed; everything else keeps its built-in name on the site. */
 export const listLabels = async () => {
@@ -12,7 +13,7 @@ export const listLabels = async () => {
   const details = rows
     .filter((row) => row.kind === "workspace-type" && (row.description || row.image))
     .map((row) => [row.key, { ...(row.description && { description: row.description }), ...(row.image && { image: row.image }) }]);
-  return { workspaceTypes: pick("workspace-type"), amenities: pick("amenity"), workspaceTypeDetails: Object.fromEntries(details) };
+  return { workspaceTypes: pick("workspace-type"), workspaceTypeDetails: Object.fromEntries(details) };
 };
 
 type EntryInput = { kind: LabelKind; key: string; label: string; description?: string; image?: string };

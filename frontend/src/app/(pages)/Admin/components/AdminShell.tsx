@@ -5,10 +5,11 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { ExternalLink, LogOut, ShieldQuestion } from "lucide-react";
 import Logo from "@/app/components/ui/Logo";
-import { isPathAllowed, visibleSections } from "@/config/adminPermissions";
+import { isPathAllowed, visibleNav, visibleSections } from "@/config/adminPermissions";
 import { useAuthBootstrap } from "@/hooks/useAuthBootstrap";
 import { useAdminSession } from "@/stores/admin";
 import { cn } from "@/utils";
+import AdminSidebarNav from "./AdminSidebarNav";
 
 /** Signed-in frame for every admin page: sidebar, top bar and guard. */
 const AdminShell = ({ children }: { children: ReactNode }) => {
@@ -60,31 +61,7 @@ const AdminShell = ({ children }: { children: ReactNode }) => {
           </span>
         </div>
 
-        <nav aria-label="Admin" className="mt-8">
-          <ul className="flex flex-col gap-1">
-            {links.map((link) => {
-              const Icon = link.icon;
-              const active = isActive(link.href);
-              return (
-                <li key={link.href}>
-                  <Link
-                    href={link.href}
-                    aria-current={active ? "page" : undefined}
-                    className={cn(
-                      "flex items-center gap-3 rounded-lg px-3.5 py-2.5 text-sm transition-colors",
-                      active
-                        ? "cta-gradient font-medium text-secondary"
-                        : "text-secondary/70 hover:bg-secondary/8 hover:text-secondary",
-                    )}
-                  >
-                    <Icon aria-hidden="true" className="size-4 shrink-0" />
-                    {link.label}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </nav>
+        <AdminSidebarNav entries={account ? visibleNav(account) : []} isActive={isActive} />
 
         <div className="mt-auto border-t border-secondary/10 pt-4">
           <p className="text-sm font-medium">{session.name}</p>

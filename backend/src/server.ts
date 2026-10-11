@@ -2,6 +2,7 @@ import app from "./app";
 import { connectDB, disconnectDB } from "./config/database";
 import dotenv from "dotenv";
 import { initializeS3 } from "./config/aws";
+import { migrateLegacyPermissions } from "./services/permissions";
 
 dotenv.config();
 
@@ -14,6 +15,8 @@ const PORT = process.env.PORT || 8080;
 const startServer = async () => {
   try {
     await connectDB();
+    const migrated = await migrateLegacyPermissions();
+    if (migrated) console.log(`Moved ${migrated} admin(s) from the Venues permission to the Workspaces group.`);
     await initializeS3().catch((error: unknown) => {
       console.warn(
         "⚠️  S3 unavailable, image uploads will fail:",
