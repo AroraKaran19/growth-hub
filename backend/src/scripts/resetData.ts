@@ -25,15 +25,15 @@ const main = async () => {
     console.log(`Deleted ${deletedCount} from ${name}`);
   }
 
-  const sample = read("venues.json")[1];
   const plan = read("demo-plan.json") as { image: string; seats: unknown[] };
+  // Hours, photos and rules are placeholders the admin replaces before publishing.
   const growthHub: SeedVenue = {
     slug: "growthhub",
     name: "GrowthHub",
     locality: "Koramangala",
     city: "Bangalore",
-    image: sample.image,
-    gallery: sample.gallery,
+    image: "",
+    gallery: [],
     rating: 0,
     // No prices: the admin or the venue sets them, and the venue stays hidden until then.
     startingPrice: null,
@@ -42,13 +42,13 @@ const main = async () => {
     distanceKm: 0,
     description: "Flexible desks, private cabins and meeting rooms for freelancers, startups and growing teams.",
     longDescription: "Placeholder details. Update the address, photos, hours and prices from the admin panel, then publish.",
-    openDaysLabel: sample.openDaysLabel,
-    openHours: sample.openHours,
-    hoursNote: sample.hoursNote,
+    openDaysLabel: "Open Daily",
+    openHours: "10:00 AM - 6:00 PM",
+    hoursNote: "",
     googleMapsUrl: "https://www.google.com/maps/search/?api=1&query=GrowthHub%2C%20Koramangala%2C%20Bangalore",
-    rules: sample.rules,
-    workspaceTypes: sample.workspaceTypes,
-    amenities: sample.amenities,
+    rules: [],
+    workspaceTypes: ["hot-desk"],
+    amenities: [],
   };
   const result = await seedCatalogue({ venues: [growthHub], demoSeats: plan.seats, demoImage: plan.image });
   console.log(`Created ${result.venuesCreated} hidden venue (GrowthHub) and ${result.mapsCreated} placeholder seat map. Set its prices, then publish it.`);

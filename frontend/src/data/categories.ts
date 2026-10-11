@@ -1,6 +1,6 @@
 import type { WorkspaceCategory } from "@/types/category";
 
-// MOCK DATA until the venues API exists.
+// Built-in name and image per workspace type; admins rename them on the Labels page.
 export const CATEGORIES: WorkspaceCategory[] = [
   {
     slug: "hot-desk",

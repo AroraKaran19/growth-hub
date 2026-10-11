@@ -11,11 +11,11 @@
     "create-admin": "ts-node --transpile-only src/scripts/createAdmin.ts",
     "create-partner-staff": "ts-node --transpile-only src/scripts/createPartnerStaff.ts",
     "migrate-admin-roles": "ts-node --transpile-only src/scripts/migrateAdminRoles.ts",
-    "seed-catalogue": "ts-node --transpile-only src/scripts/seedCatalogue.ts",
     "import-seat-map": "ts-node --transpile-only src/scripts/importSeatMap.ts",
     "reset-data": "ts-node --transpile-only src/scripts/resetData.ts",
     "build-invoice-template": "ts-node --transpile-only src/scripts/buildInvoiceTemplate.ts",
-    "queue-invoices": "ts-node --transpile-only src/scripts/queueInvoices.ts"
+    "queue-invoices": "ts-node --transpile-only src/scripts/queueInvoices.ts",
+    "remove-dummy-venues": "ts-node --transpile-only src/scripts/removeDummyVenues.ts"
   },
   "keywords": [],
   "author": "",
