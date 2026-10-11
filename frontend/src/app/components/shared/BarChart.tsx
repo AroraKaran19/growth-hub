@@ -80,17 +80,20 @@ const BarChart = ({ series, title, total, className }: { series: Point[]; title:
           ))}
       </div>
 
-      <table className="sr-only">
-        <caption>{title}</caption>
-        <tbody>
-          {series.map((point) => (
-            <tr key={point.label}>
-              <th scope="row">{shortLabel(point.label)}</th>
-              <td>{formatValue(point.value, point.kind)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      {/* sr-only on a table itself leaks its caption and height, so a div clips it. */}
+      <div className="sr-only">
+        <table>
+          <caption>{title}</caption>
+          <tbody>
+            {series.map((point) => (
+              <tr key={point.label}>
+                <th scope="row">{shortLabel(point.label)}</th>
+                <td>{formatValue(point.value, point.kind)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </figure>
   );
 };
