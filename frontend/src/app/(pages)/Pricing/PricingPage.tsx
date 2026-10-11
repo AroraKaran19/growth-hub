@@ -35,7 +35,7 @@ const PASS_DETAILS: Record<(typeof PASS_TYPES)[number], { title: string; text: s
 };
 
 const PROMISES = [
-  "GST included in every price you see",
+  "The price you see is the price you pay",
   "Free rescheduling on every booking",
   "Ask the venue to cancel from your booking",
   "Coupons applied before you pay",
@@ -52,7 +52,7 @@ const PricingPage = async () => {
     <>
       <PageHero
         eyebrow="Pricing"
-        title="Clear prices, GST included"
+        title="Clear prices, nothing added at checkout"
         description="Pay per visit with a pass, or reserve your seat with a membership. Each venue sets its own rates; here is what to expect across Bangalore."
       />
 

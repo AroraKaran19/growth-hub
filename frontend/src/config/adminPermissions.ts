@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   Map as MapIcon,
   Puzzle,
+  ReceiptText,
   Store,
   Tags,
   TicketPercent,
@@ -44,6 +45,7 @@ export const ADMIN_SECTIONS: AdminSection[] = [
   { label: "Add-ons", href: "/admin/addons", icon: Puzzle, permission: "addons" },
   { label: "Partners", href: "/admin/partners", icon: Store, permission: "partners" },
   { label: "Payouts", href: "/admin/payouts", icon: Landmark, permission: "payouts" },
+  { label: "Invoices", href: "/admin/invoices", icon: ReceiptText, permission: "payouts" },
   { label: "Reports", href: "/admin/reports", icon: BarChart3, permission: "reports" },
   { label: "Team", href: "/admin/team", icon: UsersRound, permission: "team" },
 ];

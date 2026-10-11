@@ -45,11 +45,15 @@ export const verifyWidgetToken = async (
   };
 };
 
+/** MSG91 downloads each attachment from its URL at send time. */
+export type EmailAttachment = { file: string; filename: string };
+
 export const sendTemplateEmail = async (
   settings: TemplateEmailSettings,
   to: string,
   variables: Record<string, string>,
   fetchImpl: typeof fetch = fetch,
+  attachments?: EmailAttachment[],
 ) => {
   const response = await fetchImpl(MSG91_EMAIL_URL, {
     method: "POST",
@@ -59,6 +63,7 @@ export const sendTemplateEmail = async (
       from: { email: settings.from, name: settings.fromName },
       domain: settings.domain,
       template_id: settings.templateId,
+      ...(attachments?.length && { attachments }),
     }),
     signal: AbortSignal.timeout(MSG91_TIMEOUT_MS),
   });

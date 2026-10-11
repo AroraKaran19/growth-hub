@@ -1,7 +1,7 @@
 import { env } from "../config/env";
 import type { MemberEvent, NotificationTemplates, StaffEvent } from "../constants/notifications";
 import { Member, PartnerStaff, type MemberDoc } from "../models";
-import { sendTemplateEmail } from "./msg91.service";
+import { sendTemplateEmail, type EmailAttachment } from "./msg91.service";
 
 export type NotifySettings = NotificationTemplates & {
   authKey: string | null;
@@ -18,11 +18,12 @@ export const createNotifier = (
   senders: Senders = { email: sendTemplateEmail },
   log: Logger = console,
 ) => {
-  const emailTo = async (event: MemberEvent | StaffEvent, to: string, variables: Variables) => {
+  const emailTo = async (event: MemberEvent | StaffEvent, to: string, variables: Variables, attachments?: EmailAttachment[]) => {
     const templateId = settings.emailTemplates[event];
     if (!settings.authKey || !settings.email || !templateId) return false;
     try {
-      await senders.email({ authKey: settings.authKey, templateId, ...settings.email }, to, variables);
+      const sender = { authKey: settings.authKey, templateId, ...settings.email };
+      await (attachments ? senders.email(sender, to, variables, undefined, attachments) : senders.email(sender, to, variables));
     } catch (error) {
       log.error(`${event} email failed:`, error instanceof Error ? error.message : error);
     }
@@ -30,13 +31,13 @@ export const createNotifier = (
   };
 
   return {
-    member: async (event: MemberEvent, recipient: Recipient, variables: Variables) => {
+    member: async (event: MemberEvent, recipient: Recipient, variables: Variables, attachments?: EmailAttachment[]) => {
       const email = recipient.email ?? recipient.billingEmail;
       if (!email) {
         log.warn(`${event} not sent: the member has no email.`);
         return;
       }
-      if (!(await emailTo(event, email, variables))) log.warn(`${event} not sent: no MSG91 template is set for it.`);
+      if (!(await emailTo(event, email, variables, attachments))) log.warn(`${event} not sent: no MSG91 template is set for it.`);
     },
     staff: async (event: StaffEvent, emails: string[], variables: Variables) => {
       const results = await Promise.all(emails.map((to) => emailTo(event, to, variables)));
@@ -55,10 +56,15 @@ const fromEnv = () => {
 };
 
 /** Texts the member, and emails them when they have an email. Never throws. */
-export const notifyMember = async (event: MemberEvent, memberId: unknown, variables: Variables) => {
+export const notifyMember = async (
+  event: MemberEvent,
+  memberId: unknown,
+  variables: Variables,
+  attachments?: EmailAttachment[],
+) => {
   try {
     const member = await Member.findById(memberId).lean<MemberDoc>();
-    if (member) await fromEnv().member(event, member, variables);
+    if (member) await fromEnv().member(event, member, variables, attachments);
   } catch (error) {
     console.error(`${event} notification failed:`, error instanceof Error ? error.message : error);
   }

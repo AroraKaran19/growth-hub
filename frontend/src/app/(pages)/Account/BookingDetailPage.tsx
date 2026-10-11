@@ -338,7 +338,7 @@ const BookingDetailPage = ({ bookingId }: { bookingId: string }) => {
               className={SECONDARY_ACTION}
             >
               <Download aria-hidden="true" className="size-4" />
-              Download invoice
+              View invoice
             </Link>
           )}
 

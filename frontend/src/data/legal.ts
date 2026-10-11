@@ -106,7 +106,7 @@ export const LEGAL_DOCUMENTS: Record<LegalDocumentId, LegalDocument> = {
         id: "bookings",
         heading: "Bookings and payments",
         paragraphs: [
-          "A booking is confirmed once payment succeeds and you receive a booking ID and QR code. Prices are shown in Indian rupees and include GST.",
+          "A booking is confirmed once payment succeeds and you receive a booking ID and QR code. Prices are shown in Indian rupees and are the final amount you pay.",
         ],
         bullets: [
           "Use your space only during the booked time.",

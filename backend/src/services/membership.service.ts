@@ -17,7 +17,7 @@ import { freshRef, isRef } from "../utils/refs";
 import type { MembershipInput, MembershipQuoteInput, SubscriptionConfirmInput } from "../validators/membership";
 import { holdRanOut, loadBookable, refundQuietly, ruleError } from "./booking.service";
 import { seatError } from "./bookingRules";
-import { nextInvoiceNumber } from "./invoiceNumber.service";
+import { issueInvoice } from "./invoiceIssue.service";
 import { couponFor, recordRedemption, rememberCoupon } from "./coupon.service";
 import { removalNotices } from "./refund.service";
 import { couponDiscount } from "./couponRules";
@@ -379,9 +379,11 @@ const finalise = (id: Types.ObjectId, paymentId: string | null, subscriptionId: 
     if (!updated) return { membership: current, startedNow: false };
 
     await setDayHold(id, null, session);
+    const chargeId = new Types.ObjectId();
     await MembershipCharge.create(
       [
         {
+          _id: chargeId,
           membershipId: id,
           cycleIndex: 0,
           periodStart: current.startDate,
@@ -389,7 +391,7 @@ const finalise = (id: Types.ObjectId, paymentId: string | null, subscriptionId: 
           amount: current.firstCycle.payable,
           // The webhook can confirm without the payment id; the subscription stands in for it.
           razorpayPaymentId: paymentId ?? `upfront:${subscriptionId}`,
-          invoiceNumber: await nextInvoiceNumber(indiaNow(now).date, session),
+          invoiceNumber: await issueInvoice("membership-charge", chargeId, current.memberId, indiaNow(now).date, session),
           chargedAt: now,
         },
       ],
@@ -583,16 +585,18 @@ export const recordCharge = async (subscriptionId: string, paymentId: string, pa
     const renewing = ["active", "past-due", "lapsed"].includes(membership.status);
     try {
       await mongoose.connection.transaction(async (session) => {
+        const chargeId = new Types.ObjectId();
         await MembershipCharge.create(
           [
             {
+              _id: chargeId,
               membershipId: membership._id,
               cycleIndex,
               periodStart,
               periodEnd,
               amount: membership.cyclePrice,
               razorpayPaymentId: paymentId,
-              invoiceNumber: await nextInvoiceNumber(indiaNow().date, session),
+              invoiceNumber: await issueInvoice("membership-charge", chargeId, membership.memberId, indiaNow().date, session),
               chargedAt: new Date(),
             },
           ],
@@ -695,7 +699,7 @@ export const listMemberships = async (memberId: string) =>
 export const getMembership = async (memberId: string, ref: string) =>
   (await withRequests([await getOwn(memberId, ref)]))[0];
 
-export const runMembershipTick = async (now = new Date()) => {
+export const expireLapsedMemberships = async (now = new Date()) => {
   const lapsed = await Membership.find({ status: "pending-payment", holdExpiresAt: { $lte: now } }, { _id: 1 }).lean<
     { _id: Types.ObjectId }[]
   >();
@@ -713,10 +717,19 @@ export const runMembershipTick = async (now = new Date()) => {
       }
     });
   }
-  const ended = await Membership.updateMany(
-    { status: { $in: ["active", "past-due"] }, cancelAtCycleEnd: true, paidThrough: { $lt: indiaNow(now).date } },
-    { status: "ended" },
-  );
+  return expired;
+};
+
+export const endStoppedMemberships = async (now = new Date()) =>
+  (
+    await Membership.updateMany(
+      { status: { $in: ["active", "past-due"] }, cancelAtCycleEnd: true, paidThrough: { $lt: indiaNow(now).date } },
+      { status: "ended" },
+    )
+  ).modifiedCount;
+
+/** Keeps renewing members' desks reserved one cycle ahead. */
+export const extendRenewingReservations = async (now = new Date()) => {
   const today = indiaNow(now).date;
   const horizon = addDays(today, MEMBERSHIP_RESERVE_AHEAD_DAYS);
   const renewing = await Membership.find({
@@ -734,5 +747,11 @@ export const runMembershipTick = async (now = new Date()) => {
       console.error(`Membership ${membership.ref} reservation did not move forward`, error);
     }
   }
-  return { expiredMemberships: expired, endedMemberships: ended.modifiedCount, extendedMemberships: extended };
+  return extended;
 };
+
+export const runMembershipTick = async (now = new Date()) => ({
+  expiredMemberships: await expireLapsedMemberships(now),
+  endedMemberships: await endStoppedMemberships(now),
+  extendedMemberships: await extendRenewingReservations(now),
+});

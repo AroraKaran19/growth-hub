@@ -8,6 +8,7 @@ import {
   Crown,
   Gift,
   LogOut,
+  ReceiptText,
   UserRound,
 } from "lucide-react";
 import { useSession } from "@/stores/session";
@@ -18,6 +19,7 @@ const ACCOUNT_LINKS = [
   { label: "My Bookings", href: "/account/bookings", icon: CalendarCheck },
   { label: "Coupons", href: "/account/coupons", icon: Gift },
   { label: "Memberships", href: "/account/memberships", icon: Crown },
+  { label: "Invoices", href: "/account/invoices", icon: ReceiptText },
 ];
 
 const AccountSidebar = () => {

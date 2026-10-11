@@ -23,7 +23,7 @@ import { couponFor, recordRedemption, rememberCoupon } from "./coupon.service";
 import { removalNotices } from "./refund.service";
 import { couponDiscount } from "./couponRules";
 import { tellBookingConfirmed, tellLatePaymentReleased } from "./memberNotices";
-import { nextInvoiceNumber } from "./invoiceNumber.service";
+import { issueInvoice } from "./invoiceIssue.service";
 import { discountedPrice, quotePassLines } from "./pricing";
 import { capturePayment, createOrder, fetchPayment, refundPayment, verifyPaymentSignature } from "./razorpay.service";
 import { claimRanges, dayRanges, releaseRanges, setHold } from "./seatDays.service";
@@ -180,6 +180,10 @@ export const createBooking = async (memberId: string, input: BookingInput, reque
   try {
     await mongoose.connection.transaction(async (session) => {
       await Booking.create([doc], { session });
+      if (isFree) {
+        const invoiceNumber = await issueInvoice("booking", bookingId, doc.memberId, indiaNow().date, session);
+        await Booking.updateOne({ _id: bookingId }, { invoiceNumber }, { session });
+      }
       await claimRanges(
         { venueId: venue._id, date: input.date, seatIds: input.seatIds, start: window.start, end: window.end, bookingId, holdExpiresAt },
         session,
@@ -280,7 +284,9 @@ export const setBookingCoupon = async (memberId: string, ref: string, code: stri
       if (!updated) throw holdRanOut();
       await setHold(booking._id, null, session);
       await redeemFor(updated, session);
-      return updated;
+      const invoiceNumber = await issueInvoice("booking", booking._id, booking.memberId, indiaNow().date, session);
+      await Booking.updateOne({ _id: booking._id }, { invoiceNumber }, { session });
+      return { ...updated, invoiceNumber };
     });
     await tellBookingConfirmed(free);
     return withCheckout(free);
@@ -388,7 +394,7 @@ const finalise = (bookingId: Types.ObjectId, paymentId: string, orderId: string)
     }
 
     await setHold(bookingId, null, session);
-    const invoiceNumber = await nextInvoiceNumber(indiaNow(now).date, session);
+    const invoiceNumber = await issueInvoice("booking", bookingId, updated.memberId, indiaNow(now).date, session);
     await Booking.updateOne({ _id: bookingId }, { invoiceNumber }, { session });
     await redeemFor(updated, session);
     return { booking: { ...updated, invoiceNumber }, confirmedNow: true };
@@ -602,7 +608,7 @@ export const rescheduleOptions = async (memberId: string, ref: string, date: str
 };
 
 /** Idempotent tidy-up; every read already works out the true status from times. */
-export const runBookingTick = async (now = new Date()) => {
+export const expireLapsedBookings = async (now = new Date()) => {
   const lapsed = await Booking.find({ status: "pending-payment", holdExpiresAt: { $lte: now } }, { _id: 1 }).lean<
     { _id: Types.ObjectId }[]
   >();
@@ -620,9 +626,12 @@ export const runBookingTick = async (now = new Date()) => {
       }
     });
   }
+  return expired;
+};
 
-  const today = indiaNow(now).date;
-  const candidates = await Booking.find({ status: { $in: ["upcoming", "checked-in"] }, date: { $lte: today } }).lean<
+/** Upcoming and checked-in passes whose time has passed become completed or no-show. */
+export const finishPastBookings = async (now = new Date()) => {
+  const candidates = await Booking.find({ status: { $in: ["upcoming", "checked-in"] }, date: { $lte: indiaNow(now).date } }).lean<
     BookingDoc[]
   >();
   let finished = 0;
@@ -632,7 +641,14 @@ export const runBookingTick = async (now = new Date()) => {
     const result = await Booking.updateOne({ _id: booking._id, status: booking.status }, { status: next });
     finished += result.modifiedCount;
   }
-
-  const oldDays = await SeatDay.deleteMany({ date: { $lt: addDays(today, -SEAT_DAY_RETENTION_DAYS) } });
-  return { expired, finished, removedSeatDays: oldDays.deletedCount };
+  return finished;
 };
+
+export const removeOldSeatDays = async (now = new Date()) =>
+  (await SeatDay.deleteMany({ date: { $lt: addDays(indiaNow(now).date, -SEAT_DAY_RETENTION_DAYS) } })).deletedCount;
+
+export const runBookingTick = async (now = new Date()) => ({
+  expired: await expireLapsedBookings(now),
+  finished: await finishPastBookings(now),
+  removedSeatDays: await removeOldSeatDays(now),
+});

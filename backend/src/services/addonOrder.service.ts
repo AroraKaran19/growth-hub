@@ -20,7 +20,7 @@ import { holdRanOut, refundQuietly } from "./booking.service";
 import { latestRequests } from "./cancellation.service";
 import { removalNotices } from "./refund.service";
 import type { DeskStaff } from "./checkIn.service";
-import { nextInvoiceNumber } from "./invoiceNumber.service";
+import { issueInvoice } from "./invoiceIssue.service";
 import { rupees } from "./memberNotices";
 import { phoneOf } from "./staffBookings.service";
 import { effectiveMembershipStatus } from "./membershipView";
@@ -244,12 +244,14 @@ const confirmOrder = async (order: AddonOrderDoc, paymentId: string) => {
         holdCapAt: null,
         "payment.paymentId": paymentId,
         "payment.capturedAt": now,
-        invoiceNumber: await nextInvoiceNumber(indiaNow(now).date, session),
       },
       { session, returnDocument: "after" },
     ).lean<AddonOrderDoc>();
     if (!updated) throw Object.assign(new Error("already confirmed"), { alreadyDone: true });
-    return updated;
+    // Numbered only by the confirmation that won, so a race never queues two invoices.
+    const invoiceNumber = await issueInvoice("addon-order", order._id, order.memberId, indiaNow(now).date, session);
+    await AddonOrder.updateOne({ _id: order._id }, { invoiceNumber }, { session });
+    return { ...updated, invoiceNumber };
   }).catch(async (error: { alreadyDone?: boolean }) => {
     if (!error.alreadyDone) throw error;
     return null;

@@ -51,17 +51,17 @@ export const FAQ_CATEGORIES: FaqCategory[] = [
   {
     id: "payments",
     title: "Payments & refunds",
-    summary: "Prices, GST, invoices and coupons.",
+    summary: "Prices, invoices and coupons.",
     faqs: [
       {
-        question: "Do prices include GST?",
+        question: "Is anything added at checkout?",
         answer:
-          "Yes. Every price you see includes 18% GST, and your invoice shows the taxable value and the GST separately.",
+          "No. The price you see is the price you pay, with no booking or convenience fees.",
       },
       {
         question: "Where do I find my invoice?",
         answer:
-          "Open the booking in My Bookings and choose Download invoice. It opens a printable tax invoice you can save as a PDF.",
+          "Open Invoices in your account to download a PDF of any invoice. We also email each one to you after you pay.",
       },
       {
         question: "How are refunds paid?",

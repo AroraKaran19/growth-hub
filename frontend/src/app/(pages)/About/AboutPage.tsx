@@ -45,7 +45,7 @@ const VALUES = [
   {
     icon: ReceiptText,
     title: "Honest prices",
-    text: "GST included, no booking fees, and refunds that follow a clear policy.",
+    text: "The price you see is the price you pay, with no booking fees and refunds that follow a clear policy.",
   },
   {
     icon: BadgeCheck,

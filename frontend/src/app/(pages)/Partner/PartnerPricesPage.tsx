@@ -87,7 +87,7 @@ const PricesForm = ({ venue, onSave }: { venue: PartnerVenue; onSave: (draft: Dr
           <Ticket aria-hidden="true" className="size-4 text-primary" />
           Passes
         </h2>
-        <p className="mt-1 text-sm text-tertiary/60">Prices per seat, GST included. Leave a box empty if you don&apos;t sell that pass.</p>
+        <p className="mt-1 text-sm text-tertiary/60">Prices per seat, as members pay them. Leave a box empty if you don&apos;t sell that pass.</p>
         <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
           {PASSES.map((pass) => (
             <label key={pass.key} className="rounded-xl border border-tertiary/10 bg-surface p-4">

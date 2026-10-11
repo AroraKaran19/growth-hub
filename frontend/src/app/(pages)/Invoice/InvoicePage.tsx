@@ -2,16 +2,19 @@
 
 import Link from "next/link";
 import { QRCodeSVG } from "qrcode.react";
-import { ArrowLeft, Printer } from "lucide-react";
+import { ArrowLeft, Download, Printer } from "lucide-react";
 import Logo from "@/app/components/ui/Logo";
+import { GST_RATE, GST_REGISTERED, ISSUER_NAME } from "@/config/invoice";
 import { CONTACT } from "@/data/footer";
 import { useBooking } from "@/hooks/useBookings";
+import { useMyInvoices } from "@/hooks/useInvoices";
+import { downloadInvoice } from "@/libs/api/invoices";
 import { useSession } from "@/stores/session";
 import { formatDay } from "@/utils/date";
 import { toMemberBooking } from "../Account/bookingAdapter";
 
-// Listed prices include GST, so the invoice backs it out rather than adding it.
-const GST_RATE = 0.18;
+// Prices include GST once registered, so it is backed out rather than added.
+const RATE = GST_REGISTERED ? GST_RATE : 0;
 
 const rupees = (amount: number) =>
   `₹${amount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -19,6 +22,7 @@ const rupees = (amount: number) =>
 const InvoicePage = ({ bookingId }: { bookingId: string }) => {
   const { booking: fromApi, isLoading } = useBooking(bookingId);
   const { session, account } = useSession();
+  const { invoices } = useMyInvoices();
   const companyName = account?.profile?.companyName;
   const billingEmail = account?.profile?.billingEmail ?? account?.email;
 
@@ -50,8 +54,9 @@ const InvoicePage = ({ bookingId }: { bookingId: string }) => {
     );
   }
 
-  const taxable = booking.total / (1 + GST_RATE);
+  const taxable = booking.total / (1 + RATE);
   const gst = booking.total - taxable;
+  const pdf = invoices.find((invoice) => invoice.number === booking.invoiceNumber && invoice.status === "ready");
   const quantity = Math.max(booking.seats.length, 1);
   const addons = booking.addons ?? [];
   const passAmount = booking.total - addons.reduce((sum, line) => sum + line.amount, 0);
@@ -66,27 +71,50 @@ const InvoicePage = ({ bookingId }: { bookingId: string }) => {
           <ArrowLeft aria-hidden="true" className="size-4" />
           Back to booking
         </Link>
-        <button
-          type="button"
-          onClick={() => window.print()}
-          className="cta-gradient inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-secondary transition-opacity hover:opacity-90"
-        >
-          <Printer aria-hidden="true" className="size-4" />
-          Print or save as PDF
-        </button>
+        <div className="flex items-center gap-4">
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className={
+              pdf
+                ? "inline-flex items-center gap-2 text-sm font-medium text-tertiary/65 transition-colors hover:text-tertiary"
+                : "cta-gradient inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-secondary transition-opacity hover:opacity-90"
+            }
+          >
+            <Printer aria-hidden="true" className="size-4" />
+            Print
+          </button>
+          {pdf && (
+            <button
+              type="button"
+              onClick={() => void downloadInvoice(pdf.id)}
+              className="cta-gradient inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-secondary transition-opacity hover:opacity-90"
+            >
+              <Download aria-hidden="true" className="size-4" />
+              Download PDF
+            </button>
+          )}
+        </div>
       </div>
 
-      <article className="mx-auto max-w-3xl rounded-2xl border border-tertiary/10 bg-secondary p-6 sm:p-10 print:rounded-none print:border-0">
+      <article className="relative isolate mx-auto max-w-3xl overflow-hidden rounded-2xl border border-t-[5px] border-tertiary/10 border-t-primary bg-secondary p-6 shadow-xl shadow-tertiary/10 sm:p-10 print:rounded-none print:border-x-0 print:border-b-0 print:shadow-none">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 -z-10 flex items-center justify-center [print-color-adjust:exact]"
+        >
+          <Logo className="w-[62%] text-tertiary opacity-[0.06]" />
+        </div>
         <header className="flex flex-wrap items-start justify-between gap-6 border-b border-tertiary/10 pb-6">
           <div>
             <Logo className="h-12 w-auto text-tertiary" />
-            <p className="mt-3 max-w-xs text-xs leading-relaxed text-tertiary/55">
+            <p className="mt-3 text-sm font-semibold text-tertiary">{ISSUER_NAME}</p>
+            <p className="mt-1 max-w-xs text-xs leading-relaxed text-tertiary/55">
               {CONTACT.address}
             </p>
             <p className="text-xs text-tertiary/55">{CONTACT.email}</p>
           </div>
           <div className="text-right">
-            <h1 className="text-2xl font-bold text-tertiary">Tax Invoice</h1>
+            <h1 className="text-2xl font-bold text-tertiary">{GST_REGISTERED ? "Tax Invoice" : "Invoice"}</h1>
             <p className="mt-1 font-mono text-sm text-tertiary/60">
               {booking.invoiceNumber}
             </p>
@@ -104,7 +132,7 @@ const InvoicePage = ({ bookingId }: { bookingId: string }) => {
 
         <section className="grid grid-cols-1 gap-6 border-b border-tertiary/10 py-6 sm:grid-cols-2">
           <div>
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-tertiary/50">
+            <h2 className="text-xs font-semibold text-tertiary/50">
               Billed to
             </h2>
             <p className="mt-2 text-sm font-medium text-tertiary">
@@ -118,7 +146,7 @@ const InvoicePage = ({ bookingId }: { bookingId: string }) => {
             )}
           </div>
           <div>
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-tertiary/50">
+            <h2 className="text-xs font-semibold text-tertiary/50">
               Workspace
             </h2>
             <p className="mt-2 text-sm font-medium text-tertiary">
@@ -136,7 +164,7 @@ const InvoicePage = ({ bookingId }: { bookingId: string }) => {
         <div className="overflow-x-auto py-6">
           <table className="w-full min-w-md text-left text-sm">
             <thead>
-              <tr className="border-b border-tertiary/10 text-xs uppercase tracking-wider text-tertiary/50">
+              <tr className="border-b border-tertiary/10 text-xs text-tertiary/50">
                 <th scope="col" className="pb-3 font-semibold">
                   Description
                 </th>
@@ -158,7 +186,7 @@ const InvoicePage = ({ bookingId }: { bookingId: string }) => {
                 </td>
                 <td className="py-3 text-right text-tertiary">{quantity}</td>
                 <td className="py-3 text-right text-tertiary">
-                  {rupees(passAmount / (1 + GST_RATE))}
+                  {rupees(passAmount / (1 + RATE))}
                 </td>
               </tr>
               {addons.map((line) => (
@@ -166,7 +194,7 @@ const InvoicePage = ({ bookingId }: { bookingId: string }) => {
                   <td className="py-3 text-tertiary">{line.name}</td>
                   <td className="py-3 text-right text-tertiary">1</td>
                   <td className="py-3 text-right text-tertiary">
-                    {rupees(line.amount / (1 + GST_RATE))}
+                    {rupees(line.amount / (1 + RATE))}
                   </td>
                 </tr>
               ))}
@@ -174,16 +202,18 @@ const InvoicePage = ({ bookingId }: { bookingId: string }) => {
           </table>
 
           <dl className="ml-auto mt-4 flex max-w-xs flex-col gap-2 text-sm">
-            <div className="flex justify-between gap-4">
-              <dt className="text-tertiary/60">Taxable value</dt>
-              <dd className="text-tertiary">{rupees(taxable)}</dd>
-            </div>
-            <div className="flex justify-between gap-4">
-              <dt className="text-tertiary/60">
-                GST ({Math.round(GST_RATE * 100)}%)
-              </dt>
-              <dd className="text-tertiary">{rupees(gst)}</dd>
-            </div>
+            {GST_REGISTERED && (
+              <>
+                <div className="flex justify-between gap-4">
+                  <dt className="text-tertiary/60">Taxable value</dt>
+                  <dd className="text-tertiary">{rupees(taxable)}</dd>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <dt className="text-tertiary/60">GST ({Math.round(GST_RATE * 100)}%)</dt>
+                  <dd className="text-tertiary">{rupees(gst)}</dd>
+                </div>
+              </>
+            )}
             <div className="flex justify-between gap-4 border-t border-tertiary/10 pt-2 text-base font-bold">
               <dt className="text-tertiary">Total</dt>
               <dd className="text-tertiary">{rupees(booking.total)}</dd>
@@ -215,9 +245,10 @@ const InvoicePage = ({ bookingId }: { bookingId: string }) => {
               .
             </p>
           </div>
-          <p className="text-xs text-tertiary/45">
-            A computer generated invoice. No signature needed.
-          </p>
+          <div className="text-right text-xs text-tertiary/45">
+            {!GST_REGISTERED && <p>{ISSUER_NAME} is not registered under GST, so no GST is charged.</p>}
+            <p>A computer generated invoice. No signature needed.</p>
+          </div>
         </footer>
       </article>
     </div>

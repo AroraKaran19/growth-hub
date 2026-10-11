@@ -145,7 +145,7 @@ const PlanExplorer = ({ fromPrices }: { fromPrices: FromPrices }) => {
       </div>
 
       <p className="mx-auto mt-6 max-w-2xl text-center text-xs text-tertiary/55">
-        Prices vary by venue and include GST. Cabins and offices are priced per
+        Prices vary by venue. Cabins and offices are priced per
         room, desks per person. You choose the plan on the venue&apos;s booking
         page under Membership.
       </p>

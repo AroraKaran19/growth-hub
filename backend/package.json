@@ -13,7 +13,9 @@
     "migrate-admin-roles": "ts-node --transpile-only src/scripts/migrateAdminRoles.ts",
     "seed-catalogue": "ts-node --transpile-only src/scripts/seedCatalogue.ts",
     "import-seat-map": "ts-node --transpile-only src/scripts/importSeatMap.ts",
-    "reset-data": "ts-node --transpile-only src/scripts/resetData.ts"
+    "reset-data": "ts-node --transpile-only src/scripts/resetData.ts",
+    "build-invoice-template": "ts-node --transpile-only src/scripts/buildInvoiceTemplate.ts",
+    "queue-invoices": "ts-node --transpile-only src/scripts/queueInvoices.ts"
   },
   "keywords": [],
   "author": "",
@@ -26,10 +28,13 @@
     "bcrypt": "^6.0.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
+    "docxtemplater": "^3.71.0",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.9.5",
+    "node-cron": "^4.6.0",
+    "pizzip": "^3.3.0",
     "razorpay": "^2.9.8",
     "serve-favicon": "^2.5.1",
     "ts-node": "^10.9.2",
@@ -47,8 +52,11 @@
     "@types/node": "^24.13.4",
     "@types/node-cron": "^3.0.11",
     "@types/nodemailer": "^8.0.1",
+    "@types/pngjs": "^6.0.5",
     "@types/serve-favicon": "^2.5.7",
+    "docx": "^9.10.0",
     "mongodb-memory-server": "^10.4.3",
+    "pngjs": "^7.0.0",
     "typescript": "~5.9.3",
     "vitest": "^5.0.0"
   }

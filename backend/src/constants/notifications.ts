@@ -7,6 +7,7 @@ export const MEMBER_EVENTS = [
   "MEMBERSHIP_LAPSED",
   "LATE_PAYMENT_RELEASED",
   "VENUE_REMOVED",
+  "INVOICE_READY",
 ] as const;
 export type MemberEvent = (typeof MEMBER_EVENTS)[number];
 

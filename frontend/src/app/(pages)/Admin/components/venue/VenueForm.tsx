@@ -371,7 +371,7 @@ const VenueForm = ({ mode, draft, errors, onChange, onSubmit, isSaving, status, 
           )}
         </Section>
 
-        <Section title="Pass prices" hint="Set each price yourself, GST included. Leave a box empty if the venue doesn't sell that pass.">
+        <Section title="Pass prices" hint="Set each price yourself, as the final price members pay. Leave a box empty if the venue doesn't sell that pass.">
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
             <Field id="venue-hourly" label="Hourly (₹)" error={errors.startingPrice}>
               <input
@@ -408,7 +408,7 @@ const VenueForm = ({ mode, draft, errors, onChange, onSubmit, isSaving, status, 
 
         <Section
           title="Membership prices"
-          hint="Rupees per cycle for one desk or one room, GST included. Leave a cell blank if the venue doesn't offer it."
+          hint="Rupees per cycle for one desk or one room, as the final price. Leave a cell blank if the venue doesn't offer it."
         >
           <div className="overflow-x-auto">
             <table className="w-full min-w-xl text-sm">

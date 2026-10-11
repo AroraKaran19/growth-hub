@@ -210,7 +210,7 @@ export const AddonsEditor = ({ choices, onSave, onRefresh }: EditorProps) => {
       <div className="sticky bottom-0 z-20 -mx-4 mt-6 border-t border-tertiary/10 bg-secondary/95 px-4 py-4 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p aria-live="polite" className="text-sm text-tertiary/60">
-            {hasChanges ? "You have unsaved changes." : "Prices are in whole rupees, GST included."}
+            {hasChanges ? "You have unsaved changes." : "Prices are in whole rupees, as members pay them."}
           </p>
           <button
             type="button"
