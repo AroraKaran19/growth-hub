@@ -1,10 +1,9 @@
-// Build backend/ and frontend/ first, then: pm2 start ecosystem.config.cjs
+// Run from backend/: npm run build && pm2 start ecosystem.config.cjs
 module.exports = {
   apps: [
     // One process: rate limits are counted in memory per process.
     {
       name: "api",
-      cwd: "./backend",
       script: "dist/server.js",
       instances: 1,
       exec_mode: "fork",
@@ -16,7 +15,6 @@ module.exports = {
     // The only scheduler (every 10 min, and daily at 08:30 IST); run one instance.
     {
       name: "worker-cron",
-      cwd: "./backend",
       script: "dist/cron-worker.js",
       instances: 1,
       exec_mode: "fork",
@@ -27,25 +25,12 @@ module.exports = {
     // Needs LibreOffice on the server; fonts are embedded in the template.
     {
       name: "worker-invoice",
-      cwd: "./backend",
       script: "dist/invoice-worker.js",
       instances: 1,
       exec_mode: "fork",
       time: true,
       env: { NODE_ENV: "production", INVOICE_WORKER_POLL_MS: "30000", INVOICE_WORKER_BATCH: "5" },
       max_memory_restart: "350M",
-    },
-    // The Next.js site on port 3000.
-    {
-      name: "web",
-      cwd: "./frontend",
-      script: "node_modules/next/dist/bin/next",
-      args: "start --port 3000",
-      instances: 1,
-      exec_mode: "fork",
-      time: true,
-      env: { NODE_ENV: "production" },
-      max_memory_restart: "1G",
     },
   ],
 };
