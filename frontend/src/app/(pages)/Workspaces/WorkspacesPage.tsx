@@ -2,10 +2,15 @@ import { Suspense } from "react";
 import { getPublishedVenues } from "@/libs/api/venues";
 import { localityOptionsFrom } from "@/utils/venues";
 import WorkspaceBrowser from "./components/WorkspaceBrowser";
+import WorkspacesSkeleton from "./components/WorkspacesSkeleton";
 
-const WorkspacesPage = async () => {
+// Loads inside the Suspense boundary, so the heading shows at once and the skeleton fills in.
+const WorkspaceResults = async () => {
   const venues = await getPublishedVenues();
+  return <WorkspaceBrowser venues={venues} locations={localityOptionsFrom(venues)} />;
+};
 
+const WorkspacesPage = () => {
   return (
     // pt clears the fixed navbar, which takes no space in the flow.
     <section className="bg-secondary pb-20 pt-28 lg:pt-36">
@@ -22,19 +27,9 @@ const WorkspacesPage = async () => {
         </div>
 
         <div className="mt-10 lg:mt-12">
-          {/* useSearchParams needs a Suspense boundary or the production build
-              fails on this statically rendered route. */}
-          <Suspense
-            fallback={
-              <p className="text-sm text-tertiary/60">
-                Loading workspaces...
-              </p>
-            }
-          >
-            <WorkspaceBrowser
-              venues={venues}
-              locations={localityOptionsFrom(venues)}
-            />
+          {/* Also the boundary useSearchParams needs in WorkspaceBrowser. */}
+          <Suspense fallback={<WorkspacesSkeleton />}>
+            <WorkspaceResults />
           </Suspense>
         </div>
       </div>

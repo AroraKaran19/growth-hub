@@ -109,8 +109,20 @@ const WorkspaceBrowser = ({
     });
   }, [filters, venues]);
 
+  // Only ranges some venue falls in; a chosen range stays so it can be cleared.
+  const priceBands = useMemo(() => {
+    const prices = venues
+      .filter((venue) => venue.published)
+      .map((venue) => cheapestPass(venue)?.amount)
+      .filter((amount): amount is number => amount !== undefined);
+    return PRICE_BANDS.filter(
+      (band) => band.value === filters.price || prices.some((amount) => amount >= band.min && amount <= band.max),
+    );
+  }, [venues, filters.price]);
+
   const sidebarProps = {
     locations,
+    priceBands,
     filters,
     onToggle: handleToggle,
     onPriceChange: handlePriceChange,
