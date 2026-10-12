@@ -3,7 +3,7 @@
 import { useEffect, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ExternalLink, LogOut, ShieldQuestion } from "lucide-react";
+import { CircleUserRound, ExternalLink, LogOut, ShieldQuestion } from "lucide-react";
 import Logo from "@/app/components/ui/Logo";
 import { isPathAllowed, sectionForPath, visibleNav, visibleSections } from "@/config/adminPermissions";
 import { useAuthBootstrap } from "@/hooks/useAuthBootstrap";
@@ -54,18 +54,17 @@ const AdminShell = ({ children }: { children: ReactNode }) => {
   return (
     <div className="min-h-screen bg-surface lg:grid lg:grid-cols-[256px_minmax(0,1fr)]">
       <aside className="hidden bg-tertiary text-secondary lg:sticky lg:top-0 lg:flex lg:h-screen lg:flex-col lg:p-5">
-        <div className="flex items-center gap-2.5">
+        <Link href="/" aria-label="Growth Hub home" draggable={false} className="w-fit transition-opacity hover:opacity-85">
           <Logo className="h-10 w-auto text-secondary" />
-          <span className="badge-gradient rounded-full px-2 py-0.5 text-[11px] font-semibold">
-            Admin
-          </span>
-        </div>
+        </Link>
 
         <AdminSidebarNav entries={account ? visibleNav(account) : []} isActive={isActive} />
 
         <div className="mt-auto border-t border-secondary/10 pt-4">
-          <p className="text-sm font-medium">{session.name}</p>
-          <p className="truncate text-xs text-secondary/55">{session.email}</p>
+          <Link href="/admin/profile" className="group block rounded-lg transition-opacity hover:opacity-85">
+            <p className="text-sm font-medium group-hover:underline">{session.name}</p>
+            <p className="truncate text-xs text-secondary/55">{session.email}</p>
+          </Link>
           <button
             type="button"
             onClick={handleSignOut}
@@ -80,12 +79,9 @@ const AdminShell = ({ children }: { children: ReactNode }) => {
       <div className="min-w-0">
         <header className="sticky top-0 z-30 border-b border-tertiary/10 bg-secondary">
           <div className="flex h-16 items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center gap-2.5 lg:hidden">
+            <Link href="/" aria-label="Growth Hub home" draggable={false} className="transition-opacity hover:opacity-85 lg:hidden">
               <Logo className="h-9 w-auto text-tertiary" />
-              <span className="badge-gradient rounded-full px-2 py-0.5 text-[11px] font-semibold text-secondary">
-                Admin
-              </span>
-            </div>
+            </Link>
             <p className="hidden text-sm text-tertiary/60 lg:block">
               Growth Hub operations
             </p>
@@ -97,6 +93,13 @@ const AdminShell = ({ children }: { children: ReactNode }) => {
               >
                 View site
                 <ExternalLink aria-hidden="true" className="size-3.5" />
+              </Link>
+              <Link
+                href="/admin/profile"
+                aria-label="Your profile"
+                className="rounded-full p-1.5 text-tertiary/65 transition-colors hover:bg-tertiary/5 hover:text-tertiary lg:hidden"
+              >
+                <CircleUserRound aria-hidden="true" className="size-5" />
               </Link>
               <button
                 type="button"

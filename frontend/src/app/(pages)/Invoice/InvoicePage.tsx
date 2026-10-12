@@ -6,10 +6,12 @@ import { ArrowLeft, Download, Printer } from "lucide-react";
 import Logo from "@/app/components/ui/Logo";
 import { GST_RATE, GST_REGISTERED, ISSUER_NAME } from "@/config/invoice";
 import { CONTACT } from "@/data/footer";
+import { gstStateName } from "@/data/gstStates";
 import { useBooking } from "@/hooks/useBookings";
 import { useMyInvoices } from "@/hooks/useInvoices";
 import { downloadInvoice } from "@/libs/api/invoices";
 import { useSession } from "@/stores/session";
+import type { InvoiceBilledTo } from "@/types/invoice";
 import { formatDay } from "@/utils/date";
 import { toMemberBooking } from "../Account/bookingAdapter";
 
@@ -23,8 +25,17 @@ const InvoicePage = ({ bookingId }: { bookingId: string }) => {
   const { booking: fromApi, isLoading } = useBooking(bookingId);
   const { session, account } = useSession();
   const { invoices } = useMyInvoices();
-  const companyName = account?.profile?.companyName;
-  const billingEmail = account?.profile?.billingEmail ?? account?.email;
+  const billing = account?.billing;
+  const state = gstStateName(billing?.state);
+  // Until the issued copy loads, the current details stand in for it.
+  const current: InvoiceBilledTo = {
+    name: billing?.companyName || session?.name || "",
+    company: "",
+    gstin: billing?.gstin ?? "",
+    address: [billing?.address, state && `${state} (${billing?.state})`].filter(Boolean).join("\n"),
+    email: account?.profile?.billingEmail ?? account?.email ?? "",
+    phone: "",
+  };
 
   // A booking without a payment (free, or never paid) has no tax invoice.
   const booking = fromApi?.invoiceNumber ? toMemberBooking(fromApi) : null;
@@ -56,7 +67,9 @@ const InvoicePage = ({ bookingId }: { bookingId: string }) => {
 
   const taxable = booking.total / (1 + RATE);
   const gst = booking.total - taxable;
-  const pdf = invoices.find((invoice) => invoice.number === booking.invoiceNumber && invoice.status === "ready");
+  const issued = invoices.find((invoice) => invoice.number === booking.invoiceNumber);
+  const pdf = issued?.status === "ready" ? issued : undefined;
+  const billedTo = issued?.billedTo ?? current;
   const quantity = Math.max(booking.seats.length, 1);
   const addons = booking.addons ?? [];
   const passAmount = booking.total - addons.reduce((sum, line) => sum + line.amount, 0);
@@ -136,13 +149,19 @@ const InvoicePage = ({ bookingId }: { bookingId: string }) => {
               Billed to
             </h2>
             <p className="mt-2 text-sm font-medium text-tertiary">
-              {session?.name}
+              {billedTo.name}
             </p>
-            {companyName && (
-              <p className="text-sm text-tertiary/65">{companyName}</p>
+            {billedTo.company && (
+              <p className="text-sm text-tertiary/65">{billedTo.company}</p>
             )}
-            {billingEmail && (
-              <p className="text-sm text-tertiary/65">{billingEmail}</p>
+            {billedTo.gstin && (
+              <p className="text-sm text-tertiary/65">GSTIN {billedTo.gstin}</p>
+            )}
+            {billedTo.address && (
+              <p className="whitespace-pre-line text-sm text-tertiary/65">{billedTo.address}</p>
+            )}
+            {billedTo.email && (
+              <p className="text-sm text-tertiary/65">{billedTo.email}</p>
             )}
           </div>
           <div>

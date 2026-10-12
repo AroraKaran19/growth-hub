@@ -1,11 +1,11 @@
 import { HALF_DAY_HOURS } from "@/data/bookingOptions";
 import type { BookingRequest } from "@/types/apiBooking";
-import type { BookingSelection, MembershipLength, PassType } from "@/types/booking";
-import type { MembershipSpace } from "@/types/catalogue";
-import type { MembershipRequest } from "@/types/membership";
+import { isMembershipType, type BookingSelection, type PassType } from "@/types/booking";
+import type { MembershipRequest, VenuePlan } from "@/types/membership";
+import { KEY_FROM_LENGTH, isTimeSlotPlan } from "@/utils/plans";
+import { formatDay } from "@/utils/date";
 import { toMinutes, toMinutes24 } from "@/utils/time";
 import type { PaymentFailure } from "./components/PaymentFailed";
-import { LENGTH_KEYS } from "./pricing";
 
 type Hours = { opensAt: string; closesAt: string };
 
@@ -41,16 +41,30 @@ export const requestFrom = (selection: BookingSelection, venueSlug: string): Boo
   };
 };
 
-/** What the server needs to sell a membership; the plan price comes from the venue. */
-export const membershipRequestFrom = (selection: BookingSelection, venueSlug: string): MembershipRequest => ({
-  venueSlug,
-  spaceType: selection.spaceType as MembershipSpace,
-  length: LENGTH_KEYS[selection.bookingType as MembershipLength],
-  startDate: selection.date,
-  people: selection.seats,
-  seatIds: selection.seatIds,
-  companyName: selection.companyName.trim(),
-});
+export const HOLDER_NAME_MAX = 60;
+
+/** What the server needs to price or sell a plan; null until the choices are complete enough to ask. */
+export const membershipRequestFrom = (
+  selection: BookingSelection,
+  plan: VenuePlan | null,
+  options: { withSeats: boolean },
+): MembershipRequest | null => {
+  if (!plan || !isMembershipType(selection.bookingType) || !selection.date) return null;
+  const startMin = isTimeSlotPlan(plan) ? toMinutes(selection.time) : undefined;
+  if (startMin === null) return null;
+  const seatIds = options.withSeats ? selection.seatIds : [];
+  return {
+    planId: plan.id,
+    length: KEY_FROM_LENGTH[selection.bookingType],
+    startDate: selection.date,
+    people: selection.seats,
+    seatIds,
+    ...(startMin !== undefined && { startMin }),
+    holders: seatIds
+      .map((seatId) => ({ seatId, name: (selection.holders[seatId] ?? "").trim().slice(0, HOLDER_NAME_MAX) }))
+      .filter((holder) => holder.name),
+  };
+};
 
 // UPI Autopay asks the customer to approve every debit above ₹15,000.
 const UPI_AUTOPAY_LIMIT_PAISE = 1_500_000;
@@ -134,4 +148,76 @@ export const failureFor = (code: string | undefined, message: string): CheckoutF
         action: "retry",
       };
   }
+};
+
+const listOf = (items: string[]) =>
+  items.length <= 1 ? (items[0] ?? "") : `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`;
+
+/** Friendly words for a plan quote or purchase the server refused. */
+export const planErrorText = (
+  error: { code?: string; message: string; meta: Record<string, unknown>; fields?: Record<string, string> },
+  labelFor: (seatId: string) => string = (id) => id,
+) => {
+  switch (error.code) {
+    case "VALIDATION_FAILED":
+      if (error.fields?.startMin) return "Pick a daily start time for the room.";
+      if (Object.keys(error.fields ?? {}).some((key) => key.startsWith("holders"))) {
+        return "Each chosen seat can carry one name, up to 60 characters.";
+      }
+      if (error.fields?.planId) return "This plan no longer exists. Pick another plan at this venue.";
+      return error.message;
+    case "PLAN_NOT_FOUND":
+      return "This plan no longer exists. Pick another plan at this venue.";
+    case "PLAN_UNAVAILABLE":
+      return "This plan isn't on sale right now. Pick another plan or a pass.";
+    case "VENUE_NOT_BOOKABLE":
+      return "This venue isn't taking new memberships right now.";
+    case "PRICE_UNAVAILABLE":
+      return "That length isn't sold for this plan any more. Pick another length.";
+    case "PLAN_SEAT_LIMIT": {
+      const max = Number(error.meta.maxSeats);
+      return Number.isFinite(max) ? `This plan covers up to ${max} seats in one purchase.` : error.message;
+    }
+    case "SEAT_TYPE_MISMATCH":
+      return "One of the seats you picked isn't part of this plan. Pick your seats again.";
+    case "SEAT_COUNT":
+      return "Pick one desk for each seat on the plan, or one room.";
+    case "CAPACITY_EXCEEDED":
+      return "That room doesn't seat everyone. Pick a bigger room or fewer people.";
+    case "SEAT_UNKNOWN":
+      return "One of your seats is no longer on the floor plan. Pick again.";
+    case "SEAT_OUT_OF_SERVICE":
+      return "One of your seats is out of service. Pick another one.";
+    case "OFF_SLOT":
+      return "Start times run every half hour from opening. Pick another start time.";
+    case "VENUE_CLOSED":
+      return "That window falls outside the venue's opening hours. Pick an earlier start time.";
+    case "IN_PAST":
+      return "That start date has passed. Pick a date from today on.";
+    case "SEAT_TAKEN": {
+      const seats = Array.isArray(error.meta.seatIds) ? (error.meta.seatIds as string[]).map(labelFor) : [];
+      const dates = Array.isArray(error.meta.dates) ? (error.meta.dates as string[]) : [];
+      const shown = dates.slice(0, 3).map(formatDay);
+      const who = seats.length ? listOf(seats) : "Your seat";
+      const when = shown.length ? ` on ${listOf(shown)}${dates.length > 3 ? " and other days" : ""}` : "";
+      return `${who} ${seats.length > 1 ? "are" : "is"} already booked${when}. Pick another seat, start date or time.`;
+    }
+    default:
+      return error.message;
+  }
+};
+
+const PLAN_TITLES: Record<string, string> = {
+  PLAN_NOT_FOUND: "This plan has changed",
+  PLAN_UNAVAILABLE: "This plan is not on sale",
+  PLAN_SEAT_LIMIT: "Too many seats for this plan",
+  OFF_SLOT: "Pick another start time",
+  VALIDATION_FAILED: "Check your plan details",
+};
+
+/** A refused plan purchase as the payment screen shows it. */
+export const planFailureFor = (error: Parameters<typeof planErrorText>[0], labelFor?: (seatId: string) => string) => {
+  const base = failureFor(error.code, planErrorText(error, labelFor));
+  const title = error.code ? PLAN_TITLES[error.code] : undefined;
+  return title ? { ...base, title, retryable: false, action: "schedule" as const } : base;
 };

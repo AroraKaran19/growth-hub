@@ -15,6 +15,9 @@ type DateStripProps = {
   openDays?: number[];
   /** The last date on sale; passes stop at the booking horizon, plans have none. */
   lastDay?: string;
+  /** Shown on days that can't be picked, such as days a plan does not cover. */
+  closedLabel?: string;
+  closedMessage?: string;
 };
 
 const DateStrip = ({
@@ -24,6 +27,8 @@ const DateStrip = ({
   title = "Select Date",
   openDays,
   lastDay,
+  closedLabel = "Closed",
+  closedMessage = "The venue is closed on that day. Please pick another date.",
 }: DateStripProps) => {
   const calendarRef = useRef<HTMLInputElement>(null);
   const stripRef = useRef<HTMLDivElement>(null);
@@ -115,7 +120,7 @@ const DateStrip = ({
                 data-day={day.id}
                 onClick={() => pickDay(day.id)}
                 disabled={day.closed}
-                title={day.closed ? "Closed" : undefined}
+                title={day.closed ? closedLabel : undefined}
                 aria-pressed={value === day.id}
                 className={cn(
                   "flex h-16 w-14 shrink-0 flex-col items-center justify-center rounded-lg border transition-colors",
@@ -137,7 +142,7 @@ const DateStrip = ({
                         : "text-tertiary/55",
                   )}
                 >
-                  {day.closed ? "Closed" : day.weekday}
+                  {day.closed ? closedLabel : day.weekday}
                 </span>
               </button>
             </div>
@@ -152,7 +157,7 @@ const DateStrip = ({
       )}
       {isClosedPick && (
         <p role="status" className="mt-3 text-xs text-red-600">
-          The venue is closed on that day. Please pick another date.
+          {closedMessage}
         </p>
       )}
     </div>

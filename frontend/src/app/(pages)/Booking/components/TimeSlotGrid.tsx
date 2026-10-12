@@ -7,6 +7,8 @@ type TimeSlotGridProps = {
   slots: TimeSlot[];
   value: string;
   onChange: (value: string) => void;
+  title?: string;
+  note?: string;
 };
 
 const LEGEND = [
@@ -15,10 +17,11 @@ const LEGEND = [
   { label: "Unavailable", className: "bg-tertiary/30" },
 ];
 
-const TimeSlotGrid = ({ slots, value, onChange }: TimeSlotGridProps) => {
+const TimeSlotGrid = ({ slots, value, onChange, title = "Select Time", note }: TimeSlotGridProps) => {
   return (
     <div className="rounded-2xl border border-tertiary/10 bg-secondary p-5 lg:p-6">
-      <h2 className="text-base font-bold text-tertiary">Select Time</h2>
+      <h2 className="text-base font-bold text-tertiary">{title}</h2>
+      {note && <p className="mt-1 text-sm text-tertiary/60">{note}</p>}
 
       {slots.length === 0 && (
         <p className="mt-4 text-sm text-tertiary/60">

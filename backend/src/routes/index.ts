@@ -31,6 +31,7 @@ import webhookRoutes from "./webhook.routes";
 import memberRoutes from "./member.routes";
 import partnerRoutes from "./partner.routes";
 import teamRoutes from "./team.routes";
+import optionRoutes from "./options.routes";
 import adminUserRoutes from "./users.routes";
 import venueRoutes from "./venue.routes";
 
@@ -51,6 +52,7 @@ router.use("/catalogue", catalogueRoutes);
 router.use("/partner", partnerRoutes);
 router.use("/admin/assets", assetRoutes);
 router.use("/admin/staff", teamRoutes);
+router.use("/admin/options", optionRoutes);
 router.use("/admin/users", adminUserRoutes);
 router.use("/admin/overview", adminOverviewRoutes);
 router.use("/admin/venues/:slug/payout-account", adminPayoutAccountRoutes);

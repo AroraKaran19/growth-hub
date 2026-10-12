@@ -55,7 +55,7 @@ export const getAdminVenueDetail = asyncHandler(async (req: Request, res: Respon
   sendSuccessResponse(res, { venue: await getAdminVenue(slugOf(req)) }, "Venue");
 });
 
-const PRICE_FIELDS = new Set(["startingPrice", "halfDayPrice", "dayPassPrice", "membershipPrices", "version"]);
+const PRICE_FIELDS = new Set(["startingPrice", "halfDayPrice", "dayPassPrice", "version"]);
 
 export const patchAdminVenue = asyncHandler(async (req: Request, res: Response) => {
   const patch = parseBody(patchVenueSchema, req.body);

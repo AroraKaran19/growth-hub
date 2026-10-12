@@ -4,10 +4,10 @@ import Link from "next/link";
 import { QRCodeSVG } from "qrcode.react";
 import { ArrowRight, Check } from "lucide-react";
 import DirectionsLink from "@/app/components/ui/DirectionsLink";
-import { MEMBERSHIP_LENGTH_LABELS_BY_KEY, MEMBERSHIP_SPACES } from "@/data/membershipPlans";
 import type { ApiMembership } from "@/types/membership";
 import type { Venue } from "@/types/venue";
 import { formatDay } from "@/utils/date";
+import { PLAN_LENGTH_LABELS, daysLabel, membershipTitle, seatNoun, windowLabel } from "@/utils/plans";
 
 type MembershipConfirmedProps = {
   membership: ApiMembership;
@@ -19,14 +19,19 @@ const ROW_VALUE = "text-sm font-medium text-tertiary";
 
 const MembershipConfirmed = ({ membership, venue }: MembershipConfirmedProps) => {
   const rows = [
+    { label: "Plan", value: `${membershipTitle(membership)}, ${PLAN_LENGTH_LABELS[membership.length]}` },
     {
-      label: "Plan",
-      value: `${MEMBERSHIP_LENGTH_LABELS_BY_KEY[membership.length]} ${MEMBERSHIP_SPACES[membership.spaceType].workspace}`,
+      label: seatNoun(membership.spaceType, membership.seats.length),
+      value: membership.seats.map((seat) => seat.label).join(", "),
     },
-    { label: "Your seat", value: membership.seats.map((seat) => seat.label).join(", ") },
+    {
+      label: "Days",
+      value: `${daysLabel(membership.plan?.days)}${membership.window ? `, ${windowLabel(membership.window)}` : ""}`,
+    },
     { label: "Starts", value: formatDay(membership.startDate) },
     { label: "Next charge", value: membership.renewsOn ? formatDay(membership.renewsOn) : "None" },
   ];
+  const space = membership.spaceType === "desk" ? (membership.seats.length > 1 ? "seats are" : "seat is") : "room is";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-tertiary/50 p-4">
@@ -44,7 +49,7 @@ const MembershipConfirmed = ({ membership, venue }: MembershipConfirmedProps) =>
           Membership Active
         </h2>
         <p className="mt-1 text-sm text-tertiary/60">
-          Welcome to {venue.name}. Your seat is reserved from {formatDay(membership.startDate)}, so there
+          Welcome to {venue.name}. Your {space} reserved from {formatDay(membership.startDate)}, so there
           is nothing else to book.
         </p>
 

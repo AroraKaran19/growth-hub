@@ -2,7 +2,7 @@
 
 import { useStore } from "zustand";
 import { createStore, type StoreApi } from "zustand/vanilla";
-import { hasMemberHint } from "@/libs/auth/cookies";
+import { hasHint } from "@/libs/auth/cookies";
 import { SESSION_ENDED_CODES, readAuthError } from "@/libs/auth/errors";
 import { logoutThroughRelay, refreshThroughRelay } from "@/libs/auth/requests";
 import type { AccountFor, AuthSurface, SessionPayload } from "@/types/auth";
@@ -93,7 +93,7 @@ export const createAuthStore = <S extends AuthSurface>(surface: S) => {
 
       bootstrap: async () => {
         // Anonymous visitors have no hint cookie, so public pages skip the call.
-        if (surface === "member" && !hasMemberHint()) {
+        if (surface === "member" && !hasHint("member")) {
           set(SIGNED_OUT);
           return;
         }

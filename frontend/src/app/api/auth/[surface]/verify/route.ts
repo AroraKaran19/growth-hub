@@ -5,6 +5,7 @@ import {
   isSameOrigin,
   jsonError,
   notFound,
+  endOtherSessions,
   sessionResponse,
 } from "@/libs/auth/relay";
 import { isAuthSurface, type AuthSurface } from "@/types/auth";
@@ -25,5 +26,7 @@ export async function POST(
 
   const payload: unknown = await request.json().catch(() => ({}));
   const result = await callBackend(request, VERIFY_PATHS[surface], payload);
-  return result.ok ? sessionResponse(surface, result.data) : jsonError(result.status, result.error);
+  return result.ok
+    ? endOtherSessions(request, sessionResponse(surface, result.data), surface)
+    : jsonError(result.status, result.error);
 }

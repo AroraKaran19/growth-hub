@@ -1,4 +1,4 @@
-import type { MembershipStatus } from "./membership";
+import type { DailyWindow, MembershipPlanSnapshot, MembershipStatus, StaffSeat } from "./membership";
 
 export type PartnerBookingStatus =
   | "upcoming"
@@ -32,13 +32,20 @@ export type PartnerBooking = {
   source: "api";
 };
 
+/** One seat of a membership and whether its holder is in today. */
+export type SeatCheckIn = { seatId: string; label: string; holder: string | null; checkedInAt: string | null };
+
 /** A membership held at the partner's venue. */
 export type PartnerMember = {
   membershipId: string;
   memberName: string;
   phone: string;
+  /** The plan's name, or the length and space for memberships bought before plans. */
   plan: string;
   workspace: string;
+  planSnapshot: MembershipPlanSnapshot | null;
+  window: DailyWindow | null;
+  seatList: StaffSeat[];
   seats: string[];
   people: number;
   status: MembershipStatus;
@@ -47,6 +54,8 @@ export type PartnerMember = {
   paidThrough: string;
   /** Next charge, or null when the plan will not renew. */
   renewsOn: string | null;
+  /** Set only when the membership is due in today. */
+  today: { checkedInAt: string | null; seats: SeatCheckIn[] } | null;
 };
 
 export type PartnerSession = {
@@ -55,7 +64,10 @@ export type PartnerSession = {
   venueSlug: string;
 };
 
-export type CheckInInput = { code: string } | { bookingRef: string } | { membershipRef: string };
+export type CheckInInput =
+  | { code: string; seatId?: string }
+  | { bookingRef: string }
+  | { membershipRef: string; seatId?: string };
 
 /** The server's answer to a check-in; a repeat scan is a warning, not an error. */
 export type CheckInResult = {
@@ -63,6 +75,8 @@ export type CheckInResult = {
   ref: string;
   memberName: string;
   seats: string[];
+  /** The membership seat checked in; null for passes. */
+  seat: StaffSeat | null;
   checkedInAt: string;
   warning: "already" | "payment-failed" | null;
 };

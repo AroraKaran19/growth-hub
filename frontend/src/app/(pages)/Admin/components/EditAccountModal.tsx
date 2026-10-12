@@ -2,7 +2,6 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { KeyRound, X } from "lucide-react";
-import SelectField from "@/app/components/ui/form/SelectField";
 import { readApiError } from "@/libs/api/errors";
 import { toastDone, toastFailed, toastInvited } from "@/libs/toast";
 import { cn } from "@/utils";
@@ -11,6 +10,7 @@ import type { AdminRole } from "@/types/auth";
 import PermissionPicker from "./team/PermissionPicker";
 import RolePicker from "./team/RolePicker";
 import TemporaryPasswordField from "./TemporaryPasswordField";
+import VenuePicker from "./VenuePicker";
 
 export type AccountChange = {
   name?: string;
@@ -55,6 +55,7 @@ const EditAccountModal = ({ portal, account, canEditDetails, venue, access, role
   const [name, setName] = useState(account.name);
   const [email, setEmail] = useState(account.email);
   const [venueSlug, setVenueSlug] = useState(venue?.slug ?? "");
+  const [pickedVenueName, setPickedVenueName] = useState<string>();
   const [permissions, setPermissions] = useState(access?.permissions ?? []);
   const [isResetting, setIsResetting] = useState(false);
   const isCustomer = portal === "member";
@@ -99,7 +100,7 @@ const EditAccountModal = ({ portal, account, canEditDetails, venue, access, role
     try {
       await onSave(change);
       const shownName = change.name ?? account.name;
-      const venueName = venue?.options.find((option) => option.slug === change.venueSlug)?.name;
+      const venueName = pickedVenueName ?? venue?.options.find((option) => option.slug === change.venueSlug)?.name;
       if (change.temporaryPassword && portal !== "member") {
         toastInvited({ email: change.email ?? account.email, password: change.temporaryPassword, portal });
       } else if (change.email && !isCustomer) {
@@ -210,14 +211,14 @@ const EditAccountModal = ({ portal, account, canEditDetails, venue, access, role
 
             {venue && (
               <div>
-                <SelectField
+                <VenuePicker
                   label="Venue they manage"
                   value={venueSlug}
-                  onChange={(value) => {
-                    setVenueSlug(value);
+                  onChange={(slug, picked) => {
+                    setVenueSlug(slug);
+                    setPickedVenueName(picked?.name);
                     clearError("venueSlug");
                   }}
-                  options={venue.options.map((option) => ({ value: option.slug, label: option.name }))}
                 />
                 {errors.venueSlug ? (
                   <p className="mt-1.5 text-sm text-primary">{errors.venueSlug}</p>

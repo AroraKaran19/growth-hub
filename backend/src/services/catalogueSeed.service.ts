@@ -107,7 +107,7 @@ export const seedCatalogue = async ({ venues, demoSeats, demoImage }: SeedInput)
     mapsCreated += 1;
 
     // A venue with nothing to buy stays hidden until someone sets its prices.
-    if (hasAnyPrice({ startingPrice: fields.startingPrice ?? null, halfDayPrice: null, dayPassPrice: fields.dayPassPrice ?? null })) {
+    if (hasAnyPrice({ startingPrice: fields.startingPrice ?? null, halfDayPrice: null, dayPassPrice: fields.dayPassPrice ?? null, hasPlan: false })) {
       await Venue.updateOne({ _id: venue._id }, { $set: { published: true } });
     }
   }

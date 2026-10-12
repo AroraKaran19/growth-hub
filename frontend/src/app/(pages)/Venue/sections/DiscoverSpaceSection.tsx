@@ -1,6 +1,7 @@
 import type { Venue } from "@/types/venue";
 import BookingRail from "../components/BookingRail";
 import SpacePhotos from "../components/SpacePhotos";
+import VenuePlans from "../components/VenuePlans";
 
 const DiscoverSpaceSection = ({ venue }: { venue: Venue }) => {
   return (
@@ -17,6 +18,8 @@ const DiscoverSpaceSection = ({ venue }: { venue: Venue }) => {
             <p className="mt-5 text-sm leading-relaxed text-tertiary/70">
               {venue.longDescription}
             </p>
+
+            <VenuePlans venue={venue} />
           </div>
 
           <div className="lg:sticky lg:top-32 lg:h-fit">

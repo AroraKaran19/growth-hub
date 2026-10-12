@@ -5,7 +5,8 @@ import { SeatDay, SeatMap, Venue, type SeatDayDoc, type SeatMapDoc, type VenueDo
 import { indiaNow, isIsoDate, timeLabel, toMinutes, weekdayOf } from "../utils/indiaTime";
 import { scheduleError } from "./bookingRules";
 import { dayRanges } from "./seatDays.service";
-import { reserveThrough } from "./membershipRules";
+import { coveredDates, reserveThrough } from "./membershipRules";
+import { dailyWindowFor, loadPlanForSale } from "./planCheckout";
 
 
 const badRequest = (message: string) => new AppError(message, 400, "VALIDATION_FAILED", { fields: { date: message } });
@@ -69,22 +70,38 @@ export const windowAvailability = async (slug: string, date: string, start: numb
   return { date, start, end, takenSeatIds, outOfServiceSeatIds: [...venue.outOfServiceSeatIds].sort() };
 };
 
-/** Seats someone else holds on any day a new plan would keep. */
-export const membershipAvailability = async (slug: string, startDate: string, length: string) => {
-  if (!isIsoDate(startDate)) throw badRequest("Pick a start date.");
-  if (!(MEMBERSHIP_LENGTHS as readonly string[]).includes(length)) throw badRequest("Pick a plan length.");
-  const { venue } = await loadVenue(slug);
+export type PlanAvailabilityQuery = { planId: string; startDate: string; length: string; startMin?: number };
+
+const isLiveHold = (expiresAt: Date | null | undefined, now: Date) => !expiresAt || expiresAt > now;
+
+/** Seats of the plan's kind someone else holds on any covered day, or inside its window, that a new plan would keep. */
+export const membershipAvailability = async (slug: string, query: PlanAvailabilityQuery) => {
+  if (!query.planId) throw new AppError("Pick a plan.", 400, "VALIDATION_FAILED", { fields: { planId: "Pick a plan." } });
+  if (!isIsoDate(query.startDate)) throw badRequest("Pick a start date.");
+  if (!(MEMBERSHIP_LENGTHS as readonly string[]).includes(query.length)) throw badRequest("Pick a plan length.");
+  const { plan, venue, map, days } = await loadPlanForSale(query.planId, slug);
+  const window = dailyWindowFor(venue, plan, query.startMin);
+
   const now = new Date();
-  const through = reserveThrough(startDate, length as MembershipLength, indiaNow(now).date);
-  const days = await SeatDay.find({ venueId: venue._id, date: { $gte: startDate, $lte: through } }).lean<SeatDayDoc[]>();
-  const taken = days.filter(
+  const { startDate } = query;
+  const through = reserveThrough(startDate, query.length as MembershipLength, indiaNow(now).date);
+  const seatIds = map.seats.filter((seat) => seat.type === plan.space).map((seat) => seat.id);
+  const records = await SeatDay.find({
+    venueId: venue._id,
+    seatId: { $in: seatIds },
+    date: { $in: coveredDates(startDate, through, days) },
+  }).lean<SeatDayDoc[]>();
+  const taken = records.filter(
     (day) =>
-      (day.membershipId && (!day.membershipHoldExpiresAt || day.membershipHoldExpiresAt > now)) ||
-      day.ranges.some((range) => !range.holdExpiresAt || range.holdExpiresAt > now),
+      (day.membershipId && isLiveHold(day.membershipHoldExpiresAt, now)) ||
+      day.ranges.some(
+        (range) => isLiveHold(range.holdExpiresAt, now) && (!window || (range.start < window.end && range.end > window.start)),
+      ),
   );
   return {
     startDate,
     through,
+    window,
     takenSeatIds: [...new Set(taken.map((day) => day.seatId))].sort(),
     outOfServiceSeatIds: [...venue.outOfServiceSeatIds].sort(),
   };

@@ -4,7 +4,7 @@ import MembershipPlansPage from "../(pages)/Memberships/MembershipPlansPage";
 export const metadata: Metadata = {
   title: "Memberships",
   description:
-    "Reserve a desk, cabin or office at a Growth Hub partner venue with weekly, monthly, 3 month and 6 month plans.",
+    "Reserve a desk, cabin, office or meeting room at a Growth Hub partner venue with each venue's membership plans.",
 };
 
 export const revalidate = 300;

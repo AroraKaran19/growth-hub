@@ -1,5 +1,5 @@
 import { Schema, model, type Types } from "mongoose";
-import { MEMBERSHIP_LENGTHS, MEMBERSHIP_SPACES, type MembershipLength, type MembershipSpace } from "../constants/catalogue";
+import { MEMBERSHIP_LENGTHS, PLAN_SPACES, ROOM_MODES, type MembershipLength, type PlanSpace, type RoomMode } from "../constants/catalogue";
 import type { BookedSeat } from "./booking.schema";
 
 export const MEMBERSHIP_STATUSES = [
@@ -15,6 +15,21 @@ export type MembershipStatus = (typeof MEMBERSHIP_STATUSES)[number];
 
 export type FirstCycle = { couponCode: string | null; discount: number; total: number; payable: number };
 
+/** The plan as it was when bought; later plan edits never change a membership. */
+export type PlanSnapshot = {
+  id: Types.ObjectId;
+  name: string;
+  space: PlanSpace;
+  roomMode: RoomMode | null;
+  slotHours: number | null;
+  days: number[];
+};
+
+/** Minutes from midnight, India time. */
+export type DailyWindow = { start: number; end: number };
+
+export type SeatHolder = { seatId: string; name: string };
+
 export interface MembershipDoc {
   _id: Types.ObjectId;
   ref: string;
@@ -25,7 +40,12 @@ export interface MembershipDoc {
   venueSlug: string;
   venue: { name: string; locality: string; city: string; image: string };
   seatMapId: Types.ObjectId;
-  spaceType: MembershipSpace;
+  spaceType: PlanSpace;
+  /** Null for memberships bought from the old price grid, which cover every day. */
+  plan?: PlanSnapshot | null;
+  /** Set for time-slot rooms: the window locked on each covered day. */
+  window?: DailyWindow | null;
+  holders?: SeatHolder[];
   length: MembershipLength;
   seats: BookedSeat[];
   people: number;
@@ -66,7 +86,23 @@ const membershipSchema = new Schema<MembershipDoc>(
       required: true,
     },
     seatMapId: { type: Schema.Types.ObjectId, required: true },
-    spaceType: { type: String, enum: [...MEMBERSHIP_SPACES], required: true },
+    spaceType: { type: String, enum: [...PLAN_SPACES], required: true },
+    plan: {
+      type: new Schema(
+        {
+          id: { type: Schema.Types.ObjectId, required: true },
+          name: { type: String, required: true },
+          space: { type: String, enum: [...PLAN_SPACES], required: true },
+          roomMode: { type: String, enum: [...ROOM_MODES, null], default: null },
+          slotHours: { type: Number, default: null },
+          days: { type: [Number], default: [] },
+        },
+        { _id: false },
+      ),
+      default: null,
+    },
+    window: { type: new Schema({ start: Number, end: Number }, { _id: false }), default: null },
+    holders: { type: [new Schema({ seatId: String, name: String }, { _id: false })], default: [] },
     length: { type: String, enum: [...MEMBERSHIP_LENGTHS], required: true },
     seats: {
       type: [new Schema({ id: String, label: String, type: String }, { _id: false })],

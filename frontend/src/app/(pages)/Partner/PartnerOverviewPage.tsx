@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import useSWR from "swr";
-import { ArrowRight, Crown, ReceiptText, ScanLine } from "lucide-react";
+import { ArrowRight, Clock, Crown, ReceiptText, ScanLine } from "lucide-react";
 import { fetchSalesSummary } from "@/libs/api/reports";
 import { usePartnerDesk, usePartnerSession } from "@/stores/partner";
 import { formatDay } from "@/utils/date";
+import { windowLabel } from "@/utils/membershipLabels";
 import { toMinutes } from "@/utils/time";
 import {
   BookingStatusBadge,
@@ -15,6 +16,7 @@ import {
   PartnerSkeleton,
   PartnerStat,
 } from "./components/PartnerUi";
+import SeatCheckIns from "./components/SeatCheckIns";
 import { SEAT_STATUS_META, seatStatesFor, type SeatStatus } from "./seatStatus";
 
 const startMinutes = (time: string) => toMinutes(time.split(" - ")[0] ?? "") ?? 0;
@@ -31,8 +33,9 @@ const PartnerOverviewPage = () => {
     .sort((a, b) => startMinutes(a.time) - startMinutes(b.time));
   const live = todays.filter((booking) => booking.status !== "cancelled");
   const expected = live.filter((booking) => booking.status === "upcoming");
-  const activeMembers = desk.members.filter((member) => member.status === "active");
-  const membersIn = activeMembers.filter((member) => desk.checkIns[member.membershipId]);
+  // Per seat, since each holder on a multi-seat plan checks in separately.
+  const seatsDue = desk.todayMembers.flatMap((member) => member.today?.seats ?? []);
+  const seatsIn = seatsDue.filter((seat) => seat.checkedInAt);
   const bookingsIn = live.filter((booking) => booking.status === "checked-in");
 
   const states = seatStatesFor(desk.seats, desk);
@@ -72,13 +75,13 @@ const PartnerOverviewPage = () => {
       <dl className="mt-6 grid grid-cols-2 gap-4 xl:grid-cols-4">
         <PartnerStat
           label="Still to arrive"
-          value={String(expected.length + activeMembers.length - membersIn.length)}
-          hint={`${expected.length} bookings, ${activeMembers.length - membersIn.length} members`}
+          value={String(expected.length + seatsDue.length - seatsIn.length)}
+          hint={`${expected.length} bookings, ${seatsDue.length - seatsIn.length} member seats`}
         />
         <PartnerStat
           label="Checked in"
-          value={String(bookingsIn.length + membersIn.length)}
-          hint={`${bookingsIn.length} bookings, ${membersIn.length} members`}
+          value={String(bookingsIn.length + seatsIn.length)}
+          hint={`${bookingsIn.length} bookings, ${seatsIn.length} member seats`}
         />
         <PartnerStat
           label="Desk occupancy"
@@ -170,31 +173,56 @@ const PartnerOverviewPage = () => {
                 All
               </Link>
             </div>
-            <ul className="mt-3 divide-y divide-tertiary/8">
-              {activeMembers.map((member) => (
-                <li key={member.membershipId} className="flex items-center justify-between gap-3 py-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-tertiary">
-                      {member.memberName}
-                    </p>
-                    <p className="text-xs text-tertiary/55">
-                      {member.workspace} {member.seats.join(", ")}
-                    </p>
-                  </div>
-                  {desk.checkIns[member.membershipId] ? (
-                    <span className="text-xs font-medium text-blue-700">In</span>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => handleCheckIn(member.membershipId)}
-                      className="text-sm font-medium text-primary transition-opacity hover:opacity-75"
-                    >
-                      Check in
-                    </button>
-                  )}
-                </li>
-              ))}
-            </ul>
+            {desk.todayMembers.length === 0 ? (
+              <p className="mt-4 rounded-xl bg-surface px-4 py-6 text-center text-sm text-tertiary/60">
+                No member plans cover today.
+              </p>
+            ) : (
+              <ul className="mt-3 divide-y divide-tertiary/8">
+                {desk.todayMembers.map((member) => {
+                  const isMultiSeat = member.seatList.length > 1;
+                  return (
+                    <li key={member.membershipId} className="py-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-tertiary">{member.memberName}</p>
+                          <p className="text-xs text-tertiary/55">
+                            {member.plan}
+                            {isMultiSeat ? "" : `, ${member.seats.join(", ")}`}
+                            {member.window && (
+                              <span className="ml-1 inline-flex items-center gap-1 rounded-full bg-tertiary/6 px-1.5 text-tertiary/70">
+                                <Clock aria-hidden="true" className="size-3" />
+                                {windowLabel(member.window)}
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                        {isMultiSeat ? null : desk.checkIns[member.membershipId] ? (
+                          <span className="text-xs font-medium text-blue-700">In</span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleCheckIn(member.membershipId)}
+                            className="shrink-0 text-sm font-medium text-primary transition-opacity hover:opacity-75"
+                          >
+                            Check in
+                          </button>
+                        )}
+                      </div>
+                      {isMultiSeat && member.today && (
+                        <div className="mt-2">
+                          <SeatCheckIns
+                            seats={member.today.seats}
+                            memberName={member.memberName}
+                            onCheckIn={(seatId) => desk.quickCheckIn(member.membershipId, seatId)}
+                          />
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </section>
 
           <section className={`${PARTNER_CARD} p-5`}>

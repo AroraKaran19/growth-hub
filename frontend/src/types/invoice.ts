@@ -11,6 +11,20 @@ export type MemberInvoice = {
   /** Paise. */
   total: number;
   status: "ready" | "preparing";
+  /** As printed on the invoice; blank strings for parts not given. */
+  billedTo?: InvoiceBilledTo;
+};
+
+export type InvoiceBilledTo = {
+  /** The company when one was given, else the customer. */
+  name: string;
+  /** Only on invoices issued before billing details were kept. */
+  company: string;
+  gstin: string;
+  /** Lines separated by newlines, state last. */
+  address: string;
+  email: string;
+  phone: string;
 };
 
 export type InvoiceJobStatus = "pending" | "processing" | "done" | "failed";

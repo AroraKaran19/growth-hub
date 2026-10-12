@@ -4,9 +4,9 @@ import { useState } from "react";
 import { useAdminMembership } from "@/hooks/useStaffBookings";
 import { stopRenewalAsAdmin } from "@/libs/api/adminRecords";
 import { readApiError } from "@/libs/api/errors";
-import { MEMBERSHIP_LENGTH_LABELS_BY_KEY, MEMBERSHIP_SPACES } from "@/data/membershipPlans";
 import { MEMBERSHIP_STATUS_LABELS, isLiveMembership } from "@/types/membership";
 import { formatDay } from "@/utils/date";
+import { cycleUnit, membershipTitle, scheduleLabel, spaceName } from "@/utils/membershipLabels";
 import { rupees } from "../../../Partner/requestRules";
 import AdminCancelForm from "./AdminCancelForm";
 import RecordDrawer from "./RecordDrawer";
@@ -77,13 +77,32 @@ const MembershipDrawer = ({
             </div>
             <div>
               <dt className="text-xs text-tertiary/50">Plan</dt>
-              <dd className="mt-1 text-sm text-tertiary">
-                {MEMBERSHIP_LENGTH_LABELS_BY_KEY[membership.length]}, {MEMBERSHIP_SPACES[membership.spaceType].workspace}
-              </dd>
+              <dd className="mt-1 text-sm font-medium text-tertiary">{membershipTitle(membership)}</dd>
+              {membership.planName && (
+                <dd className="text-xs text-tertiary/55">
+                  {spaceName(membership.spaceType)}, billed every {cycleUnit(membership.length)}
+                </dd>
+              )}
             </div>
             <div>
-              <dt className="text-xs text-tertiary/50">Seats</dt>
-              <dd className="mt-1 text-sm text-tertiary">{membership.seats.join(", ")}</dd>
+              <dt className="text-xs text-tertiary/50">Covers</dt>
+              <dd className="mt-1 text-sm text-tertiary">{scheduleLabel(membership)}</dd>
+            </div>
+            <div className="col-span-2">
+              <dt className="text-xs text-tertiary/50">{membership.seatList.length === 1 ? "Seat" : "Seats"}</dt>
+              <dd className="mt-1.5">
+                <ul className="flex flex-wrap gap-1.5">
+                  {membership.seatList.map((seat) => (
+                    <li
+                      key={seat.id}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-tertiary/10 bg-surface py-0.5 pl-0.5 pr-2.5 text-xs text-tertiary/75"
+                    >
+                      <span className="rounded-full bg-tertiary px-2 py-0.5 font-semibold text-secondary">{seat.label}</span>
+                      {seat.holder ?? "No holder named"}
+                    </li>
+                  ))}
+                </ul>
+              </dd>
             </div>
             <div>
               <dt className="text-xs text-tertiary/50">Paid through</dt>

@@ -1,8 +1,10 @@
 import { Types } from "mongoose";
 import { AppError } from "../middlewares/error.middleware";
-import { Membership, MembershipPlan, Venue, type MembershipPlanDoc, type VenueDoc } from "../models";
+import { MEMBERSHIP_LENGTHS, type PlanSpace } from "../constants/catalogue";
+import { Membership, MembershipPlan, Venue, type MembershipPlanDoc, type PlanPrices, type VenueDoc } from "../models";
 import { toMinutes } from "../utils/indiaTime";
-import type { PlanInput, PlanOrderInput, PlanUpdateInput } from "../validators/membershipPlan";
+import { MAX_PLAN_SEATS, type PlanInput, type PlanOrderInput, type PlanUpdateInput } from "../validators/membershipPlan";
+import { notifyVenuesChanged } from "./revalidate.service";
 
 type PlanVenue = Pick<VenueDoc, "_id" | "slug" | "name" | "openDays" | "opensAt" | "closesAt">;
 
@@ -83,6 +85,7 @@ export const createPlan = async (input: PlanInput, adminId: string) => {
     sortOrder: last ? last.sortOrder + 1 : 0,
     createdBy: new Types.ObjectId(adminId),
   });
+  notifyVenuesChanged(created.venueSlug);
   return toPlanView(created.toObject(), false);
 };
 
@@ -97,6 +100,7 @@ export const updatePlan = async (id: string, change: PlanUpdateInput) => {
   checkAgainstVenue(await loadVenue(plan.venueSlug), change);
   const updated = await MembershipPlan.findByIdAndUpdate(plan._id, { $set: change }, { returnDocument: "after" }).lean<MembershipPlanDoc>();
   if (!updated) throw notFound();
+  notifyVenuesChanged(updated.venueSlug);
   return toPlanView(updated, (await usedIds([updated._id])).size > 0);
 };
 
@@ -106,6 +110,7 @@ export const deletePlan = async (id: string) => {
     throw new AppError("Members have bought this plan, so it can only be hidden.", 409, "PLAN_IN_USE");
   }
   await MembershipPlan.deleteOne({ _id: plan._id });
+  notifyVenuesChanged(plan.venueSlug);
 };
 
 export const reorderPlans = async ({ venueSlug, ids }: PlanOrderInput) => {
@@ -115,4 +120,82 @@ export const reorderPlans = async ({ venueSlug, ids }: PlanOrderInput) => {
     throw new AppError("The plan list changed. Refresh and try again.", 409, "PLAN_ORDER_MISMATCH");
   }
   await MembershipPlan.bulkWrite(ids.map((id, index) => ({ updateOne: { filter: { _id: new Types.ObjectId(id) }, update: { $set: { sortOrder: index } } } })));
+  notifyVenuesChanged(venueSlug);
+};
+
+const byOrder = { sortOrder: 1 as const, createdAt: 1 as const };
+
+const toSaleView = (plan: MembershipPlanDoc, days: number[]) => ({
+  id: plan._id.toString(),
+  name: plan.name,
+  description: plan.description,
+  includes: plan.includes,
+  space: plan.space,
+  roomMode: plan.roomMode,
+  slotHours: plan.slotHours,
+  days,
+  prices: plan.prices,
+  maxSeats: plan.maxSeats,
+});
+
+/** Plans on sale at a live venue, showing only the days it is still open. */
+export const listVenuePlans = async (slug: string) => {
+  const venue = await Venue.findOne({ slug, published: true }, { openDays: 1 }).lean<Pick<VenueDoc, "_id" | "openDays">>();
+  if (!venue) throw new AppError("That venue doesn't exist.", 404, "VENUE_NOT_FOUND");
+  const plans = await MembershipPlan.find({ venueSlug: slug, visible: true }).sort(byOrder).lean<MembershipPlanDoc[]>();
+  return plans
+    .map((plan) => toSaleView(plan, plan.days.filter((day) => venue.openDays.includes(day))))
+    .filter((plan) => plan.days.length > 0);
+};
+
+/** Every plan at the partner's own venue, read-only; hidden ones are flagged. */
+export const listPartnerPlans = async (venueSlug: string) => {
+  const plans = venueSlug ? await MembershipPlan.find({ venueSlug }).sort(byOrder).lean<MembershipPlanDoc[]>() : [];
+  return plans.map((plan) => ({ ...toSaleView(plan, plan.days), visible: plan.visible }));
+};
+
+const GRID_SPACES: [PlanSpace, string][] = [
+  ["desk", "Dedicated desk"],
+  ["private-cabin", "Private cabin"],
+  ["office", "Office"],
+];
+const EVERY_DAY = [0, 1, 2, 3, 4, 5, 6];
+
+type GridVenue = { _id: Types.ObjectId; slug: string; openDays?: number[]; membershipPrices?: Record<string, Record<string, unknown> | null> | null };
+
+/** Turns each venue's old membership price grid into plans, once; safe to run at every start. */
+export const migrateMembershipPrices = async () => {
+  // The raw collection, since the venue model no longer knows the grid.
+  const venues = await Venue.collection
+    .find({ membershipPrices: { $exists: true } }, { projection: { slug: 1, openDays: 1, membershipPrices: 1 } })
+    .toArray();
+  let created = 0;
+  for (const venue of venues as unknown as GridVenue[]) {
+    const existing = await MembershipPlan.find({ venueId: venue._id }, { space: 1, sortOrder: 1 }).lean<MembershipPlanDoc[]>();
+    let sortOrder = existing.reduce((next, plan) => Math.max(next, plan.sortOrder + 1), 0);
+    for (const [space, name] of GRID_SPACES) {
+      const row = venue.membershipPrices?.[space] ?? {};
+      const prices = Object.fromEntries(
+        MEMBERSHIP_LENGTHS.map((length) => {
+          const price = row[length];
+          return [length, typeof price === "number" && price > 0 ? price : null];
+        }),
+      ) as PlanPrices;
+      if (Object.values(prices).every((price) => price === null) || existing.some((plan) => plan.space === space)) continue;
+      await MembershipPlan.create({
+        venueId: venue._id,
+        venueSlug: venue.slug,
+        name,
+        space,
+        days: venue.openDays?.length ? [...venue.openDays].sort((a, b) => a - b) : EVERY_DAY,
+        prices,
+        maxSeats: space === "desk" ? MAX_PLAN_SEATS : 1,
+        visible: true,
+        sortOrder: sortOrder++,
+      });
+      created += 1;
+    }
+    await Venue.collection.updateOne({ _id: venue._id }, { $unset: { membershipPrices: "" } });
+  }
+  return created;
 };

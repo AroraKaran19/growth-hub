@@ -4,6 +4,7 @@ import { ArrowRight, Star } from "lucide-react";
 import type { Venue } from "@/types/venue";
 import { cn } from "@/utils";
 import { startingFrom } from "@/utils/venues";
+import CustomerOnly from "../shared/CustomerOnly";
 
 const VenueCard = ({
   venue,
@@ -57,13 +58,15 @@ const VenueCard = ({
           <p className="text-sm text-tertiary/65">
             {from ? `Starting from ₹${from.amount.toLocaleString("en-IN")}/${from.unit}` : ""}
           </p>
-          <Link
-            href={`/workspaces/${venue.slug}`}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-secondary transition-colors hover:bg-accent"
-          >
-            Book Now
-            <ArrowRight className="size-3.5" />
-          </Link>
+          <CustomerOnly>
+            <Link
+              href={`/workspaces/${venue.slug}`}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2 text-sm font-semibold text-secondary transition-colors hover:bg-accent"
+            >
+              Book Now
+              <ArrowRight className="size-3.5" />
+            </Link>
+          </CustomerOnly>
         </div>
       </div>
     </article>

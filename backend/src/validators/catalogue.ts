@@ -84,23 +84,6 @@ export const createSeatMapSchema = z.object({
   seats: seatListSchema,
 });
 
-const lengthPrices = z
-  .object({
-    weekly: rupees.optional(),
-    monthly: rupees.optional(),
-    quarterly: rupees.optional(),
-    halfYearly: rupees.optional(),
-  })
-  .strict();
-
-const membershipPrices = z
-  .object({
-    desk: lengthPrices.optional(),
-    "private-cabin": lengthPrices.optional(),
-    office: lengthPrices.optional(),
-  })
-  .strict();
-
 const venueFields = z.object({
   name: z.string().trim().min(2, "Enter a name.").max(80),
   locality: z
@@ -117,7 +100,6 @@ const venueFields = z.object({
   priceUnit: z.enum(PRICE_UNITS),
   halfDayPrice: rupees.nullable(),
   dayPassPrice: rupees.nullable(),
-  membershipPrices,
   distanceKm: z.number().min(0).max(1000),
   description: z.string().trim().max(300),
   longDescription: z.string().trim().max(3000),
@@ -164,9 +146,9 @@ export const patchVenueSchema = venueFields
   })
   .strict();
 
-/** What a venue's own staff may change about its prices; blank means not sold. */
+/** What a venue's own staff may change about its pass prices; blank means not sold. */
 export const venuePricesSchema = venueFields
-  .pick({ startingPrice: true, halfDayPrice: true, dayPassPrice: true, membershipPrices: true })
+  .pick({ startingPrice: true, halfDayPrice: true, dayPassPrice: true })
   .partial()
   .strict()
   .refine((change) => Object.keys(change).length > 0, { message: "Nothing to change." });

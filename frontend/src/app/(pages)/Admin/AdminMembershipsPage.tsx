@@ -3,17 +3,13 @@
 import { useState } from "react";
 import { Search } from "lucide-react";
 import SelectField from "@/app/components/ui/form/SelectField";
-import {
-  MEMBERSHIP_LENGTH_LABELS_BY_KEY,
-  MEMBERSHIP_SPACES,
-  MEMBERSHIP_UNIT_BY_KEY,
-} from "@/data/membershipPlans";
 import { useAdminRequests } from "@/hooks/useCancellationRequests";
 import { useAdminMemberships } from "@/hooks/useStaffBookings";
 import { decideAdminRequest } from "@/libs/api/cancellations";
 import { MEMBERSHIP_STATUS_LABELS, isLiveMembership, type MembershipStatus } from "@/types/membership";
 import { cn } from "@/utils";
 import { formatDay } from "@/utils/date";
+import { cycleUnit, membershipTitle, scheduleLabel, seatWithHolder } from "@/utils/membershipLabels";
 import {
   PARTNER_CARD as CARD,
   PartnerPageHeader as PageHeader,
@@ -22,6 +18,7 @@ import {
 } from "../Partner/components/PartnerUi";
 import RequestBoard from "../Partner/components/RequestBoard";
 import MembershipDrawer from "./components/records/MembershipDrawer";
+import VenuePicker from "./components/VenuePicker";
 import ViewSwitch from "./components/records/ViewSwitch";
 
 type ShownStatus = Exclude<MembershipStatus, "pending-payment" | "expired">;
@@ -44,34 +41,28 @@ const STATUS_OPTIONS = [
 const rupees = (paise: number) => `₹${(paise / 100).toLocaleString("en-IN")}`;
 
 const AdminMembershipsPage = () => {
-  const { memberships, error, isLoading, mutate } = useAdminMemberships();
+  const [venue, setVenue] = useState("");
+  const { memberships, error, isLoading, mutate } = useAdminMemberships(true, venue);
   const [view, setView] = useState<"all" | "requests">("all");
   const [requestTab, setRequestTab] = useState<"open" | "decided">("open");
   const [openRef, setOpenRef] = useState<string | null>(null);
   const waiting = useAdminRequests("open", "membership");
   const decided = useAdminRequests("decided", "membership", view === "requests");
   const shownRequests = requestTab === "open" ? waiting : decided;
-  const [venue, setVenue] = useState("");
   const [status, setStatus] = useState("");
   const [query, setQuery] = useState("");
 
   if (isLoading) return <Skeleton />;
 
-  const venueOptions = [
-    { value: "", label: "All venues" },
-    ...[...new Map(memberships.map((item) => [item.venue.slug, item.venue.name]))]
-      .sort(([, a], [, b]) => a.localeCompare(b))
-      .map(([value, label]) => ({ value, label })),
-  ];
-
   const search = query.trim().toLowerCase();
   const rows = memberships
-    .filter((item) => !venue || item.venue.slug === venue)
     .filter((item) => !status || item.status === status)
     .filter(
       (item) =>
         !search ||
-        `${item.ref} ${item.venue.name} ${item.member.name} ${item.member.phone} ${item.seats.join(" ")}`
+        `${item.ref} ${item.venue.name} ${item.member.name} ${item.member.phone} ${item.planName ?? ""} ${item.seatList
+          .map((seat) => `${seat.label} ${seat.holder ?? ""}`)
+          .join(" ")}`
           .toLowerCase()
           .includes(search),
     );
@@ -130,11 +121,11 @@ const AdminMembershipsPage = () => {
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="ID, member, phone or seat"
+            placeholder="ID, member, plan or seat"
             className="w-64 rounded-lg border border-tertiary/15 bg-secondary py-2.5 pl-9 pr-3 text-sm text-tertiary outline-none transition-colors hover:border-tertiary/30 focus-visible:border-primary"
           />
         </label>
-        <SelectField label="Filter by venue" hideLabel value={venue} onChange={setVenue} options={venueOptions} className="w-56" />
+        <VenuePicker label="Filter by venue" hideLabel allLabel="All venues" value={venue} onChange={(slug) => setVenue(slug)} className="w-56" />
         <SelectField label="Filter by status" hideLabel value={status} onChange={setStatus} options={STATUS_OPTIONS} className="w-44" />
       </div>
 
@@ -179,16 +170,14 @@ const AdminMembershipsPage = () => {
                       <p className="text-xs text-tertiary/55">{item.member.phone}</p>
                     </td>
                     <td className="px-5 py-3.5 font-medium text-tertiary">{item.venue.name}</td>
-                    <td className="px-5 py-3.5 text-tertiary/75">
-                      <p>
-                        {MEMBERSHIP_LENGTH_LABELS_BY_KEY[item.length] ?? item.length}{" "}
-                        {MEMBERSHIP_SPACES[item.spaceType].workspace}
-                      </p>
-                      <p className="text-xs text-tertiary/55">{item.seats.join(", ")}</p>
+                    <td className="max-w-64 px-5 py-3.5 text-tertiary/75">
+                      <p className="font-medium text-tertiary">{membershipTitle(item)}</p>
+                      <p className="text-xs text-tertiary/55">{scheduleLabel(item)}</p>
+                      <p className="text-xs text-tertiary/55">{item.seatList.map(seatWithHolder).join(", ")}</p>
                     </td>
                     <td className="px-5 py-3.5 text-right text-tertiary">
                       {rupees(item.cyclePrice)}
-                      <span className="text-xs text-tertiary/55"> / {MEMBERSHIP_UNIT_BY_KEY[item.length] ?? "cycle"}</span>
+                      <span className="text-xs text-tertiary/55"> / {cycleUnit(item.length)}</span>
                     </td>
                     <td className="px-5 py-3.5 text-tertiary/75">
                       <p>From {formatDay(item.startDate)}</p>

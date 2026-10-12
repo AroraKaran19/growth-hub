@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { MapPin, Menu, User } from "lucide-react";
+import { MapPin, Menu } from "lucide-react";
 import Logo from "@/app/components/ui/Logo";
 import { MEMBER_NAV_LINKS } from "@/data/navigation";
+import UserMenu from "./components/UserMenu";
 import MobileMenuDrawer, {
   MOBILE_MENU_DRAWER_ID,
 } from "./components/MobileMenuDrawer";
@@ -49,14 +50,9 @@ const MemberNavbar = () => {
               Bangalore
             </button>
 
-            {/* Placeholder avatar until member profile images exist. */}
-            <Link
-              href="/account"
-              aria-label="Your account"
-              className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-tertiary/10 text-tertiary/60 transition-colors hover:bg-tertiary/15"
-            >
-              <User aria-hidden="true" className="size-5" />
-            </Link>
+            <div className="hidden sm:block">
+              <UserMenu variant="light" />
+            </div>
 
             <button
               type="button"

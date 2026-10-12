@@ -3,10 +3,9 @@ import FaqList from "@/app/components/shared/FaqList";
 import PageHero from "@/app/components/shared/PageHero";
 import SectionHeading from "@/app/components/shared/SectionHeading";
 import { findFaqCategory } from "@/data/faqs";
-import { getPublishedVenues } from "@/libs/api/venues";
+import { getVenuesWithPlans } from "@/libs/api/venues";
 import { cn } from "@/utils";
 import { CONTAINER } from "@/utils/layout";
-import { membershipFromPrices } from "@/utils/venues";
 import CtaBannerSection from "../Home/sections/CtaBannerSection";
 import PlanExplorer from "./components/PlanExplorer";
 
@@ -14,12 +13,12 @@ const INCLUDED = [
   {
     icon: Armchair,
     title: "A seat that is yours",
-    text: "The same desk, cabin or office every day, kept exactly as you left it.",
+    text: "The same desk, cabin, office or meeting room on your plan's days, kept for you.",
   },
   {
     icon: CalendarClock,
     title: "No daily booking",
-    text: "Your space is reserved for the whole plan. Just turn up and work.",
+    text: "Your space is reserved on every covered day. Just turn up and work.",
   },
   {
     icon: Repeat,
@@ -39,7 +38,7 @@ const INCLUDED = [
   {
     icon: QrCode,
     title: "Member pass",
-    text: "One QR code gets you in at reception, every day of your plan.",
+    text: "One QR code gets you and your team in at reception, every covered day.",
   },
 ];
 
@@ -50,11 +49,11 @@ const STEPS = [
   },
   {
     title: "Choose a plan",
-    text: "On its booking page, pick 1 week, 1 month, 3 months or 6 months under Membership.",
+    text: "Pick one of its membership plans, how long each period runs, and how many seats.",
   },
   {
-    title: "Reserve your seat",
-    text: "Choose your desk, cabin or office on the floor plan and pay once.",
+    title: "Reserve your space",
+    text: "Choose your desks or room on the floor plan, name who sits where, and pay the first period.",
   },
   {
     title: "Check in daily",
@@ -66,7 +65,7 @@ const COMPARISON = [
   {
     feature: "Your seat",
     pass: "Any open seat, picked each visit",
-    membership: "The same seat, reserved for you",
+    membership: "The same seat or room, reserved on your days",
   },
   {
     feature: "Booking",
@@ -92,24 +91,27 @@ const COMPARISON = [
 
 const MembershipPlansPage = async () => {
   const faqs = findFaqCategory("memberships")?.faqs ?? [];
-  const fromPrices = membershipFromPrices(await getPublishedVenues());
+  const entries = (await getVenuesWithPlans()).map(({ venue, plans }) => ({
+    venue: { slug: venue.slug, name: venue.name, locality: venue.locality, city: venue.city, image: venue.image },
+    plans,
+  }));
 
   return (
     <>
       <PageHero
         eyebrow="Memberships"
         title="Make one workspace yours"
-        description="Reserve a desk, cabin or office at a partner venue for a week or more. Your seat is held every day, and the plan renews on its own until you stop it."
+        description="Reserve a desk, cabin, office or meeting room at a partner venue for a week or more. Your space is held on the plan's days, and it renews on its own until you stop it."
       />
 
       <section className="bg-secondary py-16 lg:py-24">
         <div className={CONTAINER}>
           <SectionHeading
             title="Choose your plan"
-            description="Pick a plan length to see prices and what each membership includes."
+            description="Pick a venue to see its plans, what each includes, and the days it covers."
           />
           <div className="mt-10">
-            <PlanExplorer fromPrices={fromPrices} />
+            <PlanExplorer entries={entries} />
           </div>
         </div>
       </section>

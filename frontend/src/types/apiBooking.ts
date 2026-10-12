@@ -99,6 +99,8 @@ export type MembershipAvailability = {
   startDate: string;
   /** The last day a new plan would keep; any booking up to here makes a seat unavailable. */
   through: string;
+  /** The daily window a time-slot room plan locks; null for whole-day plans. */
+  window?: { start: number; end: number } | null;
   takenSeatIds: string[];
   outOfServiceSeatIds: string[];
 };

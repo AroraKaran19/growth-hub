@@ -1,6 +1,6 @@
 import type { ClientSession, Types } from "mongoose";
 import { AppError } from "../middlewares/error.middleware";
-import { SeatDay, type SeatDayDoc, type SeatRange } from "../models";
+import { SeatDay, type DailyWindow, type SeatDayDoc, type SeatRange } from "../models";
 
 const DUPLICATE_KEY = 11000;
 const WHOLE_DAY = { start: 0, end: 24 * 60 };
@@ -105,11 +105,56 @@ export type ReserveInput = {
   dates: string[];
   membershipId: Types.ObjectId;
   holdExpiresAt: Date | null;
+  /** Set for time-slot rooms: only this window is locked, as a range, on each day. */
+  window?: DailyWindow | null;
 };
 
 const MAX_NAMED_DATES = 10;
 
-/** Holds whole days for a membership, all or nothing. Run inside a transaction. */
+const isOwnRange = (range: SeatRange, membershipId: Types.ObjectId) => Boolean(range.membershipId?.equals(membershipId));
+
+/** Whether someone else holds the whole day, or a live range this membership would overlap. */
+const blocksMembership = (day: SeatDayDoc, membershipId: Types.ObjectId, window: DailyWindow | null, now: Date) =>
+  (isReserved(day, now) && !day.membershipId?.equals(membershipId)) ||
+  day.ranges.some(
+    (range) => isLive(range, now) && !isOwnRange(range, membershipId) && (!window || overlaps(range, window.start, window.end)),
+  );
+
+/** Clears lapsed holds, and this membership's own ranges so they can be written again. */
+const tidyBeforeReserving = async (input: ReserveInput, now: Date, session: ClientSession) => {
+  const days = { venueId: input.venueId, seatId: { $in: input.seatIds }, date: { $in: input.dates } };
+  await SeatDay.updateMany(days, { $pull: { ranges: { holdExpiresAt: { $ne: null, $lte: now } } } }, { session });
+  if (input.window) await SeatDay.updateMany(days, { $pull: { ranges: { membershipId: input.membershipId } } }, { session });
+};
+
+const reserveOp = (input: ReserveInput, seatId: string, date: string, holdExpiresAt: Date | null, now: Date) => {
+  const { venueId, membershipId, window } = input;
+  if (!window) {
+    return {
+      updateOne: {
+        filter: { venueId, seatId, date, ...notReservedBy(now, membershipId), ranges: { $not: { $elemMatch: liveRange(now) } } },
+        update: { $set: { membershipId, membershipHoldExpiresAt: holdExpiresAt } },
+        upsert: true,
+      },
+    };
+  }
+  const range: SeatRange = { ...window, kind: "membership", bookingId: null, membershipId, holdExpiresAt };
+  return {
+    updateOne: {
+      filter: {
+        venueId,
+        seatId,
+        date,
+        ...notReservedBy(now),
+        ranges: { $not: { $elemMatch: { start: { $lt: window.end }, end: { $gt: window.start }, ...liveRange(now) } } },
+      },
+      update: { $push: { ranges: range } },
+      upsert: true,
+    },
+  };
+};
+
+/** Holds whole days, or a daily window, for a membership, all or nothing. Run inside a transaction. */
 export const reserveDays = async (input: ReserveInput, session: ClientSession) => {
   const now = new Date();
   const { venueId, seatIds, dates, membershipId, holdExpiresAt } = input;
@@ -117,11 +162,7 @@ export const reserveDays = async (input: ReserveInput, session: ClientSession) =
   const existing = await SeatDay.find({ venueId, seatId: { $in: seatIds }, date: { $in: dates } })
     .session(session)
     .lean<SeatDayDoc[]>();
-  const conflicts = existing.filter(
-    (day) =>
-      (isReserved(day, now) && !day.membershipId?.equals(membershipId)) ||
-      day.ranges.some((range) => isLive(range, now)),
-  );
+  const conflicts = existing.filter((day) => blocksMembership(day, membershipId, input.window ?? null, now));
   if (conflicts.length) {
     throw seatTaken(
       [...new Set(conflicts.map((day) => day.seatId))].sort(),
@@ -129,26 +170,8 @@ export const reserveDays = async (input: ReserveInput, session: ClientSession) =
     );
   }
 
-  await SeatDay.updateMany(
-    { venueId, seatId: { $in: seatIds }, date: { $in: dates } },
-    { $pull: { ranges: { holdExpiresAt: { $ne: null, $lte: now } } } },
-    { session },
-  );
-  const ops = seatIds.flatMap((seatId) =>
-    dates.map((date) => ({
-      updateOne: {
-        filter: {
-          venueId,
-          seatId,
-          date,
-          ...notReservedBy(now, membershipId),
-          ranges: { $not: { $elemMatch: liveRange(now) } },
-        },
-        update: { $set: { membershipId, membershipHoldExpiresAt: holdExpiresAt } },
-        upsert: true,
-      },
-    })),
-  );
+  await tidyBeforeReserving(input, now, session);
+  const ops = seatIds.flatMap((seatId) => dates.map((date) => reserveOp(input, seatId, date, holdExpiresAt, now)));
   try {
     await SeatDay.bulkWrite(ops, { session, ordered: true });
   } catch (error) {
@@ -173,11 +196,7 @@ export const reserveFreeDays = async (
     .lean<SeatDayDoc[]>();
   const taken = new Set(
     existing
-      .filter(
-        (day) =>
-          (isReserved(day, now) && !day.membershipId?.equals(membershipId)) ||
-          day.ranges.some((range) => isLive(range, now)),
-      )
+      .filter((day) => blocksMembership(day, membershipId, input.window ?? null, now))
       .map((day) => `${day.seatId}|${day.date}`),
   );
   const skipped = [...taken].map((key) => {
@@ -189,42 +208,32 @@ export const reserveFreeDays = async (
   );
   if (!free.length) return skipped;
 
-  await SeatDay.updateMany(
-    { venueId, seatId: { $in: seatIds }, date: { $in: dates } },
-    { $pull: { ranges: { holdExpiresAt: { $ne: null, $lte: now } } } },
-    { session },
-  );
+  const reserving = { ...input, holdExpiresAt: null, dates: [...new Set(free.map((item) => item.date))] };
+  await tidyBeforeReserving(reserving, now, session);
   // Inside a transaction a collision aborts everything, so a race here fails the whole extension.
   await SeatDay.bulkWrite(
-    free.map(({ seatId, date }) => ({
-      updateOne: {
-        filter: {
-          venueId,
-          seatId,
-          date,
-          ...notReservedBy(now, membershipId),
-          ranges: { $not: { $elemMatch: liveRange(now) } },
-        },
-        update: { $set: { membershipId, membershipHoldExpiresAt: null } },
-        upsert: true,
-      },
-    })),
+    free.map(({ seatId, date }) => reserveOp(reserving, seatId, date, null, now)),
     { session, ordered: true },
   );
   return skipped;
 };
 
-/** Moves an unpaid membership's hold on all its days; null makes them permanent. */
-export const setDayHold = (membershipId: Types.ObjectId, holdExpiresAt: Date | null, session?: ClientSession) =>
-  SeatDay.updateMany({ membershipId }, { $set: { membershipHoldExpiresAt: holdExpiresAt } }, { session });
-
-/** Frees a membership's days, all of them or those from a date on. */
-export const releaseDays = (membershipId: Types.ObjectId, fromDate?: string, session?: ClientSession) =>
-  SeatDay.updateMany(
-    { membershipId, ...(fromDate && { date: { $gte: fromDate } }) },
-    { $set: { membershipId: null, membershipHoldExpiresAt: null } },
-    { session },
+/** Moves an unpaid membership's hold on all its days or windows; null makes them permanent. */
+export const setDayHold = async (membershipId: Types.ObjectId, holdExpiresAt: Date | null, session?: ClientSession) => {
+  await SeatDay.updateMany({ membershipId }, { $set: { membershipHoldExpiresAt: holdExpiresAt } }, { session });
+  await SeatDay.updateMany(
+    { "ranges.membershipId": membershipId },
+    { $set: { "ranges.$[range].holdExpiresAt": holdExpiresAt } },
+    { arrayFilters: [{ "range.membershipId": membershipId }], session },
   );
+};
+
+/** Frees a membership's days or windows, all of them or those from a date on. */
+export const releaseDays = async (membershipId: Types.ObjectId, fromDate?: string, session?: ClientSession) => {
+  const from = fromDate ? { date: { $gte: fromDate } } : {};
+  await SeatDay.updateMany({ membershipId, ...from }, { $set: { membershipId: null, membershipHoldExpiresAt: null } }, { session });
+  await SeatDay.updateMany({ "ranges.membershipId": membershipId, ...from }, { $pull: { ranges: { membershipId } } }, { session });
+};
 
 export const releaseRanges = (bookingId: Types.ObjectId, session?: ClientSession) =>
   SeatDay.updateMany({ "ranges.bookingId": bookingId }, { $pull: { ranges: { bookingId } } }, { session });

@@ -23,11 +23,12 @@ export const usePartnerBookings = () => {
 };
 
 /** The newest bookings across venues; null when the admin can't see bookings. */
-export const useAdminBookings = (enabled = true) => {
+export const useAdminBookings = (enabled = true, venue = "") => {
   const { data, error, isLoading, mutate } = useSWR(
-    enabled ? "admin/bookings" : null,
-    async () => ((await adminApi.get("/admin/bookings")) as Envelope<{ bookings: StaffBooking[] }>).data.data.bookings,
-    LIVE,
+    enabled ? ["admin/bookings", venue] : null,
+    async () =>
+      ((await adminApi.get("/admin/bookings", { params: venue ? { venue } : undefined })) as Envelope<{ bookings: StaffBooking[] }>).data.data.bookings,
+    { ...LIVE, keepPreviousData: true },
   );
   return { bookings: data ?? [], error, isLoading: enabled && isLoading, mutate };
 };
@@ -43,12 +44,13 @@ export const usePartnerMembers = () => {
 };
 
 /** Plans across venues; nothing is fetched for an admin without the section. */
-export const useAdminMemberships = (enabled = true) => {
+export const useAdminMemberships = (enabled = true, venue = "") => {
   const { data, error, isLoading, mutate } = useSWR(
-    enabled ? "admin/memberships" : null,
+    enabled ? ["admin/memberships", venue] : null,
     async () =>
-      ((await adminApi.get("/admin/memberships")) as Envelope<{ memberships: StaffMembership[] }>).data.data.memberships,
-    LIVE,
+      ((await adminApi.get("/admin/memberships", { params: venue ? { venue } : undefined })) as Envelope<{ memberships: StaffMembership[] }>).data.data
+        .memberships,
+    { ...LIVE, keepPreviousData: true },
   );
   return { memberships: data ?? [], error, isLoading: enabled && isLoading, mutate };
 };

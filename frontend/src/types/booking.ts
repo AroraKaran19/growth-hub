@@ -55,6 +55,10 @@ export type BookingSelection = {
   /** Start time; memberships follow the venue's access hours instead. */
   time: string;
   seatIds: string[];
+  /** The venue plan being bought; empty for a pass. */
+  planId: string;
+  /** Optional names for desk plan seats, by seat id. */
+  holders: Record<string, string>;
 };
 
 export const DEFAULT_SELECTION: BookingSelection = {
@@ -68,7 +72,16 @@ export const DEFAULT_SELECTION: BookingSelection = {
   date: "",
   time: "",
   seatIds: [],
+  planId: "",
+  holders: {},
 };
+
+const holdersFrom = (value: unknown): Record<string, string> =>
+  value && typeof value === "object" && !Array.isArray(value)
+    ? Object.fromEntries(
+        Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
+      )
+    : {};
 
 /** Saved progress can predate a shape change, so coerce what comes back. */
 export const normaliseSelection = (value: unknown): BookingSelection => {
@@ -89,5 +102,7 @@ export const normaliseSelection = (value: unknown): BookingSelection => {
     date: text(saved.date, ""),
     time: text(saved.time, ""),
     seatIds: Array.isArray(saved.seatIds) ? saved.seatIds : [],
+    planId: text(saved.planId, ""),
+    holders: holdersFrom(saved.holders),
   };
 };

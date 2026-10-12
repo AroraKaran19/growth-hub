@@ -15,7 +15,8 @@
     "reset-data": "ts-node --transpile-only src/scripts/resetData.ts",
     "build-invoice-template": "ts-node --transpile-only src/scripts/buildInvoiceTemplate.ts",
     "queue-invoices": "ts-node --transpile-only src/scripts/queueInvoices.ts",
-    "remove-dummy-venues": "ts-node --transpile-only src/scripts/removeDummyVenues.ts"
+    "remove-dummy-venues": "ts-node --transpile-only src/scripts/removeDummyVenues.ts",
+    "add-growthhub-venue": "ts-node --transpile-only src/scripts/addGrowthHubVenue.ts"
   },
   "keywords": [],
   "author": "",

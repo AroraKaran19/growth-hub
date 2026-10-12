@@ -18,10 +18,12 @@ type ImageFieldProps = {
   /** Lets the admin clear the image, for optional photos. */
   optional?: boolean;
   aspect?: string;
+  /** A smaller preview, for portraits such as testimonial photos. */
+  compact?: boolean;
 };
 
 /** Uploads straight to S3 through a presigned ticket, or takes a pasted URL. */
-const ImageField = ({ id, label, value, onChange, hint, optional, aspect = "aspect-video" }: ImageFieldProps) => {
+const ImageField = ({ id, label, value, onChange, hint, optional, aspect = "aspect-video", compact = false }: ImageFieldProps) => {
   const input = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,7 +55,8 @@ const ImageField = ({ id, label, value, onChange, hint, optional, aspect = "aspe
           disabled={isUploading}
           aria-label={value.src ? `Replace ${label.toLowerCase()}` : `Upload ${label.toLowerCase()}`}
           className={cn(
-            "group relative w-full shrink-0 overflow-hidden rounded-xl border border-dashed border-tertiary/20 bg-tertiary/3 transition-all hover:-translate-y-0.5 hover:border-tertiary/40 hover:shadow-md sm:w-56",
+            "group relative w-full shrink-0 overflow-hidden rounded-xl border border-dashed border-tertiary/20 bg-tertiary/3 transition-all hover:-translate-y-0.5 hover:border-tertiary/40 hover:shadow-md",
+            compact ? "w-32" : "sm:w-56",
             aspect,
           )}
         >

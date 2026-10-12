@@ -14,6 +14,7 @@ import RequestBoard from "../Partner/components/RequestBoard";
 import AddonOrdersPanel from "./components/records/AddonOrdersPanel";
 import BookingDrawer from "./components/records/BookingDrawer";
 import ViewSwitch from "./components/records/ViewSwitch";
+import VenuePicker from "./components/VenuePicker";
 import {
   PARTNER_CARD as CARD,
   PartnerPageHeader as PageHeader,
@@ -47,7 +48,8 @@ const STATUS_OPTIONS = [
 const rupees = (paise: number) => `₹${(paise / 100).toLocaleString("en-IN")}`;
 
 const AdminBookingsPage = () => {
-  const { bookings, error, isLoading, mutate } = useAdminBookings();
+  const [venue, setVenue] = useState("");
+  const { bookings, error, isLoading, mutate } = useAdminBookings(true, venue);
   const [view, setView] = useState<"all" | "requests" | "addons">("all");
   const [requestTab, setRequestTab] = useState<"open" | "decided">("open");
   const [openRef, setOpenRef] = useState<string | null>(null);
@@ -55,23 +57,13 @@ const AdminBookingsPage = () => {
   const waiting = useAdminRequests("open", ["booking", "addon-order"]);
   const decided = useAdminRequests("decided", ["booking", "addon-order"], view === "requests");
   const shownRequests = requestTab === "open" ? waiting : decided;
-  const [venue, setVenue] = useState("");
   const [status, setStatus] = useState("");
   const [query, setQuery] = useState("");
 
   if (isLoading) return <Skeleton />;
 
-  // Built from the bookings themselves, so the filter needs no venue access.
-  const venueOptions = [
-    { value: "", label: "All venues" },
-    ...[...new Map(bookings.map((booking) => [booking.venue.slug, booking.venue.name]))]
-      .sort(([, a], [, b]) => a.localeCompare(b))
-      .map(([value, label]) => ({ value, label })),
-  ];
-
   const search = query.trim().toLowerCase();
   const rows = bookings
-    .filter((booking) => !venue || booking.venue.slug === venue)
     .filter((booking) => !status || booking.status === status)
     .filter(
       (booking) =>
@@ -139,7 +131,7 @@ const AdminBookingsPage = () => {
             className="w-64 rounded-lg border border-tertiary/15 bg-secondary py-2.5 pl-9 pr-3 text-sm text-tertiary outline-none transition-colors hover:border-tertiary/30 focus-visible:border-primary"
           />
         </label>
-        <SelectField label="Filter by venue" hideLabel value={venue} onChange={setVenue} options={venueOptions} className="w-56" />
+        <VenuePicker label="Filter by venue" hideLabel allLabel="All venues" value={venue} onChange={(slug) => setVenue(slug)} className="w-56" />
         <SelectField label="Filter by status" hideLabel value={status} onChange={setStatus} options={STATUS_OPTIONS} className="w-44" />
       </div>
 

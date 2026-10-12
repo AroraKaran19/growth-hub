@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { claimSms, verifySms } from "../controllers/memberAuth.controller";
-import { logout, me, refresh } from "../controllers/session.controller";
+import { logout, me, patchMe, refresh } from "../controllers/session.controller";
 import {
   postChangePassword,
   postForgotPassword,
@@ -24,5 +24,6 @@ for (const accountType of ["partner", "admin"] as const) {
 router.post("/refresh", requireRelay, sessionRateLimit, refresh);
 router.post("/logout", requireRelay, sessionRateLimit, logout);
 router.get("/me", requireAuth("member", "partner", "admin"), me);
+router.patch("/me", requireAuth("member", "partner", "admin"), sessionRateLimit, patchMe);
 
 export default router;

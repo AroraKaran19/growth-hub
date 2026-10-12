@@ -10,12 +10,14 @@ import {
   Crown,
   MapPin,
 } from "lucide-react";
-import { MEMBERSHIP_SPACES } from "@/data/membershipPlans";
+import { StaffBookingNote, useIsStaff } from "@/app/components/shared/CustomerOnly";
 import { useVenueMembership } from "@/hooks/useMemberships";
+import { useVenuePlans } from "@/hooks/useVenuePlans";
 import type { Venue } from "@/types/venue";
 import { cn } from "@/utils";
 import { formatDay } from "@/utils/date";
-import { lowestMonthlyPrice, startingFrom } from "@/utils/venues";
+import { membershipTitle, windowLabel } from "@/utils/plans";
+import { startingFrom } from "@/utils/venues";
 
 const INFO_ROW =
   "flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-tertiary/3";
@@ -27,7 +29,10 @@ const BookingRail = ({ venue }: { venue: Venue }) => {
   const [areHoursOpen, setAreHoursOpen] = useState(false);
   const membership = useVenueMembership(venue.slug);
   const isBookable = venue.published;
-  const monthlyFrom = lowestMonthlyPrice(venue);
+  const isStaff = useIsStaff();
+  const { plans } = useVenuePlans(venue.slug);
+  const monthly = (plans ?? []).map((plan) => plan.prices.monthly).filter((price): price is number => price !== null);
+  const monthlyFrom = monthly.length ? Math.min(...monthly) : null;
   const from = startingFrom(venue);
 
   const location = (
@@ -93,12 +98,14 @@ const BookingRail = ({ venue }: { venue: Venue }) => {
                 {from ? `₹${from.amount.toLocaleString("en-IN")} per ${from.unit}` : "See prices"}
               </p>
             </div>
-            <Link
-              href={`/workspaces/${venue.slug}/book`}
-              className="cta-gradient shrink-0 rounded-lg px-4 py-2.5 text-sm font-medium text-secondary transition-opacity hover:opacity-90"
-            >
-              Book Now
-            </Link>
+            {!isStaff && (
+              <Link
+                href={`/workspaces/${venue.slug}/book`}
+                className="cta-gradient shrink-0 rounded-lg px-4 py-2.5 text-sm font-medium text-secondary transition-opacity hover:opacity-90"
+              >
+                Book Now
+              </Link>
+            )}
           </div>
         ) : (
           <div className="px-4 py-3.5">
@@ -126,8 +133,8 @@ const BookingRail = ({ venue }: { venue: Venue }) => {
                 : "You're a member here"}
             </p>
             <p className="mt-0.5 text-xs text-tertiary/60">
-              {MEMBERSHIP_SPACES[membership.spaceType].workspace}{" "}
-              {membership.seats.map((seat) => seat.label).join(", ")} is reserved for you
+              {membershipTitle(membership)}: {membership.seats.map((seat) => seat.label).join(", ")} is kept for you
+              {membership.window ? `, ${windowLabel(membership.window)}` : ""}
               {membership.paidThrough ? ` until ${formatDay(membership.paidThrough)}` : ""}.
             </p>
             <Link
@@ -137,11 +144,13 @@ const BookingRail = ({ venue }: { venue: Venue }) => {
               Manage membership
             </Link>
           </div>
+        ) : isStaff ? (
+          <StaffBookingNote className="border-t border-tertiary/8 px-4 py-3 text-xs" />
         ) : (
           isBookable &&
-          monthlyFrom !== null && (
-            <Link
-              href={`/workspaces/${venue.slug}/book`}
+          Boolean(plans?.length) && (
+            <a
+              href="#memberships"
               className="flex items-center justify-between gap-3 border-t border-tertiary/8 px-4 py-3 transition-colors hover:bg-tertiary/3"
             >
               <span>
@@ -149,16 +158,16 @@ const BookingRail = ({ venue }: { venue: Venue }) => {
                   Work here most days?
                 </span>
                 <span className="text-xs text-tertiary/55">
-                  Reserve your seat from ₹
-                  {monthlyFrom.toLocaleString("en-IN")}
-                  /month with a membership
+                  {monthlyFrom !== null
+                    ? `Membership plans from ₹${monthlyFrom.toLocaleString("en-IN")}/month`
+                    : `See ${plans?.length} membership plan${plans?.length === 1 ? "" : "s"}`}
                 </span>
               </span>
               <ChevronRight
                 aria-hidden="true"
                 className="size-4 shrink-0 text-tertiary/40"
               />
-            </Link>
+            </a>
           )
         )}
       </div>

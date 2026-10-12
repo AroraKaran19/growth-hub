@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import type { WorkspaceCategory } from "@/types/category";
 import { cn } from "@/utils";
+import CustomerOnly from "@/app/components/shared/CustomerOnly";
 
 const CategoryCard = ({
   category,
@@ -45,7 +46,7 @@ const CategoryCard = ({
               tabIndex={isActive ? undefined : -1}
               className="mt-3 inline-block text-xs font-semibold uppercase tracking-wider text-primary"
             >
-              Book Now
+              <CustomerOnly fallback="View spaces">Book Now</CustomerOnly>
             </Link>
           </div>
         </div>

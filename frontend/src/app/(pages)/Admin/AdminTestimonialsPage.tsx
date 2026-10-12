@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from "react";
 import Image from "next/image";
 import useSWR from "swr";
-import { ArrowDown, ArrowUp, MessageSquareQuote, PencilLine, Quote, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, MessageSquareQuote, PencilLine, Plus, Quote, Trash2 } from "lucide-react";
 import { readApiError } from "@/libs/api/errors";
 import {
   createTestimonial,
@@ -17,6 +17,7 @@ import { toastDone, toastFailed } from "@/libs/toast";
 import type { Testimonial } from "@/types/homeContent";
 import { cn } from "@/utils";
 import { PartnerPageHeader as PageHeader, PartnerSkeleton as Skeleton } from "../Partner/components/PartnerUi";
+import FormModal from "./components/FormModal";
 import ImageField from "./components/settings/ImageField";
 import { TextArea, TextInput } from "./components/settings/inputs";
 import Toggle from "./components/Toggle";
@@ -53,7 +54,6 @@ const TestimonialForm = ({ editing, onDone }: { editing: Testimonial | null; onD
       if (editing) await updateTestimonial(editing.id, input);
       else await createTestimonial(input);
       toastDone(editing ? `${draft.name} saved.` : `${draft.name} added${draft.visible ? " and shown on the site" : " as hidden"}.`);
-      setDraft(EMPTY);
       await onDone();
     } catch (caught) {
       const info = readApiError(caught);
@@ -65,7 +65,7 @@ const TestimonialForm = ({ editing, onDone }: { editing: Testimonial | null; onD
   };
 
   return (
-    <form onSubmit={submit} noValidate className={cn(RAISED, "h-fit p-5 sm:p-6")}>
+    <form onSubmit={submit} noValidate className={cn(RAISED, "p-5 sm:p-6")}>
       <div className="flex items-center gap-3">
         <span className="cta-gradient flex size-10 shrink-0 items-center justify-center rounded-xl text-secondary">
           <MessageSquareQuote aria-hidden="true" className="size-5" />
@@ -77,36 +77,32 @@ const TestimonialForm = ({ editing, onDone }: { editing: Testimonial | null; onD
       </div>
 
       <div className="mt-5 flex flex-col gap-4">
-        <TextArea id="testimonial-quote" label="Quote" value={draft.quote} max={500} rows={4} error={errors.quote} onChange={(quote) => setDraft({ ...draft, quote })} />
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <TextInput id="testimonial-name" label="Name" value={draft.name} max={80} error={errors.name} placeholder="Their name" onChange={(name) => setDraft({ ...draft, name })} />
           <TextInput id="testimonial-role" label="Role (optional)" value={draft.role} max={80} placeholder="Founder, Freelancer..." onChange={(role) => setDraft({ ...draft, role })} />
         </div>
+        <TextArea id="testimonial-quote" label="Quote" value={draft.quote} max={500} rows={3} error={errors.quote} onChange={(quote) => setDraft({ ...draft, quote })} />
         <ImageField
           id="testimonial-photo"
           label="Photo"
           optional
+          compact
           aspect="aspect-square"
           hint="Without a photo, their initials show instead."
           value={draft.photo ?? { src: "", alt: "" }}
           onChange={(photo) => setDraft({ ...draft, photo })}
         />
-        <Toggle label="Show on the site" checked={draft.visible} onChange={(visible) => setDraft({ ...draft, visible })} />
       </div>
 
-      <div className="mt-5 flex items-center gap-4">
+      <div className="mt-5 flex flex-wrap items-center justify-between gap-4 border-t border-tertiary/8 pt-4">
+        <Toggle label="Show on the site" checked={draft.visible} onChange={(visible) => setDraft({ ...draft, visible })} />
         <button
           type="submit"
           disabled={isSaving}
-          className="cta-gradient grow rounded-lg px-5 py-3 text-sm font-medium text-secondary transition-opacity hover:opacity-90 disabled:opacity-60"
+          className="cta-gradient rounded-lg px-5 py-2.5 text-sm font-medium text-secondary shadow-md shadow-primary/20 transition-opacity hover:opacity-90 disabled:opacity-60"
         >
           {isSaving ? "Saving..." : editing ? "Save changes" : "Add testimonial"}
         </button>
-        {editing && (
-          <button type="button" onClick={() => void onDone()} className={cn(QUIET, "text-tertiary/60")}>
-            Cancel
-          </button>
-        )}
       </div>
     </form>
   );
@@ -114,7 +110,7 @@ const TestimonialForm = ({ editing, onDone }: { editing: Testimonial | null; onD
 
 const AdminTestimonialsPage = () => {
   const { data, error, isLoading, mutate } = useSWR("admin/testimonials", fetchAdminTestimonials);
-  const [editing, setEditing] = useState<Testimonial | null>(null);
+  const [form, setForm] = useState<{ editing: Testimonial | null } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const testimonials = data ?? [];
@@ -147,18 +143,19 @@ const AdminTestimonialsPage = () => {
       <PageHeader
         title="Testimonials"
         description="Quotes shown on the landing page, in this order. Hidden ones stay here until you switch them on."
+        actions={
+          <button
+            type="button"
+            onClick={() => setForm({ editing: null })}
+            className="cta-gradient inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-secondary shadow-md shadow-primary/20 transition-all hover:-translate-y-0.5 hover:opacity-95"
+          >
+            <Plus aria-hidden="true" className="size-4" />
+            Add testimonial
+          </button>
+        }
       />
 
-      <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-[440px_minmax(0,1fr)]">
-        <TestimonialForm
-          key={editing?.id ?? "new"}
-          editing={editing}
-          onDone={async () => {
-            setEditing(null);
-            await mutate();
-          }}
-        />
-
+      <div className="mt-6">
         <section aria-labelledby="testimonials-heading">
           <div className="flex items-baseline justify-between gap-3">
             <h2 id="testimonials-heading" className="text-base font-bold text-tertiary">
@@ -175,10 +172,10 @@ const AdminTestimonialsPage = () => {
               <p className="mt-3 text-sm text-tertiary/60">No testimonials yet. The section stays hidden on the site until you add one.</p>
             </div>
           ) : (
-            <ol className="mt-3 flex flex-col gap-3">
+            <ol className="mt-3 grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">
               {testimonials.map((item, index) => (
-                <li key={item.id} className={cn("rounded-2xl border border-tertiary/8 bg-secondary p-5 shadow-md shadow-tertiary/5 transition-shadow hover:shadow-lg", !item.visible && "opacity-60")}>
-                  <div className="flex gap-4">
+                <li key={item.id} className={cn("flex flex-col rounded-2xl border border-tertiary/8 bg-secondary p-5 shadow-md shadow-tertiary/5 transition-all hover:-translate-y-0.5 hover:shadow-lg", !item.visible && "opacity-60")}>
+                  <div className="flex grow gap-4">
                     {item.photo ? (
                       <Image src={item.photo.src} alt="" width={44} height={44} className="size-11 shrink-0 rounded-full object-cover" />
                     ) : (
@@ -224,7 +221,7 @@ const AdminTestimonialsPage = () => {
                         <button type="button" aria-label="Move down" disabled={index === testimonials.length - 1 || busyId !== null} onClick={() => move(index, 1)} className="rounded-lg p-2 text-tertiary/60 transition-colors hover:bg-tertiary/5 hover:text-tertiary disabled:opacity-30">
                           <ArrowDown aria-hidden="true" className="size-4" />
                         </button>
-                        <button type="button" aria-label={`Edit ${item.name}`} onClick={() => setEditing(item)} className="rounded-lg p-2 text-tertiary/60 transition-colors hover:bg-tertiary/5 hover:text-tertiary">
+                        <button type="button" aria-label={`Edit ${item.name}`} onClick={() => setForm({ editing: item })} className="rounded-lg p-2 text-tertiary/60 transition-colors hover:bg-tertiary/5 hover:text-tertiary">
                           <PencilLine aria-hidden="true" className="size-4" />
                         </button>
                         <button type="button" aria-label={`Delete ${item.name}`} onClick={() => setConfirmDelete(item.id)} className="rounded-lg p-2 text-primary/70 transition-colors hover:bg-primary/5 hover:text-primary">
@@ -239,6 +236,18 @@ const AdminTestimonialsPage = () => {
           )}
         </section>
       </div>
+
+      {form && (
+        <FormModal label={form.editing ? "Edit testimonial" : "Add a testimonial"} onClose={() => setForm(null)}>
+          <TestimonialForm
+            editing={form.editing}
+            onDone={async () => {
+              setForm(null);
+              await mutate();
+            }}
+          />
+        </FormModal>
+      )}
     </>
   );
 };

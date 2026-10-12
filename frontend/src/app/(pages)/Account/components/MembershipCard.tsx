@@ -5,11 +5,6 @@ import Link from "next/link";
 import { useState } from "react";
 import { ArrowRight, CircleAlert, CircleX, Hourglass, PackagePlus, QrCode } from "lucide-react";
 import DirectionsLink from "@/app/components/ui/DirectionsLink";
-import {
-  MEMBERSHIP_LENGTH_LABELS_BY_KEY,
-  MEMBERSHIP_SPACES,
-  MEMBERSHIP_UNIT_BY_KEY,
-} from "@/data/membershipPlans";
 import { useVenue } from "@/hooks/useVenues";
 import { readApiError } from "@/libs/api/errors";
 import type { ApiAddonOrder } from "@/types/addonOrder";
@@ -17,6 +12,15 @@ import type { VenueAddonOffer } from "@/types/catalogue";
 import { MEMBERSHIP_STATUS_LABELS, type ApiMembership, type MembershipStatus } from "@/types/membership";
 import { cn } from "@/utils";
 import { formatDay, todayIso } from "@/utils/date";
+import {
+  PLAN_LENGTH_LABELS,
+  PLAN_LENGTH_UNITS,
+  daysLabel,
+  membershipTitle,
+  seatNoun,
+  spaceLabel,
+  windowLabel,
+} from "@/utils/plans";
 import { canBuyAddons } from "../addonOrderRules";
 import { canAskToCancel, requestNotice } from "../cancelRequest";
 import { paidCycleStart } from "../membershipCycle";
@@ -65,7 +69,7 @@ const MembershipCard = ({
   const decision = requestNotice(request);
   const isRequestOpen = request?.status === "open";
   const { venue } = useVenue(membership.venue.slug);
-  const unit = MEMBERSHIP_UNIT_BY_KEY[membership.length];
+  const unit = PLAN_LENGTH_UNITS[membership.length];
   const seatLabel = membership.seats.map((seat) => seat.label).join(", ");
   const isPastDue = membership.status === "past-due";
   const offers = venue?.addons ?? [];
@@ -180,25 +184,52 @@ const MembershipCard = ({
       <dl className="mt-5 grid grid-cols-2 gap-x-6 gap-y-4 border-t border-dashed border-tertiary/15 pt-5 lg:grid-cols-4">
         <div>
           <dt className={DETAIL_LABEL}>Plan</dt>
-          <dd className={DETAIL_VALUE}>{MEMBERSHIP_LENGTH_LABELS_BY_KEY[membership.length]}</dd>
+          <dd className={DETAIL_VALUE}>
+            {membershipTitle(membership)}, {PLAN_LENGTH_LABELS[membership.length]}
+          </dd>
         </div>
         <div>
-          <dt className={DETAIL_LABEL}>Workspace</dt>
-          <dd className={DETAIL_VALUE}>{MEMBERSHIP_SPACES[membership.spaceType].workspace}</dd>
+          <dt className={DETAIL_LABEL}>{seatNoun(membership.spaceType, membership.seats.length)}</dt>
+          <dd className={DETAIL_VALUE}>
+            {spaceLabel(membership.spaceType)} {seatLabel}
+          </dd>
         </div>
         <div>
-          <dt className={DETAIL_LABEL}>Your seat</dt>
-          <dd className={DETAIL_VALUE}>{seatLabel}</dd>
+          <dt className={DETAIL_LABEL}>Days</dt>
+          <dd className={DETAIL_VALUE}>
+            {membership.plan
+              ? daysLabel(membership.plan.days)
+              : venue
+                ? venue.openDaysLabel.replace(/^open\s+/i, "").replace("*", "")
+                : "Every open day"}
+          </dd>
         </div>
-        {venue && (
+        {(membership.window || venue) && (
           <div>
-            <dt className={DETAIL_LABEL}>Access</dt>
+            <dt className={DETAIL_LABEL}>{membership.window ? "Your window" : "Access"}</dt>
             <dd className={DETAIL_VALUE}>
-              {venue.openDaysLabel.replace(/^open\s+/i, "").replace("*", "")}, {venue.openHours}
+              {membership.window ? windowLabel(membership.window) : venue?.openHours}
             </dd>
           </div>
         )}
       </dl>
+
+      {membership.holders.length > 0 && (
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <span className="text-sm text-tertiary/55">Seat holders</span>
+          {membership.holders.map((holder) => (
+            <span
+              key={holder.seatId}
+              className="inline-flex items-center gap-1.5 rounded-full border border-tertiary/10 bg-surface py-1 pl-1 pr-3 text-xs text-tertiary"
+            >
+              <span className="rounded-full bg-orange-500/15 px-2 py-0.5 font-semibold text-orange-800">
+                {membership.seats.find((seat) => seat.id === holder.seatId)?.label ?? holder.seatId}
+              </span>
+              {holder.name}
+            </span>
+          ))}
+        </div>
+      )}
 
       {membership.paidThrough && (
         <div className="mt-5">

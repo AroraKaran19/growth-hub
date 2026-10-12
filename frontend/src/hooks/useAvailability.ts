@@ -33,12 +33,14 @@ export const useTakenSeats = (slug: string, date: string, window: { start: numbe
   return { taken: data, error };
 };
 
-/** Seats someone else holds on any day a new plan would keep. */
-export const useMembershipTakenSeats = (slug: string, startDate: string, length: string | null) => {
+export type PlanAvailabilityQuery = { planId: string; startDate: string; length: string; startMin?: number };
+
+/** Seats of the plan's kind someone else holds on any covered day, or inside its daily window. */
+export const useMembershipTakenSeats = (slug: string, query: PlanAvailabilityQuery | null) => {
   const { data, error } = useSWR(
-    startDate && length ? ["plan-taken", slug, startDate, length] : null,
-    async ([, venue, start, planLength]) =>
-      ((await publicApi.get(`/venues/${venue}/membership-availability`, { params: { startDate: start, length: planLength } })) as Envelope<MembershipAvailability>)
+    query ? ["plan-taken", slug, query.planId, query.startDate, query.length, query.startMin ?? ""] : null,
+    async () =>
+      ((await publicApi.get(`/venues/${slug}/membership-availability`, { params: query! })) as Envelope<MembershipAvailability>)
         .data.data,
     LIVE,
   );

@@ -1,6 +1,7 @@
 "use client";
 
-import { Check, Minus } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { Check, ChevronDown, Minus } from "lucide-react";
 import { ADMIN_PERMISSIONS, hasPermission, type AdminPermissionInfo } from "@/config/adminPermissions";
 import { cn } from "@/utils";
 
@@ -29,6 +30,54 @@ const Box = ({ state }: { state: "on" | "off" | "some" }) => (
     {state === "some" && <Minus className="size-3.5" />}
   </span>
 );
+
+type GroupRowProps = {
+  entry: AdminPermissionInfo;
+  pages: AdminPermissionInfo[];
+  value: string[];
+  locked: boolean;
+  onToggle: () => void;
+  renderPage: (page: AdminPermissionInfo) => ReactNode;
+};
+
+const GroupRow = ({ entry, pages, value, locked, onToggle, renderPage }: GroupRowProps) => {
+  const whole = value.includes(entry.key);
+  const picked = whole ? pages.length : pages.filter((page) => value.includes(page.key)).length;
+  const [isOpen, setIsOpen] = useState(picked > 0 && !whole);
+  const state = whole ? "on" : picked > 0 ? "some" : "off";
+
+  return (
+    <li className={cn("rounded-xl border transition-colors", picked > 0 ? "border-primary/30 bg-primary/3" : "border-tertiary/12")}>
+      <div className="flex items-center gap-2 px-2.5 py-1.5">
+        <button
+          type="button"
+          role="checkbox"
+          aria-checked={whole ? true : picked > 0 ? "mixed" : false}
+          aria-label={`${entry.label}: every page, including ones added later`}
+          disabled={locked}
+          title={locked ? LOCKED_HINT : "Every page, including ones added later"}
+          onClick={onToggle}
+          className={cn("rounded-md p-0.5", locked && "cursor-not-allowed opacity-55")}
+        >
+          <Box state={state} />
+        </button>
+        <button
+          type="button"
+          aria-expanded={isOpen}
+          onClick={() => setIsOpen(!isOpen)}
+          className="flex grow items-center gap-2 rounded-md py-1 text-left"
+        >
+          <span className="text-sm font-semibold text-tertiary">{entry.label}</span>
+          <span className={cn("rounded-full px-2 py-0.5 text-xs", picked > 0 ? "bg-primary/10 text-primary" : "bg-tertiary/5 text-tertiary/55")}>
+            {whole ? "All pages" : `${picked} of ${pages.length}`}
+          </span>
+          <ChevronDown aria-hidden="true" className={cn("ml-auto size-4 text-tertiary/50 transition-transform", isOpen && "rotate-180")} />
+        </button>
+      </div>
+      {isOpen && <div className="flex flex-wrap gap-1.5 border-t border-tertiary/8 px-3 py-2.5">{pages.map(renderPage)}</div>}
+    </li>
+  );
+};
 
 const PermissionPicker = ({ value, onChange, error, idPrefix, grantable }: PermissionPickerProps) => {
   const canGive = (key: string) => !grantable || hasPermission(grantable, key);
@@ -62,15 +111,37 @@ const PermissionPicker = ({ value, onChange, error, idPrefix, grantable }: Permi
     onChange(value.includes(page.key) ? value.filter((key) => key !== page.key) : [...value, page.key]);
   };
 
-  const cardClass = (on: boolean, locked: boolean) =>
-    cn(
-      "flex w-full items-start gap-3 rounded-xl border px-3.5 py-3 text-left transition-all",
-      locked
-        ? "cursor-not-allowed border-tertiary/8 opacity-55"
-        : on
-          ? "border-primary/40 bg-primary/5 shadow-sm"
-          : "border-tertiary/12 hover:-translate-y-0.5 hover:border-tertiary/25 hover:shadow-sm",
+  const chip = (entry: AdminPermissionInfo, onToggle: () => void) => {
+    const locked = !canGive(entry.key);
+    const on = isOn(entry.key);
+    return (
+      <button
+        key={entry.key}
+        type="button"
+        role="checkbox"
+        aria-checked={on}
+        disabled={locked}
+        title={locked ? LOCKED_HINT : entry.description}
+        onClick={onToggle}
+        className={cn(
+          "inline-flex items-center gap-1.5 rounded-full border py-1.5 pl-2 pr-3 text-sm transition-all",
+          locked
+            ? "cursor-not-allowed border-tertiary/8 text-tertiary/40"
+            : on
+              ? "cta-gradient border-transparent font-medium text-secondary shadow-sm shadow-primary/20"
+              : "border-tertiary/15 text-tertiary/75 hover:-translate-y-0.5 hover:border-tertiary/30",
+        )}
+      >
+        <span aria-hidden="true" className={cn("flex size-4 items-center justify-center rounded-full", on ? "bg-secondary/25" : "border border-tertiary/25")}>
+          {on && <Check className="size-3" />}
+        </span>
+        {entry.label}
+      </button>
     );
+  };
+
+  const singles = TOP_LEVEL.filter((entry) => !pagesOf(entry.key).length);
+  const groups = TOP_LEVEL.filter((entry) => pagesOf(entry.key).length);
 
   return (
     <fieldset aria-describedby={error ? `${idPrefix}-error` : undefined}>
@@ -84,80 +155,21 @@ const PermissionPicker = ({ value, onChange, error, idPrefix, grantable }: Permi
         </button>
       </div>
 
-      <div className="mt-2.5 grid grid-cols-1 gap-2 sm:grid-cols-2">
-        {TOP_LEVEL.map((entry) => {
-          const pages = pagesOf(entry.key);
-          if (!pages.length) {
-            const locked = !canGive(entry.key);
-            const on = isOn(entry.key);
-            return (
-              <button
-                key={entry.key}
-                type="button"
-                role="checkbox"
-                aria-checked={on}
-                disabled={locked}
-                title={locked ? LOCKED_HINT : undefined}
-                onClick={() => toggleGroup(entry)}
-                className={cardClass(on, locked)}
-              >
-                <Box state={on ? "on" : "off"} />
-                <span>
-                  <span className="block text-sm font-medium text-tertiary">{entry.label}</span>
-                  <span className="block text-xs text-tertiary/55">{entry.description}</span>
-                </span>
-              </button>
-            );
-          }
+      <div className="mt-2.5 flex flex-wrap gap-1.5">{singles.map((entry) => chip(entry, () => toggleGroup(entry)))}</div>
 
-          const whole = value.includes(entry.key);
-          const some = !whole && pages.some((page) => value.includes(page.key));
-          const groupLocked = !canGive(entry.key);
-          return (
-            <div key={entry.key} className={cn("rounded-xl border p-1.5 sm:col-span-2", whole || some ? "border-primary/30 bg-primary/3" : "border-tertiary/12")}>
-              <button
-                type="button"
-                role="checkbox"
-                aria-checked={whole ? true : some ? "mixed" : false}
-                disabled={groupLocked}
-                title={groupLocked ? LOCKED_HINT : undefined}
-                onClick={() => toggleGroup(entry)}
-                className={cn("flex w-full items-start gap-3 rounded-lg px-2.5 py-2 text-left", groupLocked && "cursor-not-allowed opacity-55")}
-              >
-                <Box state={whole ? "on" : some ? "some" : "off"} />
-                <span>
-                  <span className="block text-sm font-semibold text-tertiary">{entry.label}</span>
-                  <span className="block text-xs text-tertiary/55">All pages below, including ones added later</span>
-                </span>
-              </button>
-              <div className="mt-1 grid grid-cols-1 gap-1.5 pl-8 sm:grid-cols-2">
-                {pages.map((page) => {
-                  const locked = !canGive(page.key);
-                  const on = isOn(page.key);
-                  return (
-                    <button
-                      key={page.key}
-                      type="button"
-                      role="checkbox"
-                      aria-checked={on}
-                      disabled={locked}
-                      title={locked ? LOCKED_HINT : undefined}
-                      onClick={() => togglePage(page)}
-                      className={cardClass(on, locked)}
-                    >
-                      <Box state={on ? "on" : "off"} />
-                      <span>
-                        <span className="block text-sm font-medium text-tertiary">{page.label}</span>
-                        <span className="block text-xs text-tertiary/55">{page.description}</span>
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      <ul className="mt-3 flex flex-col gap-1.5">
+        {groups.map((entry) => (
+          <GroupRow
+            key={entry.key}
+            entry={entry}
+            pages={pagesOf(entry.key)}
+            value={value}
+            locked={!canGive(entry.key)}
+            onToggle={() => toggleGroup(entry)}
+            renderPage={(page) => chip(page, () => togglePage(page))}
+          />
+        ))}
+      </ul>
 
       {error && (
         <p id={`${idPrefix}-error`} className="mt-1.5 text-sm text-primary">

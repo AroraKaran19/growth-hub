@@ -4,6 +4,7 @@ import type { AddonUnit } from "../constants/catalogue";
 import { AppError } from "../middlewares/error.middleware";
 import {
   AddonType,
+  MembershipPlan,
   SeatMap,
   Venue,
   type Actor,
@@ -38,7 +39,6 @@ export type PublicVenue = {
   priceUnit: VenueDoc["priceUnit"];
   halfDayPrice: number | null;
   dayPassPrice: number | null;
-  membershipPrices: VenueDoc["membershipPrices"];
   distanceKm: number;
   description: string;
   longDescription: string;
@@ -108,7 +108,6 @@ export const toPublicVenue = (venue: VenueDoc): PublicVenue => ({
   priceUnit: venue.priceUnit,
   halfDayPrice: venue.halfDayPrice ?? null,
   dayPassPrice: venue.dayPassPrice ?? null,
-  membershipPrices: venue.membershipPrices ?? {},
   distanceKm: venue.distanceKm,
   description: venue.description,
   longDescription: venue.longDescription,
@@ -125,6 +124,8 @@ export const toPublicVenue = (venue: VenueDoc): PublicVenue => ({
   amenities: venue.amenities,
   published: venue.published,
 });
+
+const hasVisiblePlan = async (venueId: Types.ObjectId) => Boolean(await MembershipPlan.exists({ venueId, visible: true }));
 
 const findVenue = async (slug: string) => {
   const venue = await Venue.findOne({ slug }).lean<VenueDoc>();
@@ -286,7 +287,7 @@ export const patchVenue = async (slug: string, patch: PatchVenueInput, actor: Ac
         startingPrice: next("startingPrice"),
         halfDayPrice: next("halfDayPrice"),
         dayPassPrice: next("dayPassPrice"),
-        membershipPrices: next("membershipPrices"),
+        hasPlan: await hasVisiblePlan(venue._id),
       }),
       image: changes.image ?? venue.image,
       openDays: changes.openDays ?? venue.openDays,
@@ -389,18 +390,17 @@ export const setOutOfService = async (slug: string, seatIds: string[], actor: Ac
   return getAdminVenue(slug);
 };
 
-/** The venue's own staff set its pass and membership prices; blank means not sold. */
+/** The venue's own staff set its pass prices; blank means not sold. */
 export const setVenuePrices = async (slug: string, prices: VenuePricesInput, actor: Actor) => {
   const venue = await findVenue(slug);
   const next = {
     startingPrice: "startingPrice" in prices ? (prices.startingPrice ?? null) : (venue.startingPrice ?? null),
     halfDayPrice: "halfDayPrice" in prices ? (prices.halfDayPrice ?? null) : (venue.halfDayPrice ?? null),
     dayPassPrice: "dayPassPrice" in prices ? (prices.dayPassPrice ?? null) : (venue.dayPassPrice ?? null),
-    membershipPrices: prices.membershipPrices ?? venue.membershipPrices,
   };
   const fields = crossFieldErrors({ ...next, opensAt: venue.opensAt, closesAt: venue.closesAt });
   if (Object.keys(fields).length > 0) throw validationFailed(fields);
-  if (venue.published && !hasAnyPrice(next)) {
+  if (venue.published && !hasAnyPrice({ ...next, hasPlan: await hasVisiblePlan(venue._id) })) {
     throw new AppError("A live venue needs at least one price.", 422, "PRICE_REQUIRED");
   }
   await bump(venue._id, prices, actor);

@@ -73,7 +73,7 @@ const MembershipsPage = () => {
         <div>
           <h1 className="text-2xl font-bold text-tertiary">My Memberships</h1>
           <p className="mt-1 text-sm text-tertiary/60">
-            Your reserved desks and cabins, what you have paid for, and when each plan renews.
+            Your reserved desks, cabins and rooms, what you have paid for, and when each plan renews.
           </p>
         </div>
         <Link

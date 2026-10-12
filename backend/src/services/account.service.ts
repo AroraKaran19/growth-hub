@@ -6,6 +6,7 @@ import {
   Member,
   PartnerStaff,
   type AdminDoc,
+  type MemberBilling,
   type MemberDoc,
   type PartnerStaffDoc,
 } from "../models";
@@ -22,6 +23,7 @@ export type MemberAccount = {
   needsOnboarding: boolean;
   createdAt: string | null;
   profile: MemberProfile;
+  billing: MemberBilling;
 };
 
 export type PartnerAccount = {
@@ -54,6 +56,12 @@ export const memberSummary = (member: MemberDoc): MemberAccount => ({
   needsOnboarding: !member.name || !member.email,
   createdAt: member.createdAt?.toISOString() ?? null,
   profile: Object.fromEntries(PROFILE_FIELDS.map((field) => [field, member[field] ?? null])) as MemberProfile,
+  billing: {
+    companyName: member.billing?.companyName ?? null,
+    gstin: member.billing?.gstin ?? null,
+    address: member.billing?.address ?? null,
+    state: member.billing?.state ?? null,
+  },
 });
 
 export const partnerSummary = (staff: PartnerStaffDoc): PartnerAccount => ({

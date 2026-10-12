@@ -6,6 +6,7 @@ import { usePartnerDesk } from "@/stores/partner";
 import { MEMBERSHIP_STATUS_LABELS, type MembershipStatus } from "@/types/membership";
 import { cn } from "@/utils";
 import { formatDay } from "@/utils/date";
+import { scheduleLabel } from "@/utils/membershipLabels";
 import {
   CHECK_IN_BUTTON,
   PARTNER_CARD,
@@ -14,6 +15,7 @@ import {
   PartnerStat,
 } from "./components/PartnerUi";
 import DeskAddonModal, { type DeskAddonSubject } from "./components/DeskAddonModal";
+import SeatCheckIns from "./components/SeatCheckIns";
 import TodayAddonsCell from "./components/TodayAddonsCell";
 
 const STATUS_STYLE: Partial<Record<MembershipStatus, string>> = {
@@ -32,20 +34,21 @@ const PartnerMembersPage = () => {
   const rows = desk.members.filter(
     (member) =>
       !search ||
-      `${member.memberName} ${member.phone} ${member.seats.join(" ")}`
+      `${member.memberName} ${member.phone} ${member.plan} ${member.seatList.map((seat) => `${seat.label} ${seat.holder ?? ""}`).join(" ")}`
         .toLowerCase()
         .includes(search),
   );
 
-  const expected = desk.members.filter((member) => member.startDate <= desk.today);
   const pastDue = desk.members.filter((member) => member.status === "past-due");
-  const inToday = expected.filter((member) => desk.checkIns[member.membershipId]);
+  // Counted per seat, since each holder on a multi-seat plan checks in separately.
+  const seatsDue = desk.todayMembers.flatMap((member) => member.today?.seats ?? []);
+  const seatsIn = seatsDue.filter((seat) => seat.checkedInAt);
 
   return (
     <>
       <PartnerPageHeader
         title="Members"
-        description="Members with a reserved seat at this venue. Their seats are held for the whole plan."
+        description="Members with a reserved seat or room at this venue, held on the days their plan covers."
       />
 
       <dl className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -55,7 +58,11 @@ const PartnerMembersPage = () => {
           value={String(pastDue.length)}
           hint="Seat kept while Razorpay retries"
         />
-        <PartnerStat label="Checked in today" value={`${inToday.length} of ${expected.length}`} />
+        <PartnerStat
+          label="Checked in today"
+          value={`${seatsIn.length} of ${seatsDue.length}`}
+          hint={`Seats due from ${desk.todayMembers.length} ${desk.todayMembers.length === 1 ? "plan" : "plans"}`}
+        />
       </dl>
 
       <div className="mt-6 flex justify-end">
@@ -69,7 +76,7 @@ const PartnerMembersPage = () => {
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Name, phone or seat"
+            placeholder="Name, plan, seat or holder"
             className="w-60 rounded-lg border border-tertiary/15 bg-secondary py-2.5 pl-9 pr-3 text-sm text-tertiary outline-none transition-colors hover:border-tertiary/30 focus-visible:border-primary"
           />
         </label>
@@ -104,11 +111,21 @@ const PartnerMembersPage = () => {
                       <p className="font-medium text-tertiary">{member.memberName}</p>
                       <p className="text-xs text-tertiary/55">{member.phone}</p>
                     </td>
-                    <td className="px-5 py-3.5 text-tertiary/75">
-                      {member.plan} {member.workspace}
+                    <td className="px-5 py-3.5">
+                      <p className="font-medium text-tertiary">{member.plan}</p>
+                      <p className="text-xs text-tertiary/55">
+                        {scheduleLabel({ plan: member.planSnapshot, window: member.window })}
+                      </p>
                     </td>
-                    <td className="px-5 py-3.5 font-medium text-tertiary">
-                      {member.seats.join(", ")}
+                    <td className="px-5 py-3.5">
+                      <ul className="flex flex-col gap-0.5">
+                        {member.seatList.map((seat) => (
+                          <li key={seat.id} className="text-tertiary">
+                            <span className="font-medium">{seat.label}</span>
+                            {seat.holder && <span className="text-xs text-tertiary/60"> {seat.holder}</span>}
+                          </li>
+                        ))}
+                      </ul>
                     </td>
                     <td className="px-5 py-3.5">
                       <span
@@ -149,6 +166,14 @@ const PartnerMembersPage = () => {
                     <td className="px-5 py-3.5">
                       {member.startDate > desk.today ? (
                         <span className="text-xs text-tertiary/45">Not started</span>
+                      ) : !member.today ? (
+                        <span className="text-xs text-tertiary/45">Not due today</span>
+                      ) : member.seatList.length > 1 ? (
+                        <SeatCheckIns
+                          seats={member.today.seats}
+                          memberName={member.memberName}
+                          onCheckIn={(seatId) => desk.quickCheckIn(member.membershipId, seatId)}
+                        />
                       ) : checkedIn ? (
                         <span className="text-xs font-medium text-blue-700">
                           In since{" "}

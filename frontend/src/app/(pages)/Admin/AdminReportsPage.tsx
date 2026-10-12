@@ -4,8 +4,6 @@ import { useState } from "react";
 import useSWR from "swr";
 import { Download } from "lucide-react";
 import BarChart, { formatValue } from "@/app/components/shared/BarChart";
-import SelectField from "@/app/components/ui/form/SelectField";
-import { usePublishedVenues } from "@/hooks/useVenues";
 import { downloadReport, fetchReport } from "@/libs/api/reports";
 import { readApiError } from "@/libs/api/errors";
 import { REPORT_TABS, type ColumnKind, type ReportName } from "@/types/report";
@@ -13,6 +11,7 @@ import { cn } from "@/utils";
 import { todayIso } from "@/utils/date";
 import { PARTNER_CARD as CARD, PartnerPageHeader as PageHeader } from "../Partner/components/PartnerUi";
 import { PRESETS, presetRange, type Preset } from "./components/reports/reportRules";
+import VenuePicker from "./components/VenuePicker";
 
 const DATE_INPUT =
   "rounded-lg border border-tertiary/15 bg-secondary px-3 py-2 text-sm text-tertiary outline-none transition-colors hover:border-tertiary/30 focus-visible:border-primary";
@@ -29,13 +28,11 @@ const AdminReportsPage = () => {
   const [preset, setPreset] = useState<Preset | null>("this-month");
   const [venue, setVenue] = useState("");
   const [downloadError, setDownloadError] = useState<string | null>(null);
-  const { venues } = usePublishedVenues();
   const query = { ...range, ...(venue && { venue }) };
   const { data: report, error, isLoading } = useSWR(["admin/report", tab, range.from, range.to, venue], () =>
     fetchReport(tab, query),
   );
 
-  const venueOptions = [{ value: "", label: "All venues" }, ...venues.map((item) => ({ value: item.slug, label: item.name }))];
   const choosePreset = (value: Preset) => {
     setPreset(value);
     setRange(presetRange(value, today));
@@ -117,7 +114,7 @@ const AdminReportsPage = () => {
             className={DATE_INPUT}
           />
         </label>
-        <SelectField label="Venue" hideLabel value={venue} onChange={setVenue} options={venueOptions} className="w-56" />
+        <VenuePicker label="Venue" hideLabel allLabel="All venues" value={venue} onChange={(slug) => setVenue(slug)} className="w-56" />
         <button
           type="button"
           disabled={!report}

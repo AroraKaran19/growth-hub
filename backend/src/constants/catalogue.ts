@@ -6,9 +6,6 @@ export type SeatType = (typeof SEAT_TYPES)[number];
 
 export const ROOM_TYPES: ReadonlySet<string> = new Set(["private-cabin", "office", "meeting-room"]);
 
-export const MEMBERSHIP_SPACES = ["desk", "private-cabin", "office"] as const;
-export type MembershipSpace = (typeof MEMBERSHIP_SPACES)[number];
-
 export const MEMBERSHIP_LENGTHS = ["weekly", "monthly", "quarterly", "halfYearly"] as const;
 export type MembershipLength = (typeof MEMBERSHIP_LENGTHS)[number];
 

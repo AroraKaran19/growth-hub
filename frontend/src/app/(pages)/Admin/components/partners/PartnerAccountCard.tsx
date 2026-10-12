@@ -14,7 +14,7 @@ type Mode = "view" | "edit" | "confirm-disable";
 type PartnerAccountCardProps = {
   account: PartnerAccountRow;
   venues: VenueOption[];
-  /** Name, email and password need the Team accounts section. */
+  /** Name, email and password need the Manage users page. */
   canEditDetails: boolean;
   onUpdate: (change: PartnerChange) => Promise<void>;
 };

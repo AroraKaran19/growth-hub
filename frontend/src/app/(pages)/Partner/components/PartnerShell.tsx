@@ -16,6 +16,7 @@ import {
   Puzzle,
   ReceiptText,
   ScanLine,
+  CircleUserRound,
 } from "lucide-react";
 import Logo from "@/app/components/ui/Logo";
 import { useAuthBootstrap } from "@/hooks/useAuthBootstrap";
@@ -123,8 +124,10 @@ const PartnerShell = ({ children }: { children: ReactNode }) => {
         </nav>
 
         <div className="mt-auto border-t border-secondary/10 pt-4">
-          <p className="text-sm font-medium">{session.staffName}</p>
-          <p className="truncate text-xs text-secondary/55">{session.email}</p>
+          <Link href="/partner/profile" className="group block rounded-lg transition-opacity hover:opacity-85">
+            <p className="text-sm font-medium group-hover:underline">{session.staffName}</p>
+            <p className="truncate text-xs text-secondary/55">{session.email}</p>
+          </Link>
           <button
             type="button"
             onClick={handleSignOut}
@@ -159,6 +162,13 @@ const PartnerShell = ({ children }: { children: ReactNode }) => {
                   <ExternalLink aria-hidden="true" className="size-3.5" />
                 </Link>
               )}
+              <Link
+                href="/partner/profile"
+                aria-label="Your profile"
+                className="rounded-full p-1.5 text-tertiary/65 transition-colors hover:bg-tertiary/5 hover:text-tertiary lg:hidden"
+              >
+                <CircleUserRound aria-hidden="true" className="size-5" />
+              </Link>
               <button
                 type="button"
                 onClick={handleSignOut}

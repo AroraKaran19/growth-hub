@@ -34,6 +34,7 @@ import {
   type ProfileErrors,
 } from "./profileDraft";
 import { toStatsBooking } from "./bookingAdapter";
+import BillingDetailsCard from "./components/BillingDetailsCard";
 import { profileStats } from "./profileStats";
 
 const initials = (name: string) =>
@@ -459,6 +460,8 @@ const ProfileView = ({ account }: { account: MemberAccount }) => {
           ))}
         </div>
       </div>
+
+      <BillingDetailsCard account={account} className="mt-6" />
     </>
   );
 };

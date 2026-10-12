@@ -3,6 +3,8 @@ import { connectDB, disconnectDB } from "./config/database";
 import dotenv from "dotenv";
 import { initializeS3 } from "./config/aws";
 import { migrateLegacyPermissions } from "./services/permissions";
+import { migrateMembershipPrices } from "./services/membershipPlan.service";
+import { dropLegacyCheckInIndex } from "./services/checkIn.service";
 
 dotenv.config();
 
@@ -17,6 +19,9 @@ const startServer = async () => {
     await connectDB();
     const migrated = await migrateLegacyPermissions();
     if (migrated) console.log(`Moved ${migrated} admin(s) from the Venues permission to the Workspaces group.`);
+    const plans = await migrateMembershipPrices();
+    if (plans) console.log(`Turned venue membership prices into ${plans} membership plan(s).`);
+    await dropLegacyCheckInIndex();
     await initializeS3().catch((error: unknown) => {
       console.warn(
         "⚠️  S3 unavailable, image uploads will fail:",

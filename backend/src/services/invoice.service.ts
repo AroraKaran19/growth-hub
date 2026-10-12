@@ -11,8 +11,8 @@ import {
   type InvoiceJobStatus,
   type InvoiceSourceKind,
 } from "../models";
-import { invoiceSummary } from "./invoiceData.service";
-import { findMembers } from "./accountSnapshot.service";
+import { billedToBlock, invoiceSummary } from "./invoiceData.service";
+import { findMember, findMembers } from "./accountSnapshot.service";
 import { signedInvoiceUrl } from "./invoiceStorage.service";
 
 const LIST_LIMIT = 200;
@@ -30,6 +30,7 @@ const summarised = async (job: InvoiceJobDoc) => {
 
 export const listMemberInvoices = async (memberId: string) => {
   const jobs = await InvoiceJob.find({ memberId }).sort({ createdAt: -1 }).limit(LIST_LIMIT).lean<InvoiceJobDoc[]>();
+  const member = jobs.some((job) => !job.billedTo) ? await findMember(memberId) : null;
   return Promise.all(
     jobs.map(async (job) => ({
       id: job._id.toString(),
@@ -37,6 +38,7 @@ export const listMemberInvoices = async (memberId: string) => {
       kind: job.source.kind,
       ...(await summarised(job)),
       status: job.status === "done" ? ("ready" as const) : ("preparing" as const),
+      billedTo: billedToBlock(job, member),
     })),
   );
 };

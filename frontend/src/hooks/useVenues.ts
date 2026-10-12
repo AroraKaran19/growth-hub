@@ -3,7 +3,6 @@
 import useSWR from "swr";
 import { partnerApi, publicApi } from "@/libs/api/client";
 import { useAuthStore } from "@/stores/auth";
-import type { MembershipPriceTable } from "@/types/catalogue";
 import type { PartnerVenue, Venue, VenueDetail } from "@/types/venue";
 
 type Envelope<T> = { data: { data: T } };
@@ -30,7 +29,6 @@ export type VenuePricesInput = {
   startingPrice: number | null;
   halfDayPrice: number | null;
   dayPassPrice: number | null;
-  membershipPrices: MembershipPriceTable;
 };
 
 /** The signed-in partner's own venue. Keyed by account so a new sign-in never sees the last one's. */

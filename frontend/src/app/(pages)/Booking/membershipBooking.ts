@@ -1,11 +1,9 @@
 import { HALF_DAY_HOURS } from "@/data/bookingOptions";
-import { MEMBERSHIP_LENGTH_DETAILS, MEMBERSHIP_SPACES, isMembershipSpace } from "@/data/membershipPlans";
-import { isMembershipType, type BookingSelection, type BookingType } from "@/types/booking";
+import type { BookingSelection, BookingType } from "@/types/booking";
 import { isLiveMembership, type ApiMembership } from "@/types/membership";
 import type { Seat, SeatType } from "@/types/seat";
 import type { Venue } from "@/types/venue";
 import { timeRange } from "@/utils/time";
-import { addCycle } from "../Account/membershipCycle";
 
 export const BOOKING_SPACE_LABELS: Record<SeatType, string> = {
   desk: "Open Desk",
@@ -14,8 +12,7 @@ export const BOOKING_SPACE_LABELS: Record<SeatType, string> = {
   "meeting-room": "Meeting Room",
 };
 
-/** Only hourly and half-day passes pick a start; the rest follow the venue's
- *  opening hours. */
+/** Only hourly and half-day passes pick a start; time-slot room plans ask separately. */
 export const needsStartTime = (type: BookingType) =>
   type === "hourly" || type === "half-day";
 
@@ -37,16 +34,4 @@ export const bookingTimeFor = (venue: Venue, selection: BookingSelection) => {
     default:
       return venue.openHours;
   }
-};
-
-/** What a membership being bought covers, before it exists. */
-export const membershipPreview = (selection: BookingSelection) => {
-  if (!isMembershipType(selection.bookingType) || !isMembershipSpace(selection.spaceType)) return null;
-  const length = MEMBERSHIP_LENGTH_DETAILS[selection.bookingType];
-  return {
-    plan: length.plan,
-    unit: length.unit,
-    workspace: MEMBERSHIP_SPACES[selection.spaceType].workspace,
-    renewsOn: selection.date ? addCycle(selection.date, length.unit) : "",
-  };
 };

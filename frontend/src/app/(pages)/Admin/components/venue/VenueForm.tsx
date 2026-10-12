@@ -5,15 +5,10 @@ import { Plus, X } from "lucide-react";
 import { useAdminAmenities } from "@/hooks/useAmenities";
 import { useCatalogueLabels } from "@/hooks/useCatalogueLabels";
 import { WORKSPACE_TYPE_OPTIONS } from "@/data/searchOptions";
-import {
-  MEMBERSHIP_LENGTH_KEYS,
-  MEMBERSHIP_LENGTH_LABELS,
-  MEMBERSHIP_SPACES,
-  MEMBERSHIP_SPACE_LABELS,
-} from "@/types/catalogue";
 import { cn } from "@/utils";
 import Toggle from "../Toggle";
 import { Chip, Field, QUIET, RAISED, Section, inputClass } from "./fields";
+import MembershipPlansCard from "./MembershipPlansCard";
 import PhotosSection from "./PhotosSection";
 import type { DraftErrors, VenueDraft } from "./venueDraft";
 
@@ -70,12 +65,6 @@ const VenueForm = ({ mode, draft, errors, onChange, onSubmit, isSaving, status, 
         ? draft.openDays.filter((item) => item !== day)
         : [...draft.openDays, day].sort((a, b) => a - b),
     );
-
-  const setPrice = (space: (typeof MEMBERSHIP_SPACES)[number], length: (typeof MEMBERSHIP_LENGTH_KEYS)[number], value: string) =>
-    onChange("membershipPrices", {
-      ...draft.membershipPrices,
-      [space]: { ...draft.membershipPrices[space], [length]: digits(value) },
-    });
 
   const setRule = (index: number, value: string) =>
     onChange(
@@ -409,54 +398,7 @@ const VenueForm = ({ mode, draft, errors, onChange, onSubmit, isSaving, status, 
           </div>
         </Section>
 
-        <Section
-          title="Membership prices"
-          hint="Rupees per cycle for one desk or one room, as the final price. Leave a cell blank if the venue doesn't offer it."
-        >
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-xl text-sm">
-              <thead>
-                <tr className="text-left text-xs uppercase tracking-wider text-tertiary/50">
-                  <th scope="col" className="pb-2 pr-3 font-semibold">Space</th>
-                  {MEMBERSHIP_LENGTH_KEYS.map((length) => (
-                    <th key={length} scope="col" className="pb-2 pr-3 font-semibold">
-                      {MEMBERSHIP_LENGTH_LABELS[length]}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {MEMBERSHIP_SPACES.map((space) => (
-                  <tr key={space}>
-                    <th scope="row" className="py-1.5 pr-3 text-left font-medium text-tertiary">
-                      {MEMBERSHIP_SPACE_LABELS[space]}
-                    </th>
-                    {MEMBERSHIP_LENGTH_KEYS.map((length) => {
-                      const cellError = errors[`membershipPrices.${space}.${length}`];
-                      return (
-                        <td key={length} className="py-1.5 pr-3">
-                          <input
-                            aria-label={`${MEMBERSHIP_SPACE_LABELS[space]}, ${MEMBERSHIP_LENGTH_LABELS[length]}`}
-                            aria-invalid={Boolean(cellError)}
-                            title={cellError}
-                            inputMode="numeric"
-                            value={draft.membershipPrices[space][length]}
-                            onChange={(event) => setPrice(space, length, event.target.value)}
-                            placeholder="Not offered"
-                            className={inputClass(Boolean(cellError), "w-28 px-2.5 py-2 text-right")}
-                          />
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {Object.keys(errors).some((key) => key.startsWith("membershipPrices")) && (
-            <p className="mt-2 text-sm text-primary">Prices are whole rupees above 0, or blank.</p>
-          )}
-        </Section>
+        <MembershipPlansCard venueSlug={mode === "edit" ? draft.slug : null} />
 
         <Section title="Offer" hint="A label on the listing. It does not change prices.">
           <Toggle
@@ -517,17 +459,6 @@ const VenueForm = ({ mode, draft, errors, onChange, onSubmit, isSaving, status, 
                 </dd>
               </div>
             ))}
-            {MEMBERSHIP_LENGTH_KEYS.map((length) => {
-              const price = Number(draft.membershipPrices.desk[length]);
-              return (
-                <div key={length} className="flex items-center justify-between gap-3">
-                  <dt className="text-tertiary/60">Desk, {MEMBERSHIP_LENGTH_LABELS[length]}</dt>
-                  <dd className={price ? "font-medium text-tertiary" : "text-tertiary/45"}>
-                    {price ? `₹${price.toLocaleString("en-IN")}` : "Not offered"}
-                  </dd>
-                </div>
-              );
-            })}
           </dl>
         </section>
 

@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import type { AuthAccount, AuthErrorBody, AuthSurface } from "@/types/auth";
 import {
-  MEMBER_HINT_COOKIE,
+  HINT_COOKIE,
   REFRESH_COOKIE,
   hintCookieOptions,
   refreshCookieOptions,
@@ -104,16 +104,24 @@ export const sessionResponse = (surface: AuthSurface, session: BackendSession) =
   );
   const maxAge = secondsUntil(session.sessionExpiresAt);
   response.cookies.set(REFRESH_COOKIE[surface], session.refreshToken, { ...refreshCookieOptions, maxAge });
-  if (surface === "member") {
-    response.cookies.set(MEMBER_HINT_COOKIE, "1", { ...hintCookieOptions, maxAge });
-  }
+  response.cookies.set(HINT_COOKIE[surface], "1", { ...hintCookieOptions, maxAge });
   return response;
 };
 
 export const clearSessionCookies = (response: NextResponse, surface: AuthSurface) => {
   response.cookies.set(REFRESH_COOKIE[surface], "", { ...refreshCookieOptions, maxAge: 0 });
-  if (surface === "member") {
-    response.cookies.set(MEMBER_HINT_COOKIE, "", { ...hintCookieOptions, maxAge: 0 });
+  response.cookies.set(HINT_COOKIE[surface], "", { ...hintCookieOptions, maxAge: 0 });
+  return response;
+};
+
+const SURFACES: AuthSurface[] = ["member", "partner", "admin"];
+
+/** One sign-in at a time: a new one ends the other surfaces' sessions. */
+export const endOtherSessions = async (request: NextRequest, response: NextResponse, surface: AuthSurface) => {
+  for (const other of SURFACES.filter((item) => item !== surface)) {
+    const refreshToken = request.cookies.get(REFRESH_COOKIE[other])?.value;
+    if (refreshToken) await callBackend(request, "/auth/logout", { refreshToken });
+    if (refreshToken || request.cookies.has(HINT_COOKIE[other])) clearSessionCookies(response, other);
   }
   return response;
 };

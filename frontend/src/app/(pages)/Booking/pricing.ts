@@ -1,12 +1,5 @@
-import { MEMBERSHIP_LENGTH_DETAILS } from "@/data/membershipPlans";
-import {
-  isMembershipType,
-  type BookingSelection,
-  type BookingType,
-  type MembershipLength,
-} from "@/types/booking";
-import type { AddonUnit, MembershipLengthKey, VenueAddonOffer } from "@/types/catalogue";
-import type { SeatType } from "@/types/seat";
+import { isMembershipType, type BookingSelection, type BookingType } from "@/types/booking";
+import type { AddonUnit, VenueAddonOffer } from "@/types/catalogue";
 import type { Venue } from "@/types/venue";
 
 export type Rate = {
@@ -14,7 +7,7 @@ export type Rate = {
   unit: string;
 };
 
-export type PricedVenue = Pick<Venue, "startingPrice" | "halfDayPrice" | "dayPassPrice" | "membershipPrices">;
+export type PricedVenue = Pick<Venue, "startingPrice" | "halfDayPrice" | "dayPassPrice">;
 
 const PASS_UNITS = { hourly: "hr", "half-day": "half day", "full-day": "day" } as const;
 
@@ -22,35 +15,12 @@ const PASS_UNITS = { hourly: "hr", "half-day": "half day", "full-day": "day" } a
 export const passPriceFor = (venue: PricedVenue, passType: keyof typeof PASS_UNITS) =>
   passType === "hourly" ? venue.startingPrice : passType === "half-day" ? venue.halfDayPrice : venue.dayPassPrice;
 
-export const LENGTH_KEYS: Record<MembershipLength, MembershipLengthKey> = {
-  weekly: "weekly",
-  monthly: "monthly",
-  quarterly: "quarterly",
-  "half-yearly": "halfYearly",
-};
+/** Passes only; plans are priced by the server from the venue's plan list. */
+export const isOffered = (venue: PricedVenue, bookingType: BookingType) =>
+  !isMembershipType(bookingType) && passPriceFor(venue, bookingType as keyof typeof PASS_UNITS) !== null;
 
-/** The venue's own price for a plan, or null when it doesn't sell that one. */
-export const membershipPriceFor = (
-  venue: PricedVenue,
-  spaceType: SeatType,
-  bookingType: BookingType,
-): number | null => {
-  if (!isMembershipType(bookingType) || spaceType === "meeting-room") return null;
-  return venue.membershipPrices[spaceType]?.[LENGTH_KEYS[bookingType]] ?? null;
-};
-
-export const isOffered = (venue: PricedVenue, spaceType: SeatType, bookingType: BookingType) =>
-  isMembershipType(bookingType)
-    ? membershipPriceFor(venue, spaceType, bookingType) !== null
-    : passPriceFor(venue, bookingType as keyof typeof PASS_UNITS) !== null;
-
-export const rateFor = (venue: PricedVenue, bookingType: BookingType, spaceType: SeatType = "desk"): Rate => {
-  if (isMembershipType(bookingType)) {
-    return {
-      amount: membershipPriceFor(venue, spaceType, bookingType) ?? 0,
-      unit: MEMBERSHIP_LENGTH_DETAILS[bookingType].unit,
-    };
-  }
+export const rateFor = (venue: PricedVenue, bookingType: BookingType): Rate => {
+  if (isMembershipType(bookingType)) return { amount: 0, unit: "" };
   const passType = bookingType as keyof typeof PASS_UNITS;
   return { amount: passPriceFor(venue, passType) ?? 0, unit: PASS_UNITS[passType] };
 };
@@ -73,13 +43,13 @@ export const addonLinesFor = (
     }));
 };
 
-/** A local estimate for instant feedback; checkout always charges the server's quote. */
+/** A local estimate of a pass for instant feedback; checkout always charges the server's quote. */
 export const quoteBooking = (
   venue: PricedVenue,
   selection: BookingSelection,
   offers: VenueAddonOffer[] = [],
 ) => {
-  const rate = rateFor(venue, selection.bookingType, selection.spaceType);
+  const rate = rateFor(venue, selection.bookingType);
   // Desks are charged per person; a room is one unit whatever the party size.
   const units = selection.spaceType === "desk" ? selection.seats : 1;
   const hours = selection.bookingType === "hourly" ? selection.hours : 1;

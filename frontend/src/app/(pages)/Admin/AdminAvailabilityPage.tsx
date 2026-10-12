@@ -3,7 +3,6 @@
 import { useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import SelectField from "@/app/components/ui/form/SelectField";
 import { useAdminVenue, useAdminVenues } from "@/hooks/useAdminCatalogue";
 import { readApiError } from "@/libs/api/errors";
 import type { ApiSeat } from "@/types/catalogue";
@@ -13,6 +12,7 @@ import {
   PartnerSkeleton as Skeleton,
 } from "../Partner/components/PartnerUi";
 import { QUIET, RAISED } from "./components/venue/fields";
+import VenuePicker from "./components/VenuePicker";
 import SeatPlan from "./components/venue/SeatPlan";
 
 const AdminAvailabilityPage = () => {
@@ -72,13 +72,7 @@ const AdminAvailabilityPage = () => {
       ) : (
         <>
           <div className="mt-6 flex flex-wrap items-end justify-between gap-4">
-            <SelectField
-              label="Venue"
-              value={venueSlug ?? ""}
-              onChange={pickVenue}
-              options={venues.map((item) => ({ value: item.slug, label: `${item.name}, ${item.locality}` }))}
-              className="w-80 max-w-full"
-            />
+            <VenuePicker label="Venue" value={venueSlug ?? ""} onChange={(slug) => pickVenue(slug)} className="w-80 max-w-full" />
             {venue?.seatMap && (
               <ul className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-tertiary/70">
                 <li className="flex items-center gap-2">

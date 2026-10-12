@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { ArrowDown, ArrowUp, CalendarDays, Check, ClipboardList, PencilLine, Trash2 } from "lucide-react";
-import SelectField from "@/app/components/ui/form/SelectField";
 import { useAdminMembershipPlans } from "@/hooks/useMembershipPlans";
 import { deletePlan, reorderPlans, updatePlan } from "@/libs/api/membershipPlansAdmin";
 import { readApiError } from "@/libs/api/errors";
@@ -13,6 +13,7 @@ import { PartnerPageHeader as PageHeader, PartnerSkeleton as Skeleton } from "..
 import PlanForm from "./components/plans/PlanForm";
 import { daysLabel, lockLabel, priceLabel, SPACES } from "./components/plans/planLabels";
 import Toggle from "./components/Toggle";
+import VenuePicker from "./components/VenuePicker";
 import { QUIET } from "./components/venue/fields";
 
 const toInput = ({ name, description, includes, space, roomMode, slotHours, days, prices, maxSeats, visible }: MembershipPlan): PlanInput => ({
@@ -31,7 +32,9 @@ const toInput = ({ name, description, includes, space, roomMode, slotHours, days
 const ICONS = Object.fromEntries(SPACES.map((space) => [space.value, space.icon]));
 
 const AdminMembershipPlansPage = () => {
-  const [venueSlug, setVenueSlug] = useState("");
+  const searchParams = useSearchParams();
+  // Venue forms and the pricing page link here with ?venue=slug.
+  const [venueSlug, setVenueSlug] = useState(() => searchParams.get("venue") ?? "");
   const { venues, venue, plans, error, isLoading, mutate } = useAdminMembershipPlans(venueSlug);
   const [editing, setEditing] = useState<MembershipPlan | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -77,14 +80,7 @@ const AdminMembershipPlansPage = () => {
         description="Build the memberships each venue sells: what they lock, on which days, and the price for each length."
         actions={
           venues.length > 0 && (
-            <SelectField
-              label="Venue"
-              hideLabel
-              value={shownSlug}
-              onChange={pickVenue}
-              options={venues.map((item) => ({ value: item.slug, label: item.name }))}
-              className="w-64"
-            />
+            <VenuePicker label="Venue" hideLabel value={shownSlug} onChange={(slug) => pickVenue(slug)} className="w-64" />
           )
         }
       />

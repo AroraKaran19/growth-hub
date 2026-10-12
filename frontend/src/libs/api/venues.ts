@@ -1,6 +1,7 @@
 import { PHASE_PRODUCTION_BUILD } from "next/constants";
 import { NO_LABELS, type CatalogueLabels } from "@/types/catalogueLabels";
 import type { Amenity } from "@/types/amenity";
+import type { VenuePlan } from "@/types/membership";
 import type { Venue, VenueDetail } from "@/types/venue";
 
 const API_URL = process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "";
@@ -34,6 +35,27 @@ export const getPublishedVenues = async (): Promise<Venue[]> => {
 export const getVenue = async (slug: string): Promise<VenueDetail | null> =>
   (await load<{ venue: VenueDetail }>(`/venues/${encodeURIComponent(slug)}`, ["venues", `venue:${slug}`]))
     ?.venue ?? null;
+
+/** A venue's plans on sale; empty when the venue is unknown or the API can't be reached. */
+export const getVenuePlans = async (slug: string): Promise<VenuePlan[]> => {
+  try {
+    return (
+      (await load<{ plans: VenuePlan[] }>(`/venues/${encodeURIComponent(slug)}/membership-plans`, ["venues", `venue:${slug}`]))
+        ?.plans ?? []
+    );
+  } catch {
+    return [];
+  }
+};
+
+export type VenueWithPlans = { venue: Venue; plans: VenuePlan[] };
+
+/** Every published venue that sells at least one plan, in listing order. */
+export const getVenuesWithPlans = async (): Promise<VenueWithPlans[]> => {
+  const venues = await getPublishedVenues();
+  const entries = await Promise.all(venues.map(async (venue) => ({ venue, plans: await getVenuePlans(venue.slug) })));
+  return entries.filter((entry) => entry.plans.length > 0);
+};
 
 /** Admin names for workspace types and amenities; built-in names when the API can't be reached. */
 export const getCatalogueLabels = async (): Promise<CatalogueLabels> => {

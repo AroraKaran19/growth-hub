@@ -2,13 +2,13 @@
 
 import { useState, type FormEvent } from "react";
 import { Store } from "lucide-react";
-import SelectField from "@/app/components/ui/form/SelectField";
-import type { InvitePartnerInput, VenueOption } from "@/hooks/usePartnerAccounts";
+import type { InvitePartnerInput } from "@/hooks/usePartnerAccounts";
 import { readApiError } from "@/libs/api/errors";
 import { toastFailed, toastInvited } from "@/libs/toast";
 import { cn } from "@/utils";
 import { passwordProblem } from "@/utils/password";
 import TemporaryPasswordField from "../TemporaryPasswordField";
+import VenuePicker from "../VenuePicker";
 
 const INPUT =
   "w-full rounded-lg border bg-secondary px-3.5 py-2.5 text-sm text-tertiary outline-none transition-colors placeholder:text-tertiary/40 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20";
@@ -17,11 +17,10 @@ const LABEL = "mb-1.5 block text-sm font-medium text-tertiary";
 type Errors = Partial<Record<"name" | "email" | "venueSlug" | "temporaryPassword", string>>;
 
 type InvitePartnerCardProps = {
-  venues: VenueOption[];
   onInvite: (input: InvitePartnerInput) => Promise<void>;
 };
 
-const InvitePartnerCard = ({ venues, onInvite }: InvitePartnerCardProps) => {
+const InvitePartnerCard = ({ onInvite }: InvitePartnerCardProps) => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [venueSlug, setVenueSlug] = useState("");
@@ -118,13 +117,7 @@ const InvitePartnerCard = ({ venues, onInvite }: InvitePartnerCardProps) => {
           {errors.email && <p className="mt-1.5 text-sm text-primary">{errors.email}</p>}
         </div>
         <div>
-          <SelectField
-            label="Venue"
-            value={venueSlug}
-            onChange={setVenueSlug}
-            placeholder="Pick a venue"
-            options={venues.map((venue) => ({ value: venue.slug, label: venue.name }))}
-          />
+          <VenuePicker label="Venue" value={venueSlug} onChange={(slug) => setVenueSlug(slug)} placeholder="Pick a venue" />
           {errors.venueSlug && <p className="mt-1.5 text-sm text-primary">{errors.venueSlug}</p>}
         </div>
         <TemporaryPasswordField

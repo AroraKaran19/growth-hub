@@ -5,13 +5,12 @@ import PageHero from "@/app/components/shared/PageHero";
 import SectionHeading from "@/app/components/shared/SectionHeading";
 import { HALF_DAY_HOURS } from "@/data/bookingOptions";
 import { findFaqCategory } from "@/data/faqs";
-import { MEMBERSHIP_LENGTH_DETAILS } from "@/data/membershipPlans";
-import { getPublishedVenues } from "@/libs/api/venues";
-import { MEMBERSHIP_LENGTHS, PASS_TYPES } from "@/types/booking";
+import { getPublishedVenues, getVenuesWithPlans } from "@/libs/api/venues";
+import { PASS_TYPES } from "@/types/booking";
 import { cn } from "@/utils";
 import { CONTAINER } from "@/utils/layout";
-import { membershipFromPrices, passPriceRange } from "@/utils/venues";
-import { LENGTH_KEYS } from "../Booking/pricing";
+import { PLAN_LENGTHS, PLAN_LENGTH_LABELS, PLAN_LENGTH_UNITS } from "@/utils/plans";
+import { passPriceRange } from "@/utils/venues";
 import CtaBannerSection from "../Home/sections/CtaBannerSection";
 
 const rupees = (amount: number) => `₹${amount.toLocaleString("en-IN")}`;
@@ -45,8 +44,13 @@ const PROMISES = [
 
 const PricingPage = async () => {
   const faqs = findFaqCategory("payments")?.faqs ?? [];
-  const venues = await getPublishedVenues();
-  const deskFrom = membershipFromPrices(venues).desk;
+  const [venues, withPlans] = await Promise.all([getPublishedVenues(), getVenuesWithPlans()]);
+  const deskPlans = withPlans.flatMap((entry) => entry.plans).filter((plan) => plan.space === "desk");
+  // The lowest price any venue set for each length, never derived.
+  const deskFrom = (length: (typeof PLAN_LENGTHS)[number]) => {
+    const prices = deskPlans.map((plan) => plan.prices[length]).filter((price): price is number => price !== null);
+    return prices.length ? Math.min(...prices) : null;
+  };
 
   return (
     <>
@@ -113,7 +117,7 @@ const PricingPage = async () => {
         <div className={CONTAINER}>
           <SectionHeading
             title="Memberships"
-            description="A reserved dedicated desk, from the most affordable partner venue. Each venue sets its own plan prices."
+            description="Desk plans per seat, from the most affordable partner venue. Each venue offers its own plans, including cabins, offices and meeting rooms."
           />
           <div className="mx-auto mt-10 max-w-5xl overflow-x-auto rounded-2xl border border-tertiary/10 bg-secondary">
             <table className="w-full min-w-2xl text-left text-sm">
@@ -123,7 +127,7 @@ const PricingPage = async () => {
                     Plan
                   </th>
                   <th scope="col" className="px-5 py-4 font-semibold text-tertiary">
-                    Dedicated desk from
+                    Desk plans from
                   </th>
                   <th scope="col" className="px-5 py-4 font-semibold text-tertiary">
                     Renews
@@ -131,9 +135,9 @@ const PricingPage = async () => {
                 </tr>
               </thead>
               <tbody>
-                {MEMBERSHIP_LENGTHS.map((length, index) => {
-                  const details = MEMBERSHIP_LENGTH_DETAILS[length];
-                  const price = deskFrom[LENGTH_KEYS[length]];
+                {PLAN_LENGTHS.map((length, index) => {
+                  const details = { plan: PLAN_LENGTH_LABELS[length], unit: PLAN_LENGTH_UNITS[length] };
+                  const price = deskFrom(length);
                   return (
                     <tr
                       key={length}

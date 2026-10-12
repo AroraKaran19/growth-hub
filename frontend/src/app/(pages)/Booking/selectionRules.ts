@@ -1,32 +1,32 @@
-import { HALF_DAY_HOURS, isOpenDay } from "@/data/bookingOptions";
-import { isMembershipType, type BookingSelection, type BookingType } from "@/types/booking";
+import { HALF_DAY_HOURS, MAX_SEATS, isOpenDay } from "@/data/bookingOptions";
+import { isMembershipType, type BookingSelection, type BookingType, type PassType } from "@/types/booking";
+import type { VenuePlan } from "@/types/membership";
 import { SEAT_TYPE_LABELS, type SeatType } from "@/types/seat";
 import type { VenueDetail } from "@/types/venue";
+import { KEY_FROM_LENGTH, LENGTH_FROM_KEY, isTimeSlotPlan, pricedLengths } from "@/utils/plans";
 import { toMinutes, toMinutes24 } from "@/utils/time";
-import { isOffered } from "./pricing";
+import { isOffered, type PricedVenue } from "./pricing";
 
 type FittingVenue = Pick<
   VenueDetail,
-  "startingPrice" | "halfDayPrice" | "dayPassPrice" | "membershipPrices" | "openDays" | "opensAt" | "closesAt" | "addons" | "seatMap"
+  "startingPrice" | "halfDayPrice" | "dayPassPrice" | "openDays" | "opensAt" | "closesAt" | "addons" | "seatMap"
 >;
+
+type OfferingVenue = PricedVenue & Pick<VenueDetail, "seatMap">;
 
 const SPACE_TYPES = Object.keys(SEAT_TYPE_LABELS) as SeatType[];
 
-/** Spaces on the venue's plan that it sells this pass or plan for. */
-export const spaceTypesFor = (
-  venue: Pick<FittingVenue, "startingPrice" | "halfDayPrice" | "dayPassPrice" | "membershipPrices" | "seatMap">,
-  bookingType: BookingType,
-): SeatType[] => {
+/** Spaces on the venue's plan that it sells this pass for. */
+export const spaceTypesFor = (venue: OfferingVenue, bookingType: BookingType): SeatType[] => {
   const mapped = venue.seatMap ? new Set(venue.seatMap.seats.map((seat) => seat.type)) : null;
-  return SPACE_TYPES.filter((type) => (!mapped || mapped.has(type)) && isOffered(venue, type, bookingType));
+  return SPACE_TYPES.filter((type) => (!mapped || mapped.has(type)) && isOffered(venue, bookingType));
 };
 
-const FALLBACK_ORDER: BookingType[] = ["full-day", "half-day", "hourly", "monthly", "weekly", "quarterly", "half-yearly"];
+const FALLBACK_ORDER: PassType[] = ["full-day", "half-day", "hourly"];
 
-/** The first pass or plan the venue sells on its map, for when a saved choice no longer fits. */
-export const firstOfferedType = (
-  venue: Pick<FittingVenue, "startingPrice" | "halfDayPrice" | "dayPassPrice" | "membershipPrices" | "seatMap">,
-) => FALLBACK_ORDER.find((type) => spaceTypesFor(venue, type).length > 0) ?? "full-day";
+/** The first pass the venue sells on its map, for when a saved choice no longer fits. */
+export const firstOfferedType = (venue: OfferingVenue): PassType =>
+  FALLBACK_ORDER.find((type) => spaceTypesFor(venue, type).length > 0) ?? "full-day";
 
 /** How long a pass with a start time runs, in minutes. Null for whole-day types. */
 export const durationMinutesFor = (selection: Pick<BookingSelection, "bookingType" | "hours">) => {
@@ -35,21 +35,98 @@ export const durationMinutesFor = (selection: Pick<BookingSelection, "bookingTyp
   return null;
 };
 
-const startFits = (selection: BookingSelection, venue: FittingVenue) => {
-  const duration = durationMinutesFor(selection);
-  const start = toMinutes(selection.time);
+const fitsHours = (time: string, duration: number, venue: Pick<FittingVenue, "opensAt" | "closesAt">) => {
+  const start = toMinutes(time);
   const opens = toMinutes24(venue.opensAt);
   const closes = toMinutes24(venue.closesAt);
-  if (duration === null || start === null || opens === null || closes === null) return true;
+  if (start === null || opens === null || closes === null) return true;
   return start >= opens && start + duration <= closes;
 };
 
-/** Drops saved choices the venue no longer offers; same object when all fits. */
-export const fitSelectionToVenue = (selection: BookingSelection, venue: FittingVenue): BookingSelection => {
+const startFits = (selection: BookingSelection, venue: FittingVenue) => {
+  const duration = durationMinutesFor(selection);
+  return duration === null || fitsHours(selection.time, duration, venue);
+};
+
+const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
+
+const holdersFor = (holders: Record<string, string>, seatIds: string[]) =>
+  Object.fromEntries(Object.entries(holders).filter(([seatId]) => seatIds.includes(seatId)));
+
+/** Most people one purchase of this plan covers: desk seats up to its cap, a room's head count. */
+export const maxPeopleFor = (plan: Pick<VenuePlan, "space" | "maxSeats">) =>
+  plan.space === "desk" ? Math.max(1, plan.maxSeats) : MAX_SEATS;
+
+/** Starts the plan on its first priced length with the plan's space, keeping a date it still covers. */
+export const choosePlan = (selection: BookingSelection, plan: VenuePlan, venue: FittingVenue): BookingSelection => {
+  const length = pricedLengths(plan)[0];
+  return fitSelectionToPlan(
+    {
+      ...selection,
+      planId: plan.id,
+      bookingType: LENGTH_FROM_KEY[length ?? "monthly"],
+      spaceType: plan.space,
+      seatIds: selection.planId === plan.id ? selection.seatIds : [],
+      holders: selection.planId === plan.id ? selection.holders : {},
+      time: selection.planId === plan.id ? selection.time : "",
+    },
+    plan,
+    venue,
+  );
+};
+
+/** Drops anything the plan no longer allows; same object when all fits. */
+export const fitSelectionToPlan = (selection: BookingSelection, plan: VenuePlan, venue: FittingVenue): BookingSelection => {
+  const lengths = pricedLengths(plan);
+  const current = isMembershipType(selection.bookingType) ? KEY_FROM_LENGTH[selection.bookingType] : null;
+  const bookingType = current && lengths.includes(current) ? selection.bookingType : LENGTH_FROM_KEY[lengths[0] ?? "monthly"];
+  const spaceType: SeatType = plan.space;
+  const seats = clamp(selection.seats, 1, maxPeopleFor(plan));
+
+  const mapSeats = venue.seatMap?.seats ?? [];
+  const picks = plan.space === "desk" ? seats : 1;
+  const seatIds = selection.seatIds
+    .filter((id) => mapSeats.some((seat) => seat.id === id && seat.type === spaceType))
+    .slice(0, picks);
+  const holders = plan.space === "desk" ? holdersFor(selection.holders, seatIds) : {};
+
+  const date = selection.date && !isOpenDay(plan.days, selection.date) ? "" : selection.date;
+  const time =
+    date && isTimeSlotPlan(plan) && fitsHours(selection.time, (plan.slotHours ?? 0) * 60, venue) ? selection.time : "";
+
+  const unchanged =
+    bookingType === selection.bookingType &&
+    spaceType === selection.spaceType &&
+    seats === selection.seats &&
+    seatIds.length === selection.seatIds.length &&
+    Object.keys(holders).length === Object.keys(selection.holders).length &&
+    date === selection.date &&
+    time === selection.time;
+
+  return unchanged ? selection : { ...selection, bookingType, spaceType, seats, seatIds, holders, date, time };
+};
+
+/** Drops choices the venue no longer offers; a saved plan waits for the plan list. */
+export const fitSelectionToVenue = (
+  selection: BookingSelection,
+  venue: FittingVenue,
+  plans: VenuePlan[] | undefined,
+): BookingSelection => {
+  if (selection.planId || isMembershipType(selection.bookingType)) {
+    if (!plans) return selection;
+    const plan = plans.find((item) => item.id === selection.planId);
+    if (plan) return fitSelectionToPlan(selection, plan, venue);
+    // The plan is gone or the progress predates plans: start over on a pass.
+    return fitSelectionToVenue(
+      { ...selection, planId: "", holders: {}, seatIds: [], time: "", bookingType: firstOfferedType(venue) },
+      venue,
+      plans,
+    );
+  }
+
   // A saved choice the venue no longer prices starts over on something it sells, never a pricier space.
   const offeredSpaces = spaceTypesFor(venue, selection.bookingType);
-  const lengthFits = !isMembershipType(selection.bookingType) || offeredSpaces.includes(selection.spaceType);
-  const bookingType = offeredSpaces.length && lengthFits ? selection.bookingType : firstOfferedType(venue);
+  const bookingType = offeredSpaces.length ? selection.bookingType : firstOfferedType(venue);
 
   const spaces = spaceTypesFor(venue, bookingType);
   const spaceType = spaces.length && !spaces.includes(selection.spaceType) ? spaces[0] : selection.spaceType;
@@ -62,6 +139,7 @@ export const fitSelectionToVenue = (selection: BookingSelection, venue: FittingV
 
   const date = selection.date && !isOpenDay(venue.openDays, selection.date) ? "" : selection.date;
   const time = !date || !startFits({ ...selection, bookingType }, venue) ? "" : selection.time;
+  const hasHolders = Object.keys(selection.holders).length > 0;
 
   const unchanged =
     bookingType === selection.bookingType &&
@@ -69,7 +147,8 @@ export const fitSelectionToVenue = (selection: BookingSelection, venue: FittingV
     addOns.length === selection.addOns.length &&
     seatIds.length === selection.seatIds.length &&
     date === selection.date &&
-    time === selection.time;
+    time === selection.time &&
+    !hasHolders;
 
-  return unchanged ? selection : { ...selection, bookingType, spaceType, addOns, seatIds, date, time };
+  return unchanged ? selection : { ...selection, bookingType, spaceType, addOns, seatIds, date, time, holders: {} };
 };

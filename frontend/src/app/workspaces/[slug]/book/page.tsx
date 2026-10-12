@@ -6,6 +6,7 @@ import { getVenue } from "@/libs/api/venues";
 
 type BookRouteProps = {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
 export async function generateMetadata({
@@ -19,13 +20,13 @@ export async function generateMetadata({
   return { title: `Book ${venue.name}` };
 }
 
-export default async function BookRoute({ params }: BookRouteProps) {
+export default async function BookRoute({ params, searchParams }: BookRouteProps) {
   // Rendered per request so an unreachable API reaches app/error.tsx; the fetches stay cached.
   await connection();
-  const { slug } = await params;
+  const [{ slug }, { plan }] = await Promise.all([params, searchParams]);
   const venue = await getVenue(slug);
 
   if (!venue) notFound();
 
-  return <BookingPage venue={venue} />;
+  return <BookingPage venue={venue} planId={typeof plan === "string" ? plan : undefined} />;
 }

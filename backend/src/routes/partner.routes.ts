@@ -4,7 +4,7 @@ import { getPartnerRequests, postPartnerDecision } from "../controllers/cancella
 import { postCheckIn } from "../controllers/checkIn.controller";
 import { deleteWalkIn, getToday, postWalkIn } from "../controllers/partnerDesk.controller";
 import { getMyVenue, putMyVenueAddons, putMyVenuePrices } from "../controllers/partner.controller";
-import { getPartnerMembers } from "../controllers/membership.controller";
+import { getPartnerMembers, getPartnerPlans } from "../controllers/membership.controller";
 import { getPartnerBookings } from "../controllers/staffBookings.controller";
 import {
   getMyPayoutAccount,
@@ -23,6 +23,7 @@ router.put("/venue/addons", putMyVenueAddons);
 router.put("/venue/prices", putMyVenuePrices);
 router.get("/bookings", getPartnerBookings);
 router.get("/members", getPartnerMembers);
+router.get("/membership-plans", getPartnerPlans);
 router.get("/today", getToday);
 router.post("/check-ins", postCheckIn);
 router.post("/walk-ins", postWalkIn);

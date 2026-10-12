@@ -7,6 +7,8 @@ type BookingFooterProps = {
   /** e.g. "₹300/hr x 2" so the total is never a mystery. */
   rateSummary?: string;
   actionLabel: string;
+  /** "Subtotal:" unless the figure is only a starting price. */
+  label?: string;
   disabled: boolean;
   onAction: () => void;
   className?: string;
@@ -16,6 +18,7 @@ const BookingFooter = ({
   subtotal,
   rateSummary,
   actionLabel,
+  label = "Subtotal:",
   disabled,
   onAction,
   className,
@@ -30,7 +33,7 @@ const BookingFooter = ({
     >
       <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
         <div>
-          <p className="text-xs text-tertiary/55">Subtotal:</p>
+          <p className="text-xs text-tertiary/55">{label}</p>
           <p className="text-xl font-bold text-tertiary">
             ₹{Math.round(subtotal)}
           </p>

@@ -17,8 +17,10 @@ import {
   PartnerSkeleton,
 } from "./components/PartnerUi";
 import QrScanner from "./components/QrScanner";
+import SeatCheckIns from "./components/SeatCheckIns";
 import { readApiError } from "@/libs/api/errors";
 import { outcomeOfCheckIn, outcomeOfError, verifyScan, type ScanOutcome } from "./verify";
+import type { CheckInInput } from "@/types/partner";
 
 const TONES: Record<
   ScanOutcome["tone"],
@@ -77,36 +79,52 @@ const PartnerCheckInPage = () => {
   };
 
   // The server verifies the signed code and the time window; the preview above is only a guide.
-  const handleCheckIn = async () => {
+  const handleCheckIn = async (seatId?: string) => {
     if (!outcome?.send) return;
+    const base = outcome.send;
+    const send: CheckInInput = seatId && !("bookingRef" in base) ? { ...base, seatId } : base;
     setIsChecking(true);
     try {
-      setOutcome(outcomeOfCheckIn(await desk.checkIn(outcome.send)));
+      const result = await desk.checkIn(send);
+      const done = outcomeOfCheckIn(result);
+      const choices = outcome.seatChoices?.map((seat) =>
+        seat.seatId === result.seat?.id ? { ...seat, checkedInAt: seat.checkedInAt ?? result.checkedInAt } : seat,
+      );
+      // Leave the other seats on screen so the next holder can be checked in straight away.
+      setOutcome(choices?.some((seat) => !seat.checkedInAt) ? { ...done, send: base, seatChoices: choices, member: outcome.member } : done);
       setCode("");
     } catch (caught) {
       const info = readApiError(caught);
-      setOutcome(outcomeOfError(info.code, info.message));
+      const refused = outcomeOfError(info.code, info.message, info.meta);
+      // Keep the pass so the desk can retry with the seat it picks.
+      setOutcome(refused.seatChoices?.length ? { ...refused, send: base, member: outcome.member } : refused);
     } finally {
       setIsChecking(false);
     }
   };
 
-  const recent = Object.entries(desk.checkIns)
-    .map(([id, time]) => {
-      const booking = desk.bookings.find((item) => item.bookingId === id);
-      const member = desk.members.find((item) => item.membershipId === id);
-      return {
-        id,
-        time,
-        name: booking?.memberName ?? member?.memberName ?? id,
-        detail: booking
-          ? `${booking.type} ${booking.seats.join(", ")}`
-          : member
-            ? `Member, ${member.workspace} ${member.seats.join(", ")}`
-            : "",
-      };
-    })
-    .sort((a, b) => b.time.localeCompare(a.time));
+  const bookingEntries = desk.bookings.flatMap((booking) => {
+    const time = desk.checkIns[booking.bookingId];
+    return time
+      ? [{ id: booking.bookingId, time, name: booking.memberName, detail: `${booking.type} ${booking.seats.join(", ")}` }]
+      : [];
+  });
+  // Multi-seat plans list each holder who came in.
+  const memberEntries = desk.todayMembers.flatMap((member) =>
+    (member.today?.seats ?? []).flatMap((seat) =>
+      seat.checkedInAt
+        ? [
+            {
+              id: `${member.membershipId}:${seat.seatId}`,
+              time: seat.checkedInAt,
+              name: member.seatList.length > 1 && seat.holder ? seat.holder : member.memberName,
+              detail: `${member.plan}, ${seat.label}`,
+            },
+          ]
+        : [],
+    ),
+  );
+  const recent = [...bookingEntries, ...memberEntries].sort((a, b) => b.time.localeCompare(a.time));
 
   const tone = outcome ? TONES[outcome.tone] : null;
   const outcomeRef = outcome?.ref ?? outcome?.booking?.bookingId ?? outcome?.member?.membershipId;
@@ -184,10 +202,21 @@ const PartnerCheckInPage = () => {
                   ))}
                 </div>
               )}
-              {outcome.send && (
+              {outcome.send && outcome.seatChoices && outcome.seatChoices.length > 0 ? (
+                <div className="mt-4 border-t border-tertiary/10 pt-3">
+                  <p className="mb-2 text-xs font-medium text-tertiary/65">Whose seat is checking in?</p>
+                  <SeatCheckIns
+                    variant="picker"
+                    seats={outcome.seatChoices}
+                    memberName={outcome.member?.memberName ?? "this member"}
+                    disabled={isChecking}
+                    onCheckIn={handleCheckIn}
+                  />
+                </div>
+              ) : outcome.send && (
                 <button
                   type="button"
-                  onClick={handleCheckIn}
+                  onClick={() => void handleCheckIn()}
                   disabled={isChecking}
                   className={cn(CHECK_IN_BUTTON, "mt-4 w-full py-2.5 disabled:opacity-60")}
                 >

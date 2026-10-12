@@ -1,16 +1,13 @@
 import dotenv from "dotenv";
-import { readFileSync } from "fs";
 import mongoose from "mongoose";
-import { resolve } from "path";
-import { seedCatalogue, type SeedVenue } from "../services/catalogueSeed.service";
+import { seedCatalogue } from "../services/catalogueSeed.service";
 import { hasFlag } from "./cliArgs";
+import { GROWTH_HUB_VENUE, readTemplatePlan } from "./seed/growthHub";
 
 dotenv.config();
 
 // Accounts, sign-ins and the demo catalogue; bookings and payments are left alone.
 const WIPED = ["members", "admins", "partner_staff", "sessions", "refresh_tokens", "otp_challenges", "seat_maps", "venues"];
-
-const read = (file: string) => JSON.parse(readFileSync(resolve(__dirname, "seed", file), "utf8"));
 
 const main = async () => {
   if (!process.env.MONGODB_URI) throw new Error("MONGODB_URI is not set");
@@ -25,32 +22,8 @@ const main = async () => {
     console.log(`Deleted ${deletedCount} from ${name}`);
   }
 
-  const plan = read("demo-plan.json") as { image: string; seats: unknown[] };
-  // Hours, photos and rules are placeholders the admin replaces before publishing.
-  const growthHub: SeedVenue = {
-    slug: "growthhub",
-    name: "GrowthHub",
-    locality: "Koramangala",
-    city: "Bangalore",
-    image: "",
-    gallery: [],
-    rating: 0,
-    // No prices: the admin or the venue sets them, and the venue stays hidden until then.
-    startingPrice: null,
-    priceUnit: "hr",
-    dayPassPrice: null,
-    distanceKm: 0,
-    description: "Flexible desks, private cabins and meeting rooms for freelancers, startups and growing teams.",
-    longDescription: "Placeholder details. Update the address, photos, hours and prices from the admin panel, then publish.",
-    openDaysLabel: "Open Daily",
-    openHours: "10:00 AM - 6:00 PM",
-    hoursNote: "",
-    googleMapsUrl: "https://www.google.com/maps/search/?api=1&query=GrowthHub%2C%20Koramangala%2C%20Bangalore",
-    rules: [],
-    workspaceTypes: ["hot-desk"],
-    amenities: [],
-  };
-  const result = await seedCatalogue({ venues: [growthHub], demoSeats: plan.seats, demoImage: plan.image });
+  const plan = readTemplatePlan();
+  const result = await seedCatalogue({ venues: [GROWTH_HUB_VENUE], demoSeats: plan.seats, demoImage: plan.image });
   console.log(`Created ${result.venuesCreated} hidden venue (GrowthHub) and ${result.mapsCreated} placeholder seat map. Set its prices, then publish it.`);
   console.log("Next: npm run create-admin -- --email you@example.com --name \"Your name\" --super");
 };

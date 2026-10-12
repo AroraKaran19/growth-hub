@@ -1,0 +1,213 @@
+"use client";
+
+import { useState, type FormEvent, type ReactNode } from "react";
+import { Eye, EyeOff, KeyRound, Mail, ShieldCheck, UserRound } from "lucide-react";
+import { adminApi, partnerApi } from "@/libs/api/client";
+import { readApiError } from "@/libs/api/errors";
+import { authErrorMessage, readAuthError } from "@/libs/auth/errors";
+import { changePasswordThroughRelay } from "@/libs/auth/requests";
+import { toastDone, toastFailed } from "@/libs/toast";
+import { authStoreFor, useAuthStore } from "@/stores/auth";
+import type { AccountFor } from "@/types/auth";
+import { cn } from "@/utils";
+import { passwordProblem } from "@/utils/password";
+import { PartnerPageHeader as PageHeader } from "../Partner/components/PartnerUi";
+import { Field, RAISED, inputClass } from "../Admin/components/venue/fields";
+
+type StaffSurface = "admin" | "partner";
+
+const initials = (name: string) =>
+  name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("") || "?";
+
+const PasswordInput = ({ id, label, value, onChange, error, autoComplete }: { id: string; label: string; value: string; onChange: (value: string) => void; error?: string; autoComplete: string }) => {
+  const [isShown, setIsShown] = useState(false);
+  return (
+    <Field id={id} label={label} error={error}>
+      <div className="relative">
+        <input
+          id={id}
+          type={isShown ? "text" : "password"}
+          value={value}
+          autoComplete={autoComplete}
+          onChange={(event) => onChange(event.target.value)}
+          className={inputClass(Boolean(error), "pr-11")}
+        />
+        <button
+          type="button"
+          aria-label={isShown ? "Hide password" : "Show password"}
+          onClick={() => setIsShown(!isShown)}
+          className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-tertiary/50 transition-colors hover:text-tertiary"
+        >
+          {isShown ? <EyeOff aria-hidden="true" className="size-4" /> : <Eye aria-hidden="true" className="size-4" />}
+        </button>
+      </div>
+    </Field>
+  );
+};
+
+type StaffProfilePageProps = {
+  surface: StaffSurface;
+  roleLabel: string;
+  /** What this login can reach: pages for admins, the venue for partners. */
+  access: ReactNode;
+  emailNote: string;
+};
+
+const StaffProfilePage = ({ surface, roleLabel, access, emailNote }: StaffProfilePageProps) => {
+  const account = useAuthStore(surface, (state) => state.account) as AccountFor<StaffSurface> | null;
+  const [name, setName] = useState(account?.name ?? "");
+  const [nameError, setNameError] = useState<string>();
+  const [isSavingName, setIsSavingName] = useState(false);
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [errors, setErrors] = useState<Partial<Record<"current" | "next" | "confirm", string>>>({});
+  const [isSavingPassword, setIsSavingPassword] = useState(false);
+
+  if (!account) return null;
+
+  const saveName = async (event: FormEvent) => {
+    event.preventDefault();
+    const trimmed = name.trim();
+    if (trimmed.length < 2) {
+      setNameError("Enter a name.");
+      return;
+    }
+    setIsSavingName(true);
+    try {
+      const api = surface === "admin" ? adminApi : partnerApi;
+      const { data } = await api.patch<{ data: { account: AccountFor<StaffSurface> } }>("/auth/me", { name: trimmed });
+      (authStoreFor(surface).getState().setAccount as (value: AccountFor<StaffSurface>) => void)(data.data.account);
+      toastDone("Your name is saved.");
+    } catch (caught) {
+      const info = readApiError(caught);
+      if (info.fields.name) setNameError(info.fields.name);
+      else toastFailed(info.message);
+    } finally {
+      setIsSavingName(false);
+    }
+  };
+
+  const savePassword = async (event: FormEvent) => {
+    event.preventDefault();
+    const found = {
+      ...(!current && { current: "Enter your current password." }),
+      ...(passwordProblem(next) && { next: passwordProblem(next)! }),
+      ...(next && next === current && { next: "Pick a password different from the current one." }),
+      ...(confirm !== next && { confirm: "The passwords don't match." }),
+    };
+    setErrors(found);
+    if (Object.keys(found).length) return;
+
+    setIsSavingPassword(true);
+    try {
+      const payload = await changePasswordThroughRelay(surface, { email: account.email, password: current, newPassword: next });
+      (authStoreFor(surface).getState().applySignIn as (value: typeof payload) => void)(payload);
+      setCurrent("");
+      setNext("");
+      setConfirm("");
+      toastDone("Password changed. Your other devices are signed out.");
+    } catch (caught) {
+      const info = readAuthError(caught);
+      if (info.code === "INVALID_CREDENTIALS") setErrors({ current: "That isn't your current password." });
+      else if (info.code === "PASSWORD_REUSED") setErrors({ next: info.message });
+      else toastFailed(authErrorMessage(info));
+    } finally {
+      setIsSavingPassword(false);
+    }
+  };
+
+  return (
+    <>
+      <PageHeader title="Your profile" description="Your name, how you sign in, and your password." />
+
+      <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
+        <div className="flex flex-col gap-6">
+          <section className="relative overflow-hidden rounded-2xl bg-tertiary p-6 text-secondary shadow-xl shadow-tertiary/15">
+            <div aria-hidden="true" className="absolute -right-16 -top-20 size-56 rounded-full bg-primary/35 blur-3xl" />
+            <div className="relative flex flex-wrap items-center gap-4">
+              <span aria-hidden="true" className="cta-gradient flex size-16 shrink-0 items-center justify-center rounded-full text-xl font-bold">
+                {initials(account.name)}
+              </span>
+              <div className="min-w-0">
+                <p className="truncate text-xl font-bold">{account.name}</p>
+                <p className="mt-0.5 inline-flex items-center gap-1.5 text-sm text-secondary/65">
+                  <Mail aria-hidden="true" className="size-3.5" />
+                  {account.email}
+                </p>
+              </div>
+              <span className="badge-gradient ml-auto inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold">
+                <ShieldCheck aria-hidden="true" className="size-3.5" />
+                {roleLabel}
+              </span>
+            </div>
+            <div className="relative mt-5 border-t border-secondary/12 pt-4">{access}</div>
+          </section>
+
+          <form onSubmit={saveName} noValidate className={cn(RAISED, "p-5 sm:p-6")}>
+            <h2 className="flex items-center gap-2 text-base font-bold text-tertiary">
+              <UserRound aria-hidden="true" className="size-4 text-primary" />
+              Details
+            </h2>
+            <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Field id="profile-name" label="Name" error={nameError}>
+                <input
+                  id="profile-name"
+                  value={name}
+                  maxLength={80}
+                  onChange={(event) => {
+                    setName(event.target.value);
+                    setNameError(undefined);
+                  }}
+                  className={inputClass(Boolean(nameError))}
+                />
+              </Field>
+              <Field id="profile-email" label="Email">
+                <input id="profile-email" value={account.email} readOnly className={inputClass(false, "cursor-not-allowed bg-tertiary/4 text-tertiary/60")} />
+                <p className="mt-1.5 text-xs text-tertiary/55">{emailNote}</p>
+              </Field>
+            </div>
+            <button
+              type="submit"
+              disabled={isSavingName || name.trim() === account.name}
+              className="cta-gradient mt-5 rounded-lg px-5 py-2.5 text-sm font-medium text-secondary transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isSavingName ? "Saving..." : "Save name"}
+            </button>
+          </form>
+        </div>
+
+        <form onSubmit={savePassword} noValidate className={cn(RAISED, "h-fit p-5 sm:p-6")}>
+          <div className="flex items-center gap-3">
+            <span className="cta-gradient flex size-10 shrink-0 items-center justify-center rounded-xl text-secondary">
+              <KeyRound aria-hidden="true" className="size-5" />
+            </span>
+            <div>
+              <h2 className="text-base font-bold text-tertiary">Change password</h2>
+              <p className="text-sm text-tertiary/55">Signs your other devices out.</p>
+            </div>
+          </div>
+          <div className="mt-5 flex flex-col gap-4">
+            <PasswordInput id="profile-current" label="Current password" value={current} autoComplete="current-password" error={errors.current} onChange={(value) => { setCurrent(value); setErrors({}); }} />
+            <PasswordInput id="profile-next" label="New password" value={next} autoComplete="new-password" error={errors.next} onChange={(value) => { setNext(value); setErrors({}); }} />
+            <PasswordInput id="profile-confirm" label="Confirm new password" value={confirm} autoComplete="new-password" error={errors.confirm} onChange={(value) => { setConfirm(value); setErrors({}); }} />
+          </div>
+          <button
+            type="submit"
+            disabled={isSavingPassword}
+            className="mt-5 w-full rounded-lg bg-tertiary px-5 py-3 text-sm font-medium text-secondary shadow-md shadow-tertiary/20 transition-opacity hover:opacity-90 disabled:opacity-60"
+          >
+            {isSavingPassword ? "Changing..." : "Change password"}
+          </button>
+        </form>
+      </div>
+    </>
+  );
+};
+
+export default StaffProfilePage;

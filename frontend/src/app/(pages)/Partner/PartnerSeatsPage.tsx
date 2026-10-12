@@ -5,6 +5,7 @@ import { usePartnerDesk } from "@/stores/partner";
 import { SEAT_TYPE_LABELS, type Seat } from "@/types/seat";
 import { cn } from "@/utils";
 import { formatDay } from "@/utils/date";
+import { scheduleLabel } from "@/utils/membershipLabels";
 import {
   BookingStatusBadge,
   CHECK_IN_BUTTON,
@@ -163,9 +164,18 @@ const PartnerSeatsPage = () => {
                   <div className="flex justify-between gap-3">
                     <dt className="text-tertiary/55">Plan</dt>
                     <dd className="text-right text-tertiary">
-                      {selectedState.member.plan} {selectedState.member.workspace}
+                      {selectedState.member.plan}
+                      <span className="block text-xs text-tertiary/55">
+                        {scheduleLabel({ plan: selectedState.member.planSnapshot, window: selectedState.member.window })}
+                      </span>
                     </dd>
                   </div>
+                  {selectedState.memberSeat?.holder && (
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-tertiary/55">Seat holder</dt>
+                      <dd className="text-right font-medium text-tertiary">{selectedState.memberSeat.holder}</dd>
+                    </div>
+                  )}
                   <div className="flex justify-between gap-3">
                     <dt className="text-tertiary/55">
                       {selectedState.member.renewsOn ? "Renews" : "Ends"}
@@ -191,10 +201,15 @@ const PartnerSeatsPage = () => {
                   selectedState.member && (
                   <button
                     type="button"
-                    onClick={() => void desk.quickCheckIn(selectedState.member!.membershipId)}
+                    onClick={() =>
+                      void desk.quickCheckIn(
+                        selectedState.member!.membershipId,
+                        selectedState.member!.seatList.length > 1 ? selectedState.memberSeat?.seatId : undefined,
+                      )
+                    }
                     className={cn(CHECK_IN_BUTTON, "w-full py-2.5")}
                   >
-                    Check in {selectedState.member.memberName}
+                    Check in {selectedState.memberSeat?.holder ?? selectedState.member.memberName}
                   </button>
                 )}
                 {selectedState.status === "available" && (

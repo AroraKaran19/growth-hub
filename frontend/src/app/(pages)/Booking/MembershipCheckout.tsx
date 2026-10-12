@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, CircleCheck, Info, LoaderCircle, Timer } from "lucide-react";
+import { ChevronLeft, CircleCheck, Crown, Info, LoaderCircle, Timer } from "lucide-react";
+import { StaffBookingNote, useIsStaff } from "@/app/components/shared/CustomerOnly";
 import PhoneSignIn from "@/app/components/shared/PhoneSignIn";
-import { MEMBERSHIP_LENGTH_LABELS_BY_KEY, MEMBERSHIP_SPACES, MEMBERSHIP_UNIT_BY_KEY } from "@/data/membershipPlans";
 import { useRazorpay, type RazorpaySubscriptionSuccess } from "@/hooks/useRazorpay";
+import { usePlanQuote } from "@/hooks/useVenuePlans";
 import { readApiError } from "@/libs/api/errors";
 import {
   confirmMembership,
@@ -16,15 +17,27 @@ import {
 } from "@/libs/api/memberships";
 import { applyMembershipCoupon, removeMembershipCoupon } from "@/libs/api/coupons";
 import { useSession } from "@/stores/session";
+import { isMembershipType } from "@/types/booking";
 import type { ApiMembership, ApiMembershipCheckout } from "@/types/membership";
 import type { VenueDetail } from "@/types/venue";
 import { cn } from "@/utils";
 import { formatDay } from "@/utils/date";
 import {
+  KEY_FROM_LENGTH,
+  PLAN_LENGTH_LABELS,
+  PLAN_LENGTH_UNITS,
+  daysLabel,
+  isTimeSlotPlan,
+  locksLabel,
+  windowLabel,
+} from "@/utils/plans";
+import BillingDetailsCard from "../Account/components/BillingDetailsCard";
+import {
   checkoutStepFor,
   countdownLabel,
   failureFor,
   membershipRequestFrom,
+  planFailureFor,
   rupees,
   secondsLeft,
   suggestsMandate,
@@ -34,8 +47,7 @@ import BookingStepper from "./components/BookingStepper";
 import CouponPanel from "./components/CouponPanel";
 import MembershipConfirmed from "./components/MembershipConfirmed";
 import PaymentFailed from "./components/PaymentFailed";
-import { membershipPreview, seatLabelsFor } from "./membershipBooking";
-import { quoteBooking } from "./pricing";
+import { seatLabelsFor } from "./membershipBooking";
 import { useBookingSelection } from "./useBookingSelection";
 
 const HEARTBEAT_MS = 30_000;
@@ -46,9 +58,10 @@ const CARD = "rounded-2xl border border-tertiary/10 bg-secondary p-5 shadow-sm l
 
 const MembershipCheckout = ({ venue }: { venue: VenueDetail }) => {
   const router = useRouter();
-  const { selection, setSelection, clear, isHydrated, isConfigured, isScheduled, isSeatingComplete } =
+  const isStaff = useIsStaff();
+  const { selection, setSelection, clear, isHydrated, plan, isConfigured, isScheduled, isSeatingComplete } =
     useBookingSelection(venue);
-  const { session, isReady: isSessionReady } = useSession();
+  const { session, account, isReady: isSessionReady } = useSession();
   const razorpay = useRazorpay();
 
   const [membership, setMembership] = useState<ApiMembership | null>(null);
@@ -63,17 +76,20 @@ const MembershipCheckout = ({ venue }: { venue: VenueDetail }) => {
   const started = useRef(false);
   const held = useRef<{ ref: string | null; settled: boolean }>({ ref: null, settled: false });
 
-  const estimate = quoteBooking(venue, selection, venue.addons);
-  const preview = membershipPreview(selection);
-  const canPay = venue.published && Boolean(venue.seatMap) && isConfigured && isScheduled && isSeatingComplete;
+  const request = useMemo(() => membershipRequestFrom(selection, plan, { withSeats: true }), [selection, plan]);
+  const { quote } = usePlanQuote(membership ? null : request);
+  const canPay =
+    venue.published && Boolean(venue.seatMap) && isConfigured && isScheduled && isSeatingComplete && Boolean(request);
+  const seats = venue.seatMap?.seats ?? [];
+  const labelFor = (id: string) => seatLabelsFor([id], seats)[0];
 
   useEffect(() => {
-    if (confirmed) return;
+    if (confirmed || isStaff) return;
     if (!isHydrated || canPay) return;
     // A dropped date or time is fixed on the options step; the seats page would only send them back here.
     const step = checkoutStepFor({ isConfigured, isScheduled, isSeatingComplete }) ?? "seats";
     router.replace(`/workspaces/${venue.slug}/book${step === "book" ? "" : "/seats"}`);
-  }, [isHydrated, canPay, confirmed, router, venue.slug, isConfigured, isScheduled, isSeatingComplete]);
+  }, [isHydrated, canPay, confirmed, isStaff, router, venue.slug, isConfigured, isScheduled, isSeatingComplete]);
 
   const settle = (done: ApiMembership) => {
     held.current.settled = true;
@@ -82,11 +98,11 @@ const MembershipCheckout = ({ venue }: { venue: VenueDetail }) => {
   };
 
   const start = useEffectEvent(async () => {
-    if (started.current) return;
+    if (started.current || !request) return;
     started.current = true;
     attemptKey.current ??= crypto.randomUUID();
     try {
-      const result = await createMembership(membershipRequestFrom(selection, venue.slug), attemptKey.current);
+      const result = await createMembership(request, attemptKey.current);
       held.current.ref = result.membership.ref;
       if (result.membership.status === "active") {
         settle(result.membership);
@@ -99,20 +115,23 @@ const MembershipCheckout = ({ venue }: { venue: VenueDetail }) => {
       const info = readApiError(error);
       if (info.code === "SEAT_TAKEN") {
         const taken = Array.isArray(info.meta.seatIds) ? (info.meta.seatIds as string[]) : [];
-        const labels = seatLabelsFor(taken, venue.seatMap?.seats ?? []);
+        const dates = Array.isArray(info.meta.dates) ? (info.meta.dates as string[]).slice(0, 3) : [];
+        const labels = seatLabelsFor(taken, seats);
         setSelection((current) => ({ ...current, seatIds: current.seatIds.filter((id) => !taken.includes(id)) }));
-        router.replace(`/workspaces/${venue.slug}/book/seats?taken=${encodeURIComponent(labels.join(","))}`);
+        const query = new URLSearchParams({ taken: labels.join(", ") });
+        if (dates.length) query.set("dates", dates.join(","));
+        router.replace(`/workspaces/${venue.slug}/book/seats?${query.toString()}`);
         return;
       }
-      setFailure(failureFor(info.code, info.message));
+      setFailure(planFailureFor(info, labelFor));
     }
   });
 
   // The seat is held for the whole plan the moment a signed-in buyer arrives.
   useEffect(() => {
-    if (!isHydrated || !canPay || !session || failure || confirmed) return;
+    if (!isHydrated || !canPay || !session || failure || confirmed || isStaff) return;
     void start();
-  }, [isHydrated, canPay, session, failure, confirmed]);
+  }, [isHydrated, canPay, session, failure, confirmed, isStaff]);
 
   const heartbeat = useEffectEvent(async () => {
     const ref = held.current.ref;
@@ -174,7 +193,7 @@ const MembershipCheckout = ({ venue }: { venue: VenueDetail }) => {
       {
         subscription_id: checkout.subscriptionId,
         name: "Growth Hub",
-        description: `${membership.venue.name} membership`,
+        description: `${membership.plan?.name ?? membership.venue.name} membership`,
         prefill: { name: session?.name, contact: session?.phone, email: session?.email },
         theme: { color: "#ec2024" },
         timeout: seconds,
@@ -212,34 +231,32 @@ const MembershipCheckout = ({ venue }: { venue: VenueDetail }) => {
     setFailure(null);
   };
 
-  const unit = membership ? MEMBERSHIP_UNIT_BY_KEY[membership.length] : (preview?.unit ?? "");
-  const cyclePrice = membership?.cyclePrice ?? Math.round(estimate.total * 100);
+  const length = isMembershipType(selection.bookingType) ? KEY_FROM_LENGTH[selection.bookingType] : null;
+  const unit = membership ? PLAN_LENGTH_UNITS[membership.length] : length ? PLAN_LENGTH_UNITS[length] : "";
+  const cyclePrice = membership?.cyclePrice ?? quote?.cyclePrice ?? null;
+  const dueToday = membership?.firstCycle.payable ?? quote?.firstCycle.payable ?? null;
+  const isRoom = plan ? plan.space !== "desk" : false;
+  const dailyWindow = membership?.window ?? quote?.window ?? null;
   const seatText =
-    (membership?.seats.map((seat) => seat.label) ?? seatLabelsFor(selection.seatIds, venue.seatMap?.seats ?? [])).join(
-      ", ",
-    ) || "None";
+    (membership?.seats.map((seat) => seat.label) ?? seatLabelsFor(selection.seatIds, seats)).join(", ") || "None";
+  const holders = (membership?.holders ?? request?.holders ?? []).map(
+    (holder) => `${labelFor(holder.seatId)}: ${holder.name}`,
+  );
+  const paidThrough = membership?.paidThrough ?? quote?.paidThrough ?? null;
 
   const summary = [
-    { label: "Workspace", value: venue.name },
+    { label: "Workspace", value: `${venue.name}, ${venue.locality}` },
+    { label: "Length", value: length ? `${PLAN_LENGTH_LABELS[length]}, renews automatically` : "Not set" },
+    { label: isRoom ? "Room" : selection.seatIds.length > 1 ? "Reserved desks" : "Reserved desk", value: seatText },
+    ...(isRoom ? [{ label: "People", value: String(selection.seats) }] : []),
+    ...(holders.length ? [{ label: "Seat holders", value: holders.join(", ") }] : []),
+    { label: "Covered days", value: daysLabel(plan?.days) },
     {
-      label: "Plan",
-      value: membership
-        ? `${MEMBERSHIP_LENGTH_LABELS_BY_KEY[membership.length]} ${MEMBERSHIP_SPACES[membership.spaceType].workspace}`
-        : preview
-          ? `${preview.plan} ${preview.workspace}`
-          : "Not set",
+      label: plan && isTimeSlotPlan(plan) ? "Daily window" : "Access",
+      value: dailyWindow ? windowLabel(dailyWindow) : venue.openHours,
     },
-    { label: "Reserved seats", value: seatText },
     { label: "Starts", value: selection.date ? formatDay(selection.date) : "Not set" },
-    {
-      label: "First renewal",
-      value: membership?.paidThrough
-        ? formatDay(membership.paidThrough)
-        : preview?.renewsOn
-          ? formatDay(preview.renewsOn)
-          : "Not set",
-    },
-    { label: "Access", value: `Every day, ${venue.openHours}` },
+    { label: "Paid through", value: paidThrough ? formatDay(paidThrough) : "Working it out" },
   ];
 
   const canClickPay =
@@ -261,26 +278,46 @@ const MembershipCheckout = ({ venue }: { venue: VenueDetail }) => {
           <h1 className="text-2xl font-bold text-tertiary">Payment</h1>
         </div>
 
-        {!isHydrated || confirmed ? (
+        {isStaff ? (
+          <div className="mt-5 rounded-2xl border border-tertiary/10 bg-secondary px-6 py-14 text-center">
+            <StaffBookingNote className="justify-center" />
+          </div>
+        ) : !isHydrated || confirmed || !plan ? (
           <div className="mt-5 h-96 animate-pulse rounded-2xl border border-tertiary/10 bg-secondary" />
         ) : (
           <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-[1fr_380px] xl:gap-6">
-            <div className={CARD}>
-              <h2 className="text-base font-bold text-tertiary">Membership summary</h2>
-              <dl className="mt-4 flex flex-col gap-3">
-                {summary.map((row) => (
-                  <div
-                    key={row.label}
-                    className="flex items-start justify-between gap-4 border-b border-tertiary/8 pb-3 last:border-0 last:pb-0"
-                  >
-                    <dt className="text-sm text-tertiary/60">{row.label}</dt>
-                    <dd className="text-right text-sm font-medium text-tertiary">{row.value}</dd>
+            <div className="flex min-w-0 flex-col gap-5">
+              <div className="overflow-hidden rounded-2xl border border-tertiary/10 bg-secondary shadow-sm">
+                <div className="relative overflow-hidden bg-tertiary px-5 py-5 text-secondary lg:px-6">
+                  <div aria-hidden="true" className="cta-banner absolute -right-12 -top-16 size-44 rounded-full opacity-30 blur-3xl" />
+                  <div className="relative flex items-start gap-3.5">
+                    <span className="bg-icon-tile flex size-11 shrink-0 items-center justify-center rounded-xl shadow-lg shadow-primary/30">
+                      <Crown aria-hidden="true" className="size-5" />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-xs text-secondary/60">Membership summary</p>
+                      <h2 className="text-lg font-bold">{plan.name}</h2>
+                      <p className="mt-0.5 text-sm text-secondary/70">{locksLabel(plan)}</p>
+                    </div>
                   </div>
-                ))}
-              </dl>
+                </div>
+                <dl className="flex flex-col gap-3 p-5 lg:p-6">
+                  {summary.map((row) => (
+                    <div
+                      key={row.label}
+                      className="flex items-start justify-between gap-4 border-b border-tertiary/8 pb-3 last:border-0 last:pb-0"
+                    >
+                      <dt className="shrink-0 text-sm text-tertiary/60">{row.label}</dt>
+                      <dd className="min-w-0 break-words text-right text-sm font-medium text-tertiary">{row.value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+
+              {account && <BillingDetailsCard account={account} />}
             </div>
 
-            <div className={cn(CARD, "flex h-fit flex-col gap-4")}>
+            <div className={cn(CARD, "flex h-fit flex-col gap-4 lg:sticky lg:top-28")}>
               {membership && (
                 <p
                   role="timer"
@@ -291,14 +328,14 @@ const MembershipCheckout = ({ venue }: { venue: VenueDetail }) => {
                   )}
                 >
                   <Timer aria-hidden="true" className="size-3.5" />
-                  Seat held for {countdownLabel(left)}
+                  {isRoom ? "Room" : "Seat"} held for {countdownLabel(left)}
                 </p>
               )}
 
               <dl className="flex flex-col gap-2.5">
                 <div className="flex items-center justify-between gap-3 text-sm">
                   <dt className="text-tertiary/60">Price per {unit}</dt>
-                  <dd className="text-tertiary">{rupees(cyclePrice)}</dd>
+                  <dd className="text-tertiary">{cyclePrice !== null ? rupees(cyclePrice) : "..."}</dd>
                 </div>
                 {membership && membership.firstCycle.discount > 0 && (
                   <div className="flex items-center justify-between gap-3 text-sm">
@@ -308,18 +345,18 @@ const MembershipCheckout = ({ venue }: { venue: VenueDetail }) => {
                 )}
                 <div className="flex items-baseline justify-between gap-3 border-t border-tertiary/10 pt-3">
                   <dt className="text-sm text-tertiary/60">Due today</dt>
-                  <dd className="text-2xl font-bold text-tertiary">
-                    {rupees(membership?.firstCycle.payable ?? cyclePrice)}
-                  </dd>
+                  <dd className="text-2xl font-bold text-tertiary">{dueToday !== null ? rupees(dueToday) : "..."}</dd>
                 </div>
               </dl>
 
-              <p className="text-xs text-tertiary/55">
-                Then {rupees(cyclePrice)} every {unit}, charged automatically until you stop renewing in My
-                Memberships. Add-ons are bought separately for the days you need them.
-              </p>
+              {cyclePrice !== null && (
+                <p className="text-xs text-tertiary/55">
+                  Then {rupees(cyclePrice)} every {unit}, charged automatically until you stop renewing in My
+                  Memberships. Add-ons are bought separately for the days you need them.
+                </p>
+              )}
 
-              {suggestsMandate(cyclePrice) && (
+              {cyclePrice !== null && suggestsMandate(cyclePrice) && (
                 <p className="flex items-start gap-2 rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-900">
                   <Info aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
                   UPI Autopay asks you to approve each renewal above ₹15,000. A card or bank mandate renews without
@@ -327,7 +364,7 @@ const MembershipCheckout = ({ venue }: { venue: VenueDetail }) => {
                 </p>
               )}
 
-              {membership && (
+              {membership && cyclePrice !== null && (
                 <CouponPanel
                   scope="memberships"
                   subtotal={cyclePrice}
@@ -341,7 +378,8 @@ const MembershipCheckout = ({ venue }: { venue: VenueDetail }) => {
 
               {session && (
                 <p className="rounded-lg bg-tertiary/4 px-3 py-2 text-xs text-tertiary/55">
-                  Signed in as {session.name}. Payments are processed securely by Razorpay.
+                  Signed in as {session.name}. Invoices are issued in your name, or your company&apos;s if you add
+                  billing details. Payments are processed securely by Razorpay.
                 </p>
               )}
 
@@ -349,7 +387,7 @@ const MembershipCheckout = ({ venue }: { venue: VenueDetail }) => {
                 <div className="rounded-xl border border-tertiary/10 bg-surface p-3 sm:p-4">
                   <PhoneSignIn
                     title="Verify your number"
-                    subtitle="We text you a code, then hold your seat while you set up the plan."
+                    subtitle={`We text you a code, then hold your ${isRoom ? "room" : "seat"} while you set up the plan.`}
                   />
                 </div>
               )}
@@ -357,7 +395,7 @@ const MembershipCheckout = ({ venue }: { venue: VenueDetail }) => {
               {session && !membership && !failure && (
                 <p className="inline-flex items-center justify-center gap-2 py-3 text-sm text-tertiary/65" aria-live="polite">
                   <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />
-                  Holding your seat...
+                  Holding your {isRoom ? "room" : "seat"}...
                 </p>
               )}
 

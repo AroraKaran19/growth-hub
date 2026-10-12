@@ -2,8 +2,6 @@ import { Schema, model, type Types } from "mongoose";
 import {
   PRICE_UNITS,
   WORKSPACE_TYPES,
-  type MembershipLength,
-  type MembershipSpace,
   type PriceUnit,
   type WorkspaceType,
 } from "../constants/catalogue";
@@ -23,8 +21,6 @@ export type PayoutAccount = {
 
 export type VenueAddonPrice = { addonTypeId: Types.ObjectId; price: number; enabled: boolean };
 
-export type MembershipPriceTable = Partial<Record<MembershipSpace, Partial<Record<MembershipLength, number>>>>;
-
 export interface VenueDoc {
   _id: Types.ObjectId;
   slug: string;
@@ -41,7 +37,6 @@ export interface VenueDoc {
   priceUnit: PriceUnit;
   halfDayPrice: number | null;
   dayPassPrice: number | null;
-  membershipPrices: MembershipPriceTable;
   distanceKm: number;
   description: string;
   longDescription: string;
@@ -114,7 +109,6 @@ const venueSchema = new Schema<VenueDoc>(
     priceUnit: { type: String, enum: [...PRICE_UNITS], default: "hr" },
     halfDayPrice: { type: Number, default: null },
     dayPassPrice: { type: Number, default: null },
-    membershipPrices: { type: Schema.Types.Mixed, default: {} },
     distanceKm: { type: Number, default: 0 },
     description: { type: String, default: "" },
     longDescription: { type: String, default: "" },

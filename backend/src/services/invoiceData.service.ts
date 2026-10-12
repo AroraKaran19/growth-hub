@@ -6,10 +6,12 @@ import {
   Membership,
   MembershipCharge,
   type AddonOrderDoc,
+  type BilledTo,
   type BookingDoc,
   type InvoiceJobDoc,
   type MembershipChargeDoc,
   type MembershipDoc,
+  type MemberDoc,
 } from "../models";
 import { dateLabel, indiaNow, timeLabel } from "../utils/indiaTime";
 import { findMember } from "./accountSnapshot.service";
@@ -23,7 +25,7 @@ export type InvoiceData = {
   reference: string;
   issuer: { legalName: string; address: string; email: string; gstin: string; sac: string };
   placeOfSupply: string;
-  customer: { name: string; company: string; email: string; phone: string };
+  customer: { name: string; company: string; gstin: string; address: string; email: string; phone: string };
   service: { venue: string; address: string; when: string };
   lines: { description: string; detail: string; quantity: string; amount: string }[];
   hasDiscount: boolean;
@@ -168,6 +170,33 @@ const fromAddonOrder = async (job: InvoiceJobDoc): Promise<Source> => {
 
 const LOADERS = { booking: fromBooking, "membership-charge": fromCharge, "addon-order": fromAddonOrder };
 
+const stateLabel = (billed: BilledTo) =>
+  billed.state && billed.stateCode ? `${billed.state} (${billed.stateCode})` : (billed.state ?? "");
+
+/** The "Billed to" block: a company when one was given, else the customer by name. */
+export const billedToBlock = (job: InvoiceJobDoc, member: MemberDoc | null): InvoiceData["customer"] => {
+  const billed = job.billedTo;
+  if (billed) {
+    return {
+      name: billed.companyName ?? billed.name ?? "Customer",
+      company: "",
+      gstin: billed.gstin ?? "",
+      address: [billed.address, stateLabel(billed)].filter(Boolean).join("\n"),
+      email: billed.email ?? "",
+      phone: billed.phone ?? "",
+    };
+  }
+  // Issued before snapshots: shown as these invoices always were, from the live customer.
+  return {
+    name: member?.name ?? "Customer",
+    company: member?.companyName ?? "",
+    gstin: "",
+    address: "",
+    email: member?.billingEmail ?? member?.email ?? "",
+    phone: member?.phoneE164 ?? "",
+  };
+};
+
 /** What a list of invoices shows, without rendering anything. */
 export const invoiceSummary = async (job: InvoiceJobDoc) => {
   const source = await LOADERS[job.source.kind](job);
@@ -180,7 +209,7 @@ export const invoiceSummary = async (job: InvoiceJobDoc) => {
 };
 
 export const invoiceDataFor = async (job: InvoiceJobDoc, issuer: InvoiceIssuer = INVOICE_ISSUER): Promise<InvoiceData> => {
-  const [source, member] = await Promise.all([LOADERS[job.source.kind](job), findMember(job.memberId)]);
+  const [source, member] = await Promise.all([LOADERS[job.source.kind](job), job.billedTo ? null : findMember(job.memberId)]);
   const taxInvoice = Boolean(issuer.gstin);
   const figures = invoiceFigures({
     lines: source.lines,
@@ -197,12 +226,7 @@ export const invoiceDataFor = async (job: InvoiceJobDoc, issuer: InvoiceIssuer =
     reference: source.reference,
     issuer: { legalName: issuer.legalName, address: issuer.address, email: issuer.email, gstin: issuer.gstin ?? "", sac: issuer.sac },
     placeOfSupply: `${issuer.state} (${issuer.stateCode})`,
-    customer: {
-      name: member?.name ?? "Customer",
-      company: member?.companyName ?? "",
-      email: member?.billingEmail ?? member?.email ?? "",
-      phone: member?.phoneE164 ?? "",
-    },
+    customer: billedToBlock(job, member),
     service: source.service,
     lines: figures.lines.map((line) => ({
       description: line.description,

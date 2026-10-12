@@ -1,6 +1,4 @@
-import type { AdminVenue, MembershipLengthKey, MembershipSpace } from "@/types/catalogue";
-
-type PriceCells = Record<MembershipSpace, Record<MembershipLengthKey, string>>;
+import type { AdminVenue } from "@/types/catalogue";
 
 export type VenueDraft = {
   slug: string;
@@ -26,7 +24,6 @@ export type VenueDraft = {
   halfDayPrice: string;
   dayPassPrice: string;
   priceUnit: "hr" | "day" | "month";
-  membershipPrices: PriceCells;
   hasOffer: boolean;
   offerLabel: string;
   offerDetails: string;
@@ -34,14 +31,6 @@ export type VenueDraft = {
 };
 
 export type DraftErrors = Partial<Record<string, string>>;
-
-const SPACES: MembershipSpace[] = ["desk", "private-cabin", "office"];
-const LENGTHS: MembershipLengthKey[] = ["weekly", "monthly", "quarterly", "halfYearly"];
-
-const emptyCells = (): PriceCells =>
-  Object.fromEntries(
-    SPACES.map((space) => [space, Object.fromEntries(LENGTHS.map((length) => [length, ""]))]),
-  ) as PriceCells;
 
 export const EMPTY_DRAFT: VenueDraft = {
   slug: "",
@@ -67,53 +56,41 @@ export const EMPTY_DRAFT: VenueDraft = {
   halfDayPrice: "",
   dayPassPrice: "",
   priceUnit: "hr",
-  membershipPrices: emptyCells(),
   hasOffer: false,
   offerLabel: "",
   offerDetails: "",
   published: false,
 };
 
-export const toDraft = (venue: AdminVenue): VenueDraft => {
-  const cells = emptyCells();
-  for (const space of SPACES) {
-    for (const length of LENGTHS) {
-      const price = venue.membershipPrices[space]?.[length];
-      if (price !== undefined) cells[space][length] = String(price);
-    }
-  }
-
-  return {
-    slug: venue.slug,
-    name: venue.name,
-    locality: venue.locality,
-    city: venue.city,
-    description: venue.description,
-    longDescription: venue.longDescription,
-    rating: String(venue.rating),
-    distanceKm: String(venue.distanceKm),
-    googleMapsUrl: venue.googleMapsUrl,
-    openDays: venue.openDays,
-    opensAt: venue.opensAt,
-    closesAt: venue.closesAt,
-    openDaysLabel: venue.openDaysLabel,
-    hoursNote: venue.hoursNote,
-    image: venue.image,
-    gallery: venue.gallery,
-    amenities: venue.amenities,
-    workspaceTypes: venue.workspaceTypes,
-    rules: venue.rules,
-    startingPrice: priceText(venue.startingPrice),
-    halfDayPrice: priceText(venue.halfDayPrice),
-    dayPassPrice: priceText(venue.dayPassPrice),
-    priceUnit: venue.priceUnit,
-    membershipPrices: cells,
-    hasOffer: Boolean(venue.offer),
-    offerLabel: venue.offer?.label ?? "",
-    offerDetails: venue.offer?.details ?? "",
-    published: venue.published,
-  };
-};
+export const toDraft = (venue: AdminVenue): VenueDraft => ({
+  slug: venue.slug,
+  name: venue.name,
+  locality: venue.locality,
+  city: venue.city,
+  description: venue.description,
+  longDescription: venue.longDescription,
+  rating: String(venue.rating),
+  distanceKm: String(venue.distanceKm),
+  googleMapsUrl: venue.googleMapsUrl,
+  openDays: venue.openDays,
+  opensAt: venue.opensAt,
+  closesAt: venue.closesAt,
+  openDaysLabel: venue.openDaysLabel,
+  hoursNote: venue.hoursNote,
+  image: venue.image,
+  gallery: venue.gallery,
+  amenities: venue.amenities,
+  workspaceTypes: venue.workspaceTypes,
+  rules: venue.rules,
+  startingPrice: priceText(venue.startingPrice),
+  halfDayPrice: priceText(venue.halfDayPrice),
+  dayPassPrice: priceText(venue.dayPassPrice),
+  priceUnit: venue.priceUnit,
+  hasOffer: Boolean(venue.offer),
+  offerLabel: venue.offer?.label ?? "",
+  offerDetails: venue.offer?.details ?? "",
+  published: venue.published,
+});
 
 export const slugFromName = (name: string) =>
   name
@@ -184,57 +161,35 @@ export const validateDraft = (draft: VenueDraft, mode: "create" | "edit"): Draft
   if (draft.hasOffer && draft.offerDetails.trim().length < 10) {
     errors.offerDetails = "Explain what the offer covers.";
   }
-
-  for (const space of SPACES) {
-    for (const length of LENGTHS) {
-      const cell = draft.membershipPrices[space][length].trim();
-      if (cell && !(wholeNumber(cell) > 0)) {
-        errors[`membershipPrices.${space}.${length}`] = "Whole rupees above 0, or leave blank.";
-      }
-    }
-  }
   return errors;
 };
 
-export const toPayload = (draft: VenueDraft, mode: "create" | "edit"): Record<string, unknown> => {
-  const membershipPrices: Record<string, Record<string, number>> = {};
-  for (const space of SPACES) {
-    const row: Record<string, number> = {};
-    for (const length of LENGTHS) {
-      const cell = draft.membershipPrices[space][length].trim();
-      if (cell) row[length] = Number(cell);
-    }
-    if (Object.keys(row).length > 0) membershipPrices[space] = row;
-  }
-
-  return {
-    ...(mode === "create" ? { slug: draft.slug } : { published: draft.published }),
-    name: draft.name.trim(),
-    locality: draft.locality.trim(),
-    city: draft.city.trim(),
-    description: draft.description.trim(),
-    longDescription: draft.longDescription.trim(),
-    rating: Number(draft.rating),
-    distanceKm: Number(draft.distanceKm),
-    googleMapsUrl: draft.googleMapsUrl.trim(),
-    openDays: draft.openDays,
-    opensAt: draft.opensAt,
-    closesAt: draft.closesAt,
-    openDaysLabel: draft.openDaysLabel.trim(),
-    hoursNote: draft.hoursNote.trim(),
-    image: draft.image,
-    gallery: draft.gallery,
-    amenities: draft.amenities,
-    workspaceTypes: draft.workspaceTypes,
-    rules: draft.rules.map((rule) => rule.trim()).filter(Boolean),
-    startingPrice: priceOrNull(draft.startingPrice),
-    halfDayPrice: priceOrNull(draft.halfDayPrice),
-    dayPassPrice: priceOrNull(draft.dayPassPrice),
-    priceUnit: draft.priceUnit,
-    membershipPrices,
-    offer: draft.hasOffer ? { label: draft.offerLabel.trim(), details: draft.offerDetails.trim() } : null,
-  };
-};
+export const toPayload = (draft: VenueDraft, mode: "create" | "edit"): Record<string, unknown> => ({
+  ...(mode === "create" ? { slug: draft.slug } : { published: draft.published }),
+  name: draft.name.trim(),
+  locality: draft.locality.trim(),
+  city: draft.city.trim(),
+  description: draft.description.trim(),
+  longDescription: draft.longDescription.trim(),
+  rating: Number(draft.rating),
+  distanceKm: Number(draft.distanceKm),
+  googleMapsUrl: draft.googleMapsUrl.trim(),
+  openDays: draft.openDays,
+  opensAt: draft.opensAt,
+  closesAt: draft.closesAt,
+  openDaysLabel: draft.openDaysLabel.trim(),
+  hoursNote: draft.hoursNote.trim(),
+  image: draft.image,
+  gallery: draft.gallery,
+  amenities: draft.amenities,
+  workspaceTypes: draft.workspaceTypes,
+  rules: draft.rules.map((rule) => rule.trim()).filter(Boolean),
+  startingPrice: priceOrNull(draft.startingPrice),
+  halfDayPrice: priceOrNull(draft.halfDayPrice),
+  dayPassPrice: priceOrNull(draft.dayPassPrice),
+  priceUnit: draft.priceUnit,
+  offer: draft.hasOffer ? { label: draft.offerLabel.trim(), details: draft.offerDetails.trim() } : null,
+});
 
 const FIELD_ALIASES: Record<string, string> = { "offer.label": "offerLabel", "offer.details": "offerDetails" };
 

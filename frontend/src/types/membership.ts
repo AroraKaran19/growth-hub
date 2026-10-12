@@ -1,5 +1,6 @@
 import type { RequestSummary, VenueRemovalNotice } from "./cancellation";
-import type { MembershipLengthKey, MembershipSpace } from "./catalogue";
+import type { MembershipLengthKey } from "./catalogue";
+import type { PlanLength, PlanPrices, PlanSpace, RoomMode } from "./membershipPlan";
 import type { SeatType } from "./seat";
 
 export type MembershipStatus =
@@ -23,12 +24,58 @@ export const MEMBERSHIP_STATUS_LABELS: Record<MembershipStatus, string> = {
 
 export type MembershipUnit = "week" | "month" | "3 months" | "6 months";
 
+/** Minutes from midnight that a time-slot room plan locks each covered day. */
+export type DailyWindow = { start: number; end: number };
+
+export type SeatHolder = { seatId: string; name: string };
+
+/** The plan as it was when the membership was bought. */
+export type MembershipPlanSnapshot = {
+  id: string;
+  name: string;
+  space: PlanSpace;
+  roomMode: RoomMode | null;
+  slotHours: number | null;
+  days: number[];
+};
+
+/** A plan on sale at a venue, as customers see it; prices in rupees, null when not sold. */
+export type VenuePlan = {
+  id: string;
+  name: string;
+  description: string;
+  includes: string[];
+  space: PlanSpace;
+  roomMode: RoomMode | null;
+  slotHours: number | null;
+  /** Weekdays covered, 0 Sunday to 6 Saturday, already limited to the venue's open days. */
+  days: number[];
+  prices: PlanPrices;
+  maxSeats: number;
+};
+
+/** The server's price for a plan purchase; money in paise. */
+export type PlanQuote = {
+  cyclePrice: number;
+  units: number;
+  firstCycle: { discount: number; total: number; payable: number; minimumApplied?: boolean };
+  plan: { id: string; name: string; space: PlanSpace; days: number[] };
+  window: DailyWindow | null;
+  startDate: string;
+  paidThrough: string;
+  renewsOn: string;
+};
+
 /** A membership as the API returns it; money in paise. */
 export type ApiMembership = {
   ref: string;
   status: MembershipStatus;
   venue: { slug: string; name: string; locality: string; city: string; image: string };
-  spaceType: MembershipSpace;
+  spaceType: PlanSpace;
+  /** Null for memberships bought before plans existed; those cover every open day. */
+  plan: MembershipPlanSnapshot | null;
+  window: DailyWindow | null;
+  holders: SeatHolder[];
   length: MembershipLengthKey;
   seats: { id: string; label: string; type: SeatType }[];
   people: number;
@@ -53,14 +100,17 @@ export type ApiMembership = {
 export type ApiMembershipCheckout = { keyId: string; subscriptionId: string; amount: number; currency: string };
 
 export type MembershipRequest = {
-  venueSlug: string;
-  spaceType: MembershipSpace;
-  length: MembershipLengthKey;
+  planId: string;
+  length: PlanLength;
   startDate: string;
   people: number;
   seatIds: string[];
-  companyName: string;
+  /** Time-slot room plans only. */
+  startMin?: number;
+  holders: SeatHolder[];
 };
+
+export type StaffSeat = { id: string; label: string; holder: string | null };
 
 /** A plan as venue staff and admins see it, with the member's contact. */
 export type StaffMembership = {
@@ -68,7 +118,13 @@ export type StaffMembership = {
   status: MembershipStatus;
   venue: { slug: string; name: string };
   member: { name: string; phone: string };
-  spaceType: MembershipSpace;
+  spaceType: PlanSpace;
+  /** Null for memberships bought before plans existed; they cover every open day. */
+  planName: string | null;
+  plan: MembershipPlanSnapshot | null;
+  window: DailyWindow | null;
+  holders: SeatHolder[];
+  seatList: StaffSeat[];
   length: MembershipLengthKey;
   seats: string[];
   people: number;

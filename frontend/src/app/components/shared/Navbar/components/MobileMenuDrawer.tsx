@@ -3,10 +3,10 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ArrowRight, CircleUserRound, X } from "lucide-react";
+import { ArrowRight, CircleUserRound, LogOut, X } from "lucide-react";
 import Logo from "@/app/components/ui/Logo";
 import { NAV_LINKS, type NavLink } from "@/data/navigation";
-import { useSession } from "@/stores/session";
+import { useSiteAccount } from "@/hooks/useSiteAccount";
 import { cn } from "@/utils";
 
 export const MOBILE_MENU_DRAWER_ID = "mobile-menu-drawer";
@@ -23,7 +23,7 @@ const MobileMenuDrawer = ({
   links = NAV_LINKS,
 }: MobileMenuDrawerProps) => {
   const pathname = usePathname();
-  const { session } = useSession();
+  const { account } = useSiteAccount();
 
   // Lock the page behind the drawer without shifting it.
   useEffect(() => {
@@ -103,24 +103,66 @@ const MobileMenuDrawer = ({
         </nav>
 
         <div className="flex flex-col gap-3 border-t border-tertiary/10 px-5 py-5">
-          <Link
-            href={
-              session ? "/account" : `/login?next=${encodeURIComponent(pathname)}`
-            }
-            onClick={onClose}
-            className="inline-flex items-center justify-center gap-2 rounded-lg border border-tertiary/20 px-5 py-3 text-sm font-semibold text-tertiary transition-colors hover:bg-tertiary/5"
-          >
-            <CircleUserRound className="size-4" />
-            {session ? "My Account" : "Login"}
-          </Link>
-          <Link
-            href="/workspaces"
-            onClick={onClose}
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-5 py-3 text-sm font-semibold text-secondary transition-colors hover:bg-accent"
-          >
-            Book Now
-            <ArrowRight className="size-4" />
-          </Link>
+          {account ? (
+            <div className="overflow-hidden rounded-xl border border-tertiary/10">
+              <div className="flex items-center gap-3 bg-tertiary px-4 py-3 text-secondary">
+                <CircleUserRound aria-hidden="true" className="size-5 shrink-0 text-primary" />
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold">{account.name}</p>
+                  <p className="truncate text-xs text-secondary/60">{account.badge}</p>
+                </div>
+              </div>
+              <ul className="p-1.5">
+                {account.links.map((link) => {
+                  const Icon = link.icon;
+                  return (
+                    <li key={link.href}>
+                      <Link
+                        href={link.href}
+                        onClick={onClose}
+                        className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-tertiary transition-colors hover:bg-tertiary/5"
+                      >
+                        <Icon aria-hidden="true" className="size-4 text-tertiary/55" />
+                        {link.label}
+                      </Link>
+                    </li>
+                  );
+                })}
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      void account.signOut();
+                    }}
+                    className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-primary transition-colors hover:bg-primary/6"
+                  >
+                    <LogOut aria-hidden="true" className="size-4" />
+                    Log out
+                  </button>
+                </li>
+              </ul>
+            </div>
+          ) : (
+            <Link
+              href={`/login?next=${encodeURIComponent(pathname)}`}
+              onClick={onClose}
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-tertiary/20 px-5 py-3 text-sm font-semibold text-tertiary transition-colors hover:bg-tertiary/5"
+            >
+              <CircleUserRound className="size-4" />
+              Login
+            </Link>
+          )}
+          {(!account || account.kind === "member") && (
+            <Link
+              href="/workspaces"
+              onClick={onClose}
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-5 py-3 text-sm font-semibold text-secondary transition-colors hover:bg-accent"
+            >
+              Book Now
+              <ArrowRight className="size-4" />
+            </Link>
+          )}
         </div>
       </aside>
     </>

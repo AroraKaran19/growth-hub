@@ -11,6 +11,7 @@ import {
   releaseMembershipHold,
   stopRenewal,
 } from "../services/membership.service";
+import { listPartnerPlans, listVenuePlans } from "../services/membershipPlan.service";
 import { listAdminMemberships, listVenueMembers } from "../services/staffMemberships.service";
 import { parseBody } from "../utils/validate";
 import { requestKeySchema } from "../validators/booking";
@@ -59,12 +60,24 @@ export const postStopRenewal = asyncHandler(async (req: Request, res: Response) 
 });
 
 export const getMembershipAvailability = asyncHandler(async (req: Request, res: Response) => {
-  const data = await membershipAvailability(
-    String(req.params.slug).toLowerCase(),
-    String(req.query.startDate ?? ""),
-    String(req.query.length ?? ""),
-  );
+  const startMin = req.query.startMin === undefined ? undefined : Number(req.query.startMin);
+  const data = await membershipAvailability(String(req.params.slug).toLowerCase(), {
+    planId: String(req.query.planId ?? ""),
+    startDate: String(req.query.startDate ?? ""),
+    length: String(req.query.length ?? ""),
+    startMin,
+  });
   sendSuccessResponse(res, data, "Membership availability");
+});
+
+export const getVenuePlans = asyncHandler(async (req: Request, res: Response) => {
+  sendSuccessResponse(res, { plans: await listVenuePlans(String(req.params.slug).toLowerCase()) }, "Membership plans");
+});
+
+export const getPartnerPlans = asyncHandler(async (req: Request, res: Response) => {
+  const account = req.auth!.account;
+  const venueSlug = account.type === "partner" ? account.venueSlug : "";
+  sendSuccessResponse(res, { plans: await listPartnerPlans(venueSlug) }, "Membership plans");
 });
 
 export const getPartnerMembers = asyncHandler(async (req: Request, res: Response) => {

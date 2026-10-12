@@ -2,9 +2,12 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { ArrowUpRight } from "lucide-react";
+import { canAccessSection } from "@/config/adminPermissions";
 import { patchVenueRow, useAdminVenues } from "@/hooks/useAdminCatalogue";
 import { readApiError } from "@/libs/api/errors";
 import { toastDone } from "@/libs/toast";
+import { useAdminSession } from "@/stores/admin";
 import type { AdminVenueRow } from "@/types/catalogue";
 import { cn } from "@/utils";
 import {
@@ -13,11 +16,20 @@ import {
   PartnerSkeleton as Skeleton,
 } from "../Partner/components/PartnerUi";
 import { rateError, rateField } from "./components/priceRow";
+import { plansHref } from "./components/venue/MembershipPlansCard";
 
 const INPUT =
   "w-24 rounded-lg border bg-secondary px-2.5 py-2 text-right text-sm text-tertiary outline-none transition-colors focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20";
 
-const PriceRow = ({ venue, onSaved }: { venue: AdminVenueRow; onSaved: () => Promise<void> }) => {
+const PriceRow = ({
+  venue,
+  canOpenPlans,
+  onSaved,
+}: {
+  venue: AdminVenueRow;
+  canOpenPlans: boolean;
+  onSaved: () => Promise<void>;
+}) => {
   // Null means untouched, so the box follows the server and typing is never lost.
   const [typedHourly, setTypedHourly] = useState<string | null>(null);
   const [typedHalf, setTypedHalf] = useState<string | null>(null);
@@ -31,10 +43,6 @@ const PriceRow = ({ venue, onSaved }: { venue: AdminVenueRow; onSaved: () => Pro
   const half = rateField(typedHalf, venue.halfDayPrice);
   const day = rateField(typedDay, venue.dayPassPrice);
   const isDirty = hourly.isEdited || half.isEdited || day.isEdited;
-  const planCount = Object.values(venue.membershipPrices).reduce(
-    (count, row) => count + Object.values(row ?? {}).filter((price) => typeof price === "number").length,
-    0,
-  );
 
   const type = (set: (value: string) => void, value: string) => {
     set(value.replace(/\D/g, ""));
@@ -122,12 +130,18 @@ const PriceRow = ({ venue, onSaved }: { venue: AdminVenueRow; onSaved: () => Pro
         />
       </td>
       <td className="px-5 py-3.5">
-        <Link
-          href={`/admin/venues/${venue.slug}`}
-          className="text-sm font-medium text-primary underline-offset-4 hover:underline"
-        >
-          {planCount ? `${planCount} ${planCount === 1 ? "price" : "prices"} set` : "Set plan prices"}
-        </Link>
+        {canOpenPlans ? (
+          <Link
+            href={plansHref(venue.slug)}
+            className="inline-flex items-center gap-1 text-sm font-medium text-primary underline-offset-4 hover:underline"
+          >
+            Plans
+            <ArrowUpRight aria-hidden="true" className="size-3.5" />
+            <span className="sr-only"> for {venue.name}</span>
+          </Link>
+        ) : (
+          <span className="text-xs text-tertiary/50">Set as plans</span>
+        )}
       </td>
       <td className="px-5 py-3.5">
         <div className="flex items-center justify-end gap-3">
@@ -153,6 +167,8 @@ const PriceRow = ({ venue, onSaved }: { venue: AdminVenueRow; onSaved: () => Pro
 
 const AdminPricingPage = () => {
   const { venues, error, isLoading, refresh } = useAdminVenues();
+  const { account } = useAdminSession();
+  const canOpenPlans = account ? canAccessSection(account, "memberships.plans") : false;
 
   if (isLoading) return <Skeleton />;
 
@@ -160,7 +176,7 @@ const AdminPricingPage = () => {
     <>
       <PageHeader
         title="Pricing"
-        description="Set each venue's own hourly, half day and day pass prices. Leave a box empty if the venue doesn't sell that pass. Venues can also set their prices from the partner panel."
+        description="Set each venue's own hourly, half day and day pass prices. Leave a box empty if the venue doesn't sell that pass. Venues can also set pass prices from the partner panel; memberships are priced as plans."
       />
 
       <div className={`${CARD} mt-6 overflow-x-auto shadow-lg shadow-tertiary/5`}>
@@ -184,7 +200,7 @@ const AdminPricingPage = () => {
             </thead>
             <tbody className="divide-y divide-tertiary/8">
               {venues.map((venue) => (
-                <PriceRow key={venue.slug} venue={venue} onSaved={refresh} />
+                <PriceRow key={venue.slug} venue={venue} canOpenPlans={canOpenPlans} onSaved={refresh} />
               ))}
             </tbody>
           </table>

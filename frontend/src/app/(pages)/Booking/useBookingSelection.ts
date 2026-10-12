@@ -2,16 +2,21 @@
 
 import { useCallback, useMemo, type SetStateAction } from "react";
 import { MAX_HOURS, MAX_SEATS } from "@/data/bookingOptions";
+import { useVenuePlans } from "@/hooks/useVenuePlans";
 import {
   DEFAULT_SELECTION,
   normaliseSelection,
   type BookingSelection,
 } from "@/types/booking";
+import type { VenuePlan } from "@/types/membership";
 import type { VenueDetail } from "@/types/venue";
 import { hasPassed } from "@/utils/date";
+import { isTimeSlotPlan } from "@/utils/plans";
 import { readStoredItem, useIsClient, useStoredItem } from "@/utils/storage";
 import { needsStartTime } from "./membershipBooking";
-import { fitSelectionToVenue } from "./selectionRules";
+import { fitSelectionToVenue, maxPeopleFor, spaceTypesFor } from "./selectionRules";
+
+const NO_PLANS: VenuePlan[] = [];
 
 const storageKey = (slug: string) => `growth-hub:booking:${slug}`;
 
@@ -23,10 +28,10 @@ const dropPastSchedule = (selection: BookingSelection): BookingSelection => {
   return selection;
 };
 
-const parseSelection = (raw: string | null, venue: VenueDetail): BookingSelection => {
+const parseSelection = (raw: string | null, venue: VenueDetail, plans: VenuePlan[] | undefined): BookingSelection => {
   if (!raw) return DEFAULT_SELECTION;
   try {
-    return fitSelectionToVenue(dropPastSchedule(normaliseSelection(JSON.parse(raw))), venue);
+    return fitSelectionToVenue(dropPastSchedule(normaliseSelection(JSON.parse(raw))), venue, plans);
   } catch {
     return DEFAULT_SELECTION;
   }
@@ -40,17 +45,22 @@ export const useBookingSelection = (venue: VenueDetail) => {
   const key = storageKey(venue.slug);
   const [saved, write] = useStoredItem(key);
   const isHydrated = useIsClient();
+  const { plans, error: plansError } = useVenuePlans(venue.slug);
+  // A failed plan list counts as none, so a saved plan falls back to a pass.
+  const knownPlans = plans ?? (plansError ? NO_PLANS : undefined);
 
-  const selection = useMemo(() => parseSelection(saved, venue), [saved, venue]);
+  const selection = useMemo(() => parseSelection(saved, venue, knownPlans), [saved, venue, knownPlans]);
+  const plan = knownPlans?.find((item) => item.id === selection.planId) ?? null;
+  const isPlanPending = Boolean(selection.planId) && knownPlans === undefined;
 
   // Builds on the stored value at call time, so rapid clicks never read a
   // stale copy.
   const setSelection = useCallback(
     (next: SetStateAction<BookingSelection>) => {
-      const current = parseSelection(readStoredItem(key), venue);
+      const current = parseSelection(readStoredItem(key), venue, knownPlans);
       write(JSON.stringify(typeof next === "function" ? next(current) : next));
     },
-    [key, venue, write],
+    [key, venue, knownPlans, write],
   );
 
   const clear = useCallback(() => write(null), [write]);
@@ -60,10 +70,11 @@ export const useBookingSelection = (venue: VenueDetail) => {
     value: BookingSelection[K],
   ) => setSelection((current) => ({ ...current, [field]: value }));
 
+  const maxSeats = plan ? maxPeopleFor(plan) : MAX_SEATS;
   const adjustSeats = (delta: number) =>
     setSelection((current) => ({
       ...current,
-      seats: clamp(current.seats + delta, 1, MAX_SEATS),
+      seats: clamp(current.seats + delta, 1, maxSeats),
     }));
 
   const adjustHours = (delta: number) =>
@@ -72,11 +83,11 @@ export const useBookingSelection = (venue: VenueDetail) => {
       hours: clamp(current.hours + delta, 1, MAX_HOURS),
     }));
 
-  const isConfigured = Boolean(selection.seats && selection.bookingType);
-  const isScheduled = Boolean(
-    selection.date &&
-      (!needsStartTime(selection.bookingType) || selection.time),
-  );
+  const needsTime = plan ? isTimeSlotPlan(plan) : needsStartTime(selection.bookingType);
+  const isConfigured = selection.planId
+    ? Boolean(plan)
+    : Boolean(selection.seats) && spaceTypesFor(venue, selection.bookingType).length > 0;
+  const isScheduled = Boolean(selection.date && (!needsTime || selection.time));
 
   // A desk booking needs one pick per person; a room is a single pick.
   const requiredPicks = selection.spaceType === "desk" ? selection.seats : 1;
@@ -87,7 +98,12 @@ export const useBookingSelection = (venue: VenueDetail) => {
     selection,
     setSelection,
     clear,
-    isHydrated,
+    // A saved plan waits for the plan list, so no screen acts on half the picture.
+    isHydrated: isHydrated && !isPlanPending,
+    plans: knownPlans,
+    plan,
+    maxSeats,
+    needsTime,
     update,
     adjustSeats,
     adjustHours,

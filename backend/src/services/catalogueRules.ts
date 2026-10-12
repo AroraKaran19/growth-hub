@@ -1,5 +1,4 @@
 import { AppError } from "../middlewares/error.middleware";
-import type { MembershipPriceTable } from "../models";
 
 export const toLocalityId = (locality: string) =>
   locality
@@ -69,7 +68,8 @@ type Priced = {
   startingPrice: number | null;
   halfDayPrice: number | null;
   dayPassPrice: number | null;
-  membershipPrices?: Partial<Record<string, Partial<Record<string, number>>>> | null;
+  /** Whether the venue has a visible membership plan on sale. */
+  hasPlan: boolean;
 };
 
 /** Whether anything at the venue can be bought. */
@@ -77,4 +77,4 @@ export const hasAnyPrice = (venue: Priced) =>
   venue.startingPrice !== null ||
   venue.halfDayPrice !== null ||
   venue.dayPassPrice !== null ||
-  Object.values(venue.membershipPrices ?? {}).some((row) => Object.values(row ?? {}).some((price) => typeof price === "number"));
+  venue.hasPlan;

@@ -7,6 +7,7 @@ import {
   MembershipCharge,
   RazorpayPlan,
   type MembershipDoc,
+  type MembershipPlanDoc,
   type MembershipStatus,
   type SeatMapDoc,
   type VenueDoc,
@@ -15,7 +16,8 @@ import { MEMBERSHIP_RESERVE_AHEAD_DAYS } from "../constants/booking";
 import { addDays, indiaNow } from "../utils/indiaTime";
 import { freshRef, isRef } from "../utils/refs";
 import type { MembershipInput, MembershipQuoteInput, SubscriptionConfirmInput } from "../validators/membership";
-import { holdRanOut, loadBookable, refundQuietly, ruleError } from "./booking.service";
+import { holdRanOut, refundQuietly, ruleError } from "./booking.service";
+import { dailyWindowFor, loadPlanForSale, snapshotOf } from "./planCheckout";
 import { seatError } from "./bookingRules";
 import { issueInvoice } from "./invoiceIssue.service";
 import { couponFor, recordRedemption, rememberCoupon } from "./coupon.service";
@@ -24,6 +26,7 @@ import { couponDiscount } from "./couponRules";
 import { MIN_AMOUNT_PAISE } from "../constants/payments";
 import {
   addCycles,
+  coveredDates,
   cycleEnd,
   indiaMidnightUnix,
   planFor,
@@ -76,12 +79,6 @@ const isSeatTaken = (error: unknown) => (error as AppError).code === "SEAT_TAKEN
 
 const view = (membership: MembershipDoc) => toMembershipView(membership);
 
-const datesBetween = (from: string, to: string) => {
-  const dates: string[] = [];
-  for (let date = from; date <= to; date = addDays(date, 1)) dates.push(date);
-  return dates;
-};
-
 const reload = async (id: Types.ObjectId) => (await Membership.findById(id).lean<MembershipDoc>())!;
 
 type Checkout = { keyId: string; subscriptionId: string; amount: number; currency: string };
@@ -103,23 +100,40 @@ const checkStart = (startDate: string) => {
   if (startDate < indiaNow().date) throw ruleError("IN_PAST");
 };
 
-const checkSeats = (venue: VenueDoc, map: SeatMapDoc, input: MembershipQuoteInput) => {
-  const problem = seatError(input.seatIds, map.seats, input.spaceType, input.people, venue.outOfServiceSeatIds);
+const checkSeats = (venue: VenueDoc, map: SeatMapDoc, plan: MembershipPlanDoc, input: MembershipQuoteInput) => {
+  if (plan.space === "desk" && input.people > plan.maxSeats) {
+    throw new AppError(`This plan takes up to ${plan.maxSeats} seats.`, 422, "PLAN_SEAT_LIMIT", { maxSeats: plan.maxSeats });
+  }
+  if (!input.seatIds.length) return;
+  const problem = seatError(input.seatIds, map.seats, plan.space, input.people, venue.outOfServiceSeatIds);
   if (problem) throw ruleError(problem.code, { seatIds: problem.seatIds });
 };
 
-export const quoteMembershipPlan = async (input: MembershipQuoteInput) => {
-  const { venue, map } = await loadBookable(input.venueSlug);
+/** Everything a purchase is checked against, before any seat or payment is touched. */
+const checkout = async (input: MembershipQuoteInput) => {
+  const { plan, venue, map, days } = await loadPlanForSale(input.planId);
   checkStart(input.startDate);
-  if (input.seatIds.length) checkSeats(venue, map, input);
-  const quote = quoteMembership({ venue, spaceType: input.spaceType, length: input.length, people: input.people });
+  checkSeats(venue, map, plan, input);
+  const window = dailyWindowFor(venue, plan, input.startMin);
+  const quote = quoteMembership({ plan, length: input.length, people: input.people });
+  return { plan, venue, map, days, window, quote };
+};
+
+export const quoteMembershipPlan = async (input: MembershipQuoteInput) => {
+  const { plan, days, window, quote } = await checkout(input);
   return {
     ...quote,
+    plan: { id: plan._id.toString(), name: plan.name, space: plan.space, days },
+    window,
     startDate: input.startDate,
     paidThrough: cycleEnd(input.startDate, input.length, 0),
     renewsOn: addCycles(input.startDate, input.length, 1),
   };
 };
+
+/** The days a membership locks between two dates, following its snapshot. */
+const lockedDates = (membership: Pick<MembershipDoc, "plan">, from: string, to: string) =>
+  coveredDates(from, to, membership.plan?.days ?? null);
 
 /** One Razorpay plan per period and price, shared by every membership that needs it. */
 const planIdFor = async (length: MembershipLength, amount: number) => {
@@ -147,10 +161,7 @@ export const createMembership = async (memberId: string, input: MembershipInput,
   const repeat = await Membership.findOne({ memberId, requestKey }).lean<MembershipDoc>();
   if (repeat) return withCheckout(repeat);
 
-  const { venue, map } = await loadBookable(input.venueSlug);
-  checkStart(input.startDate);
-  checkSeats(venue, map, input);
-  const quote = quoteMembership({ venue, spaceType: input.spaceType, length: input.length, people: input.people });
+  const { plan, venue, map, days, window, quote } = await checkout(input);
 
   const now = Date.now();
   const id = new Types.ObjectId();
@@ -172,7 +183,13 @@ export const createMembership = async (memberId: string, input: MembershipInput,
             venueSlug: venue.slug,
             venue: { name: venue.name, locality: venue.locality, city: venue.city, image: venue.image },
             seatMapId: map._id,
-            spaceType: input.spaceType,
+            planId: plan._id,
+            spaceType: plan.space,
+            plan: snapshotOf(plan, days),
+            window,
+            holders: (input.holders ?? [])
+              .map((holder) => ({ seatId: holder.seatId, name: holder.name.trim() }))
+              .filter((holder) => holder.name && input.seatIds.includes(holder.seatId)),
             length: input.length,
             seats: input.seatIds.map((seatId) => ({
               id: seatId,
@@ -197,9 +214,10 @@ export const createMembership = async (memberId: string, input: MembershipInput,
         {
           venueId: venue._id,
           seatIds: input.seatIds,
-          dates: datesBetween(input.startDate, reservedThrough),
+          dates: coveredDates(input.startDate, reservedThrough, days),
           membershipId: id,
           holdExpiresAt,
+          window,
         },
         session,
       );
@@ -247,9 +265,10 @@ const reclaimDays = async (
     {
       venueId: membership.venueId,
       seatIds: membership.seats.map((seat) => seat.id),
-      dates: datesBetween(membership.startDate, membership.reservedThrough),
+      dates: lockedDates(membership, membership.startDate, membership.reservedThrough),
       membershipId: membership._id,
       holdExpiresAt,
+      window: membership.window ?? null,
     },
     session,
   );
@@ -524,8 +543,9 @@ const extendReservation = async (
       {
         venueId: membership.venueId,
         seatIds: membership.seats.map((seat) => seat.id),
-        dates: from <= through ? datesBetween(from, through) : [],
+        dates: lockedDates(membership, from, through),
         membershipId: membership._id,
+        window: membership.window ?? null,
       },
       session,
     );

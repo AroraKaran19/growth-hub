@@ -1,12 +1,18 @@
 "use client";
 
 import { authStoreFor } from "@/stores/auth";
-import type { ApiMembership, ApiMembershipCheckout, MembershipRequest } from "@/types/membership";
-import { memberApi } from "./client";
+import type { ApiMembership, ApiMembershipCheckout, MembershipRequest, PlanQuote, VenuePlan } from "@/types/membership";
+import { memberApi, publicApi } from "./client";
 
 type Envelope<T> = { data: { data: T } };
 
 const data = async <T>(request: Promise<unknown>) => ((await request) as Envelope<T>).data.data;
+
+export const fetchVenuePlans = async (slug: string) =>
+  (await data<{ plans: VenuePlan[] }>(publicApi.get(`/venues/${encodeURIComponent(slug)}/membership-plans`))).plans;
+
+export const quoteMembership = async (body: MembershipRequest) =>
+  (await data<{ quote: PlanQuote }>(publicApi.post("/memberships/quote", body))).quote;
 
 export const createMembership = (body: MembershipRequest, requestKey: string) =>
   data<{ membership: ApiMembership; checkout: ApiMembershipCheckout | null }>(

@@ -1,5 +1,5 @@
 import type { Seat } from "@/types/seat";
-import type { PartnerBooking, PartnerMember } from "@/types/partner";
+import type { PartnerBooking, PartnerMember, SeatCheckIn } from "@/types/partner";
 
 export type SeatStatus =
   | "available"
@@ -61,6 +61,8 @@ export type SeatState = {
   status: SeatStatus;
   booking?: PartnerBooking;
   member?: PartnerMember;
+  /** This seat's entry on the member's plan, with its holder. */
+  memberSeat?: SeatCheckIn;
 };
 
 const matchesSeat = (seat: Seat, labels: string[]) =>
@@ -72,8 +74,8 @@ export const seatStatesFor = (
   context: {
     today: string;
     bookings: PartnerBooking[];
-    members: PartnerMember[];
-    checkIns: Record<string, string>;
+    /** Only plans that cover today; on other days the seat is free for passes. */
+    todayMembers: PartnerMember[];
     walkIns: string[];
     /** Someone is on the payment page for these right now. */
     beingBooked?: string[];
@@ -88,9 +90,8 @@ export const seatStatesFor = (
   return Object.fromEntries(
     seats.map((seat) => {
       const booking = todays.find((item) => matchesSeat(seat, item.seats));
-      const member = context.members.find(
-        (item) => item.startDate <= context.today && matchesSeat(seat, item.seats),
-      );
+      const member = context.todayMembers.find((item) => matchesSeat(seat, item.seats));
+      const memberSeat = member?.today?.seats.find((item) => item.seatId === seat.id || item.label === seat.label);
 
       let state: SeatState = { status: "available" };
 
@@ -103,12 +104,13 @@ export const seatStatesFor = (
         };
       } else if (member) {
         state = {
-          status: context.checkIns[member.membershipId]
+          status: memberSeat?.checkedInAt
             ? "checked-in"
             : member.status === "past-due"
               ? "held"
               : "member",
           member,
+          memberSeat,
         };
       } else if (context.walkIns.includes(seat.id)) {
         state = { status: "walk-in" };

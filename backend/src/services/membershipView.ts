@@ -1,13 +1,26 @@
 import { env } from "../config/env";
-import type { BookedSeat, MembershipDoc } from "../models";
+import type { BookedSeat, DailyWindow, MembershipDoc, SeatHolder } from "../models";
 import { addDays, indiaNow } from "../utils/indiaTime";
 import { signCode } from "../utils/qr";
+
+export type PlanSnapshotView = {
+  id: string;
+  name: string;
+  space: string;
+  roomMode: string | null;
+  slotHours: number | null;
+  days: number[];
+};
 
 export type MembershipView = {
   ref: string;
   status: string;
   venue: { slug: string; name: string; locality: string; city: string; image: string };
   spaceType: string;
+  /** Null for memberships bought before plans existed; they cover every day. */
+  plan: PlanSnapshotView | null;
+  window: DailyWindow | null;
+  holders: SeatHolder[];
   length: string;
   seats: BookedSeat[];
   people: number;
@@ -42,6 +55,18 @@ export const effectiveMembershipStatus = (membership: MembershipDoc, now: Date) 
 
 const iso = (value: Date | null) => (value ? new Date(value).toISOString() : null);
 
+export const planSnapshotView = (membership: Pick<MembershipDoc, "plan">): PlanSnapshotView | null => {
+  const plan = membership.plan;
+  if (!plan) return null;
+  return { id: plan.id.toString(), name: plan.name, space: plan.space, roomMode: plan.roomMode, slotHours: plan.slotHours, days: plan.days };
+};
+
+export const windowView = (membership: Pick<MembershipDoc, "window">): DailyWindow | null =>
+  membership.window ? { start: membership.window.start, end: membership.window.end } : null;
+
+export const holdersView = (membership: Pick<MembershipDoc, "holders">): SeatHolder[] =>
+  (membership.holders ?? []).map((holder) => ({ seatId: holder.seatId, name: holder.name }));
+
 export const toMembershipView = (membership: MembershipDoc, now = new Date()): MembershipView => {
   const status = effectiveMembershipStatus(membership, now);
   const isLive = status === "active" || status === "past-due";
@@ -51,6 +76,9 @@ export const toMembershipView = (membership: MembershipDoc, now = new Date()): M
     status,
     venue: { slug: membership.venueSlug, ...membership.venue },
     spaceType: membership.spaceType,
+    plan: planSnapshotView(membership),
+    window: windowView(membership),
+    holders: holdersView(membership),
     length: membership.length,
     seats: membership.seats,
     people: membership.people,

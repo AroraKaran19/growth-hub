@@ -136,8 +136,12 @@ export const sectionForPath = (pathname: string): AdminSection | null => {
   return matches.sort((a, b) => b.href.length - a.href.length)[0] ?? null;
 };
 
+// Every admin's own pages, open whatever their permissions.
+const OWN_PAGES = ["/admin/profile"];
+
 // Pages not listed as a section are super admin only, so a new page is never open by accident.
 export const isPathAllowed = (account: AdminAccount, pathname: string) => {
+  if (OWN_PAGES.includes(pathname)) return true;
   const section = sectionForPath(pathname);
   return section ? canAccessSection(account, section.permission) : account.role === "super-admin";
 };

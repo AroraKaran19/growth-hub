@@ -86,16 +86,29 @@ export const todayAtDesk = async (staff: DeskStaff, now = new Date()) => {
     SeatDay.find({ venueId: venue._id, date: today }).lean<SeatDayDoc[]>(),
   ]);
 
-  const checkIns = await MembershipCheckIn.find({ membershipId: { $in: memberships.map((item) => item._id) }, date: today }).lean<
-    MembershipCheckInDoc[]
-  >();
-  const checkedIn = new Map(checkIns.map((item) => [item.membershipId.toString(), new Date(item.at).toISOString()]));
-  const memberViews = await toStaffMembershipViews(memberships);
+  // Plans bought from a plan only come in on the weekdays they cover.
+  const covered = memberships.filter((item) => !item.plan || item.plan.days.includes(weekdayOf(today)));
+  const checkIns = await MembershipCheckIn.find({ membershipId: { $in: covered.map((item) => item._id) }, date: today })
+    .sort({ at: 1 })
+    .lean<MembershipCheckInDoc[]>();
+  const memberViews = await toStaffMembershipViews(covered);
 
   return {
     date: today,
     bookings: await toStaffBookingViews(bookings, now),
-    members: memberViews.map((view, index) => ({ ...view, checkedInAt: checkedIn.get(memberships[index]._id.toString()) ?? null })),
+    members: memberViews.map((view, index) => {
+      const own = checkIns.filter((item) => item.membershipId.equals(covered[index]._id));
+      const isSingle = view.seatList.length === 1;
+      const at = (seatId: string) => {
+        const record = own.find((item) => isSingle || item.seatId === seatId);
+        return record ? new Date(record.at).toISOString() : null;
+      };
+      return {
+        ...view,
+        checkedInAt: own[0] ? new Date(own[0].at).toISOString() : null,
+        seatCheckIns: view.seatList.map((seat) => ({ seatId: seat.id, label: seat.label, holder: seat.holder, checkedInAt: at(seat.id) })),
+      };
+    }),
     walkInSeatIds: days
       .filter((day) => day.ranges.some((range) => range.kind === "walk-in"))
       .map((day) => day.seatId)

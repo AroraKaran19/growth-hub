@@ -5,8 +5,6 @@ export type MembershipSpace = "desk" | "private-cabin" | "office";
 
 export type MembershipLengthKey = "weekly" | "monthly" | "quarterly" | "halfYearly";
 
-export type MembershipPriceTable = Partial<Record<MembershipSpace, Partial<Record<MembershipLengthKey, number>>>>;
-
 export const MEMBERSHIP_SPACES: MembershipSpace[] = ["desk", "private-cabin", "office"];
 
 export const MEMBERSHIP_LENGTH_KEYS: MembershipLengthKey[] = ["weekly", "monthly", "quarterly", "halfYearly"];
@@ -49,7 +47,6 @@ export type ApiVenue = {
   priceUnit: "hr" | "day" | "month";
   halfDayPrice: number | null;
   dayPassPrice: number | null;
-  membershipPrices: MembershipPriceTable;
   distanceKm: number;
   description: string;
   longDescription: string;

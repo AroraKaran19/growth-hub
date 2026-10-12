@@ -3,11 +3,12 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ArrowRight, CircleUserRound, Menu } from "lucide-react";
+import { ArrowRight, Menu } from "lucide-react";
 import Logo from "@/app/components/ui/Logo";
 import { NAV_LINKS } from "@/data/navigation";
-import { useSession } from "@/stores/session";
 import { cn } from "@/utils";
+import { useSiteAccount } from "@/hooks/useSiteAccount";
+import UserMenu from "./components/UserMenu";
 import MobileMenuDrawer, {
   MOBILE_MENU_DRAWER_ID,
 } from "./components/MobileMenuDrawer";
@@ -17,8 +18,10 @@ const ACTION_BUTTON =
 
 const Navbar = () => {
   const pathname = usePathname();
-  const { session } = useSession();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  // Bookings belong to customer accounts, so staff logins get no booking prompt.
+  const { account } = useSiteAccount();
+  const isStaff = account !== null && account.kind !== "member";
   const [isScrolled, setIsScrolled] = useState(false);
 
   // Only the homepage has a dark hero behind the bar; everywhere else the
@@ -74,28 +77,19 @@ const Navbar = () => {
         </ul>
 
         <div className="hidden items-center gap-3 lg:flex lg:justify-self-end">
-          <Link
-            href={
-              session ? "/account" : `/login?next=${encodeURIComponent(pathname)}`
-            }
-            className={cn(
-              ACTION_BUTTON,
-              "border border-secondary/40 text-secondary hover:bg-secondary/10",
-            )}
-          >
-            <CircleUserRound className="size-4" />
-            {session ? "My Account" : "Login"}
-          </Link>
-          <Link
-            href="/workspaces"
-            className={cn(
-              ACTION_BUTTON,
-              "bg-primary text-secondary hover:bg-accent",
-            )}
-          >
-            Book Now
-            <ArrowRight className="size-4" />
-          </Link>
+          <UserMenu variant="dark" />
+          {!isStaff && (
+            <Link
+              href="/workspaces"
+              className={cn(
+                ACTION_BUTTON,
+                "bg-primary text-secondary hover:bg-accent",
+              )}
+            >
+              Book Now
+              <ArrowRight className="size-4" />
+            </Link>
+          )}
         </div>
 
         <button

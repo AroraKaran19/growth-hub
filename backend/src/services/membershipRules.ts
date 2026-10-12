@@ -1,9 +1,9 @@
 import { MEMBERSHIP_RESERVE_AHEAD_DAYS } from "../constants/booking";
-import type { MembershipLength, MembershipSpace, SeatType } from "../constants/catalogue";
+import type { MembershipLength, PlanSpace } from "../constants/catalogue";
 import { MIN_AMOUNT_PAISE } from "../constants/payments";
 import { AppError } from "../middlewares/error.middleware";
-import type { MembershipPriceTable } from "../models";
-import { addDays, instantOf } from "../utils/indiaTime";
+import type { PlanPrices } from "../models";
+import { addDays, instantOf, weekdayOf } from "../utils/indiaTime";
 import { toPaise, unitsFor } from "./pricing";
 
 const MONTHS: Record<Exclude<MembershipLength, "weekly">, number> = { monthly: 1, quarterly: 3, halfYearly: 6 };
@@ -44,15 +44,13 @@ export type MembershipQuote = {
 const unavailable = () => new AppError("This venue doesn't sell that plan.", 422, "PRICE_UNAVAILABLE");
 
 export const quoteMembership = (input: {
-  venue: { membershipPrices: MembershipPriceTable };
-  spaceType: SeatType;
+  plan: { space: PlanSpace; prices: PlanPrices };
   length: MembershipLength;
   people: number;
 }): MembershipQuote => {
-  if (input.spaceType === "meeting-room") throw unavailable();
-  const price = input.venue.membershipPrices[input.spaceType as MembershipSpace]?.[input.length];
+  const price = input.plan.prices[input.length];
   if (!price) throw unavailable();
-  const units = unitsFor(input.spaceType, input.people);
+  const units = unitsFor(input.plan.space, input.people);
   const cyclePrice = toPaise(price) * units;
   const discount = 0;
   const total = Math.max(cyclePrice - discount, 0);
@@ -65,4 +63,13 @@ export const reserveThrough = (startDate: string, length: MembershipLength, toda
   const cycles = cycleEnd(startDate, length, 1);
   const horizon = addDays(today, MEMBERSHIP_RESERVE_AHEAD_DAYS);
   return cycles > horizon ? cycles : horizon;
+};
+
+/** The dates a plan locks between two days; null days (grid-era memberships) cover every day. */
+export const coveredDates = (from: string, to: string, days: number[] | null) => {
+  const dates: string[] = [];
+  for (let date = from; date <= to; date = addDays(date, 1)) {
+    if (!days || days.includes(weekdayOf(date))) dates.push(date);
+  }
+  return dates;
 };

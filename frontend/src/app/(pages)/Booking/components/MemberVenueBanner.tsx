@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import { CircleAlert, Crown, QrCode } from "lucide-react";
-import { MEMBERSHIP_SPACES } from "@/data/membershipPlans";
 import type { ApiMembership } from "@/types/membership";
 import { formatDay } from "@/utils/date";
+import { daysPhrase, membershipTitle, windowLabel } from "@/utils/plans";
 import MemberPassModal from "../../Account/components/MemberPassModal";
 
 /** Tells a member their seat is already theirs before they book anything. */
@@ -23,8 +23,9 @@ const MemberVenueBanner = ({ membership }: { membership: ApiMembership }) => {
         )}
         <span>
           <span className="block text-base font-semibold text-tertiary">You&apos;re a member here</span>
-          Your {MEMBERSHIP_SPACES[membership.spaceType].workspace.toLowerCase()} {seatLabel} is reserved for you
-          {membership.paidThrough ? ` until ${formatDay(membership.paidThrough)}` : ""}. Book below only for extra
+          {membershipTitle(membership)} keeps {seatLabel} for you {daysPhrase(membership.plan?.days)}
+          {membership.window ? `, ${windowLabel(membership.window)}` : ""}
+          {membership.paidThrough ? `, until ${formatDay(membership.paidThrough)}` : ""}. Book below only for extra
           seats or rooms.
           {isPastDue && " Your last renewal payment failed; update it in Razorpay to keep your seat."}
         </span>

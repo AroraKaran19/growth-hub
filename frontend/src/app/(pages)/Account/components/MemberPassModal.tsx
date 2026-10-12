@@ -3,10 +3,10 @@
 import { useEffect } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { CircleAlert, X } from "lucide-react";
-import { MEMBERSHIP_SPACES } from "@/data/membershipPlans";
 import { useVenue } from "@/hooks/useVenues";
 import type { ApiMembership } from "@/types/membership";
 import { formatDay } from "@/utils/date";
+import { daysLabel, membershipTitle, seatNoun, windowLabel } from "@/utils/plans";
 
 type MemberPassModalProps = {
   membership: ApiMembership;
@@ -80,12 +80,16 @@ const MemberPassModal = ({ membership, onClose }: MemberPassModalProps) => {
 
         <dl className="mt-5 grid grid-cols-2 gap-4 border-t border-tertiary/10 pt-5">
           <div>
-            <dt className={ROW_LABEL}>Workspace</dt>
-            <dd className={ROW_VALUE}>{MEMBERSHIP_SPACES[membership.spaceType].workspace}</dd>
+            <dt className={ROW_LABEL}>Plan</dt>
+            <dd className={ROW_VALUE}>{membershipTitle(membership)}</dd>
           </div>
           <div>
-            <dt className={ROW_LABEL}>Your seat</dt>
+            <dt className={ROW_LABEL}>{seatNoun(membership.spaceType, membership.seats.length)}</dt>
             <dd className={ROW_VALUE}>{membership.seats.map((seat) => seat.label).join(", ")}</dd>
+          </div>
+          <div>
+            <dt className={ROW_LABEL}>Days</dt>
+            <dd className={ROW_VALUE}>{daysLabel(membership.plan?.days)}</dd>
           </div>
           {membership.paidThrough && (
             <div>
@@ -93,10 +97,10 @@ const MemberPassModal = ({ membership, onClose }: MemberPassModalProps) => {
               <dd className={ROW_VALUE}>{formatDay(membership.paidThrough)}</dd>
             </div>
           )}
-          {venue && (
+          {(membership.window || venue) && (
             <div>
-              <dt className={ROW_LABEL}>Access</dt>
-              <dd className={ROW_VALUE}>{venue.openHours}</dd>
+              <dt className={ROW_LABEL}>{membership.window ? "Your window" : "Access"}</dt>
+              <dd className={ROW_VALUE}>{membership.window ? windowLabel(membership.window) : venue?.openHours}</dd>
             </div>
           )}
         </dl>

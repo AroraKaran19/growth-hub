@@ -25,6 +25,9 @@ const LayoutWrapper = ({ children }: { children: React.ReactNode }) => {
     (p) => pathname === p || pathname.startsWith(`${p}/`),
   );
   useAuthBootstrap("member", !isStaffPath);
+  // Staff signed in elsewhere still see their account in the site navbar.
+  useAuthBootstrap("admin", !isStaffPath, true);
+  useAuthBootstrap("partner", !isStaffPath, true);
 
   const showLayout =
     !NO_LAYOUT.includes(pathname) &&

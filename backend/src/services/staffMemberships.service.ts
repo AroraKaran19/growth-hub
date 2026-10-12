@@ -1,5 +1,6 @@
 import { Membership, type MembershipDoc } from "../models";
-import { toMembershipView } from "./membershipView";
+import type { DailyWindow, SeatHolder } from "../models";
+import { holdersView, planSnapshotView, toMembershipView, windowView, type PlanSnapshotView } from "./membershipView";
 import { findMembers } from "./accountSnapshot.service";
 import { phoneOf } from "./staffBookings.service";
 
@@ -12,6 +13,12 @@ export type StaffMembershipView = {
   venue: { slug: string; name: string };
   member: { name: string; phone: string };
   spaceType: string;
+  planName: string | null;
+  plan: PlanSnapshotView | null;
+  window: DailyWindow | null;
+  holders: SeatHolder[];
+  /** Each seat with its holder's name, for the desk to check people in one by one. */
+  seatList: { id: string; label: string; holder: string | null }[];
   length: string;
   seats: string[];
   people: number;
@@ -36,6 +43,15 @@ export const toStaffMembershipViews = async (memberships: MembershipDoc[]): Prom
       venue: { slug: membership.venueSlug, name: membership.venue.name },
       member: { name: member?.name ?? "Member", phone: member ? phoneOf(member) : "" },
       spaceType: membership.spaceType,
+      planName: membership.plan?.name ?? null,
+      plan: planSnapshotView(membership),
+      window: windowView(membership),
+      holders: holdersView(membership),
+      seatList: membership.seats.map((seat) => ({
+        id: seat.id,
+        label: seat.label,
+        holder: membership.holders?.find((holder) => holder.seatId === seat.id)?.name ?? null,
+      })),
       length: membership.length,
       seats: membership.seats.map((seat) => seat.label),
       people: membership.people,
