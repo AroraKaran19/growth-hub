@@ -16,7 +16,7 @@ const AdminPartnersPage = () => {
   const [venue, setVenue] = useState("");
   const { accounts, venues, error, isLoading, invite, update } = usePartnerAccounts(venue);
   const { account: me } = useAdminSession();
-  const canEditDetails = me ? canAccessSection(me, "team") : false;
+  const canEditDetails = me ? canAccessSection(me, "users.manage") : false;
 
   return (
     <>

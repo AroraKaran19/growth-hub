@@ -24,6 +24,9 @@ const toMember = (admin: AdminDoc, seen: Date | undefined): TeamMember => {
 
 const notFound = () => new AppError("That admin no longer exists.", 404, "ADMIN_NOT_FOUND");
 const cantGrant = () => new AppError("You can only give sections you have yourself.", 403, "PERMISSION_DENIED");
+const superOnly = () => new AppError("Only a super admin can make someone a super admin.", 403, "SUPER_ADMIN_ONLY");
+const needsSections = () =>
+  new AppError("Check the highlighted fields.", 400, "VALIDATION_FAILED", { fields: { permissions: "Pick at least one section." } });
 
 const beyondActor = (actor: TeamActor, permissions: readonly string[]) =>
   actor.role === "super-admin" ? [] : permissions.filter((permission) => !hasPermission(actor.permissions, permission));
@@ -39,6 +42,7 @@ export const listTeam = async (): Promise<TeamMember[]> => {
 };
 
 export const inviteAdmin = async (input: InviteAdminInput, actor: TeamActor): Promise<TeamMember> => {
+  if (input.role === "super-admin" && actor.role !== "super-admin") throw superOnly();
   if (beyondActor(actor, input.permissions).length > 0) throw cantGrant();
   const [admin, partner] = await Promise.all([
     Admin.exists({ email: input.email }),
@@ -50,7 +54,7 @@ export const inviteAdmin = async (input: InviteAdminInput, actor: TeamActor): Pr
     const created = await Admin.create({
       name: input.name,
       email: input.email,
-      role: "admin",
+      role: input.role,
       permissions: input.permissions,
       passwordHash: await hashPassword(input.temporaryPassword),
       mustChangePassword: true,
@@ -73,12 +77,27 @@ export const updateAdmin = async (
 
   const admin = await Admin.findById(targetId).lean<AdminDoc>();
   if (!admin) throw notFound();
-  if (adminSummary(admin).role === "super-admin") {
-    throw new AppError("Super admins can't be changed here.", 403, "SUPER_ADMIN_LOCKED");
+  const currentRole = adminSummary(admin).role;
+  if (currentRole === "super-admin" && actor.role !== "super-admin") {
+    throw new AppError("Only a super admin can change a super admin.", 403, "SUPER_ADMIN_LOCKED");
+  }
+  if (change.role && change.role !== currentRole && actor.role !== "super-admin") throw superOnly();
+
+  const nextRole = change.role ?? currentRole;
+  const losesSuper = currentRole === "super-admin" && (nextRole !== "super-admin" || change.status === "disabled");
+  if (losesSuper) {
+    const others = await Admin.countDocuments({ _id: { $ne: admin._id }, role: "super-admin", status: "active" });
+    if (others === 0) throw new AppError("Keep at least one active super admin.", 409, "LAST_SUPER_ADMIN");
   }
 
   let permissions: string[] | undefined;
-  if (change.permissions) {
+  if (nextRole === "super-admin") {
+    permissions = [];
+  } else if (currentRole === "super-admin") {
+    if (!change.permissions) throw needsSections();
+    if (beyondActor(actor, change.permissions).length > 0) throw cantGrant();
+    permissions = change.permissions;
+  } else if (change.permissions) {
     // Sections the actor can't give stay exactly as they were.
     const kept = beyondActor(actor, adminSummary(admin).permissions);
     if (beyondActor(actor, change.permissions).some((permission) => !kept.includes(permission))) throw cantGrant();
@@ -94,6 +113,7 @@ export const updateAdmin = async (
         $set: {
           ...details.set,
           ...(permissions && { permissions }),
+          ...(nextRole !== currentRole && { role: nextRole }),
           ...(change.status && { status: change.status }),
         },
       },

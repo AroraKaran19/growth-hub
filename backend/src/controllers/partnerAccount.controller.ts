@@ -18,8 +18,8 @@ export const postPartnerAccount = asyncHandler(async (req: Request, res: Respons
 
 export const patchPartnerAccount = asyncHandler(async (req: Request, res: Response) => {
   const change = parseBody(updatePartnerSchema, req.body);
-  if (hasDetails(change) && !canAccess(req.auth!.account, "team")) {
-    throw new AppError("You don't have access to edit account details.", 403, "PERMISSION_DENIED", { permission: "team" });
+  if (hasDetails(change) && !canAccess(req.auth!.account, "users.manage")) {
+    throw new AppError("You don't have access to edit account details.", 403, "PERMISSION_DENIED", { permission: "users.manage" });
   }
   const account = await updatePartner(String(req.params.id), change);
   sendSuccessResponse(res, { account }, "Partner updated");

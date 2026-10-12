@@ -27,3 +27,4 @@ export * from "./invoiceJob.schema";
 export * from "./homeSection.schema";
 export * from "./testimonial.schema";
 export * from "./amenity.schema";
+export * from "./membershipPlan.schema";

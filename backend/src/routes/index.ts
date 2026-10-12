@@ -7,6 +7,7 @@ import {
   adminLabelRoutes,
   adminCouponRoutes,
   adminMembershipRoutes,
+  adminPlanRoutes,
   adminOverviewRoutes,
   adminPayoutAccountRoutes,
   adminPayoutRoutes,
@@ -30,6 +31,7 @@ import webhookRoutes from "./webhook.routes";
 import memberRoutes from "./member.routes";
 import partnerRoutes from "./partner.routes";
 import teamRoutes from "./team.routes";
+import adminUserRoutes from "./users.routes";
 import venueRoutes from "./venue.routes";
 
 const router = Router();
@@ -48,7 +50,8 @@ router.use("/venues", venueRoutes);
 router.use("/catalogue", catalogueRoutes);
 router.use("/partner", partnerRoutes);
 router.use("/admin/assets", assetRoutes);
-router.use("/admin/team", teamRoutes);
+router.use("/admin/staff", teamRoutes);
+router.use("/admin/users", adminUserRoutes);
 router.use("/admin/overview", adminOverviewRoutes);
 router.use("/admin/venues/:slug/payout-account", adminPayoutAccountRoutes);
 router.use("/admin/venues", adminVenueRoutes);
@@ -64,6 +67,7 @@ router.use("/admin/addon-types", adminAddonTypeRoutes);
 router.use("/admin/partner-staff", adminPartnerRoutes);
 router.use("/admin/bookings", adminBookingRoutes);
 router.use("/admin/addon-orders", adminAddonOrderRoutes);
+router.use("/admin/membership-plans", adminPlanRoutes);
 router.use("/admin/memberships", adminMembershipRoutes);
 router.use("/admin/coupons", adminCouponRoutes);
 router.use("/admin/cancellation-requests", adminRequestRoutes);

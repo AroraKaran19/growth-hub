@@ -9,21 +9,26 @@ import {
 import InviteAdminCard from "./components/team/InviteAdminCard";
 import TeamMemberCard from "./components/team/TeamMemberCard";
 
-const AdminTeamPage = () => {
+const AdminStaffPage = () => {
   const { account } = useAdminSession();
   const { members, error, isLoading, invite, update } = useTeam();
   const activeCount = members.filter((member) => member.status === "active").length;
-  const grantable = account?.role === "super-admin" ? undefined : account?.permissions;
+  const isSuper = account?.role === "super-admin";
+  const grantable = isSuper ? undefined : account?.permissions;
 
   return (
     <>
       <PageHeader
-        title="Team"
-        description="Invite Growth Hub staff, edit their details and choose which sections of the admin panel each person can open."
+        title="Staff"
+        description={
+          isSuper
+            ? "Add Growth Hub staff as admins or super admins, edit their details and choose the pages each admin can open."
+            : "Add Growth Hub staff as admins, edit their details and choose the pages each one can open."
+        }
       />
 
       <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-[420px_minmax(0,1fr)]">
-        <InviteAdminCard grantable={grantable} onInvite={invite} />
+        <InviteAdminCard grantable={grantable} canCreateSuperAdmin={isSuper} onInvite={invite} />
 
         <section aria-labelledby="team-heading">
           <div className="flex items-baseline justify-between gap-3">
@@ -41,7 +46,7 @@ const AdminTeamPage = () => {
             </div>
           ) : error ? (
             <p role="alert" className="mt-3 text-sm text-primary">
-              We couldn&apos;t load the team. Refresh to try again.
+              We couldn&apos;t load staff. Refresh to try again.
             </p>
           ) : (
             <ul className="mt-3 grid grid-cols-1 gap-4 2xl:grid-cols-2">
@@ -51,6 +56,7 @@ const AdminTeamPage = () => {
                     member={member}
                     isYou={member.id === account?.id}
                     grantable={grantable}
+                    viewerIsSuper={isSuper}
                     onUpdate={(change) => update(member.id, change)}
                   />
                 </li>
@@ -63,4 +69,4 @@ const AdminTeamPage = () => {
   );
 };
 
-export default AdminTeamPage;
+export default AdminStaffPage;

@@ -11,7 +11,7 @@ const actorOf = (req: Request) => {
 };
 
 export const getTeam = asyncHandler(async (_req: Request, res: Response) => {
-  sendSuccessResponse(res, { members: await listTeam() }, "Team");
+  sendSuccessResponse(res, { members: await listTeam() }, "Staff");
 });
 
 export const postTeamMember = asyncHandler(async (req: Request, res: Response) => {

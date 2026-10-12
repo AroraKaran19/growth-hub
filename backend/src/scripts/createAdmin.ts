@@ -50,7 +50,7 @@ const main = async () => {
   if (admin) await revokeAccountSessions("admin", admin._id, "password-changed");
   console.log(`${admin?.role === "super-admin" ? "Super admin" : "Admin"} ready: ${admin?.email}`);
   if (admin?.role === "admin" && admin.permissions?.length === 0) {
-    console.log("No sections yet. A super admin can grant them on the Team page.");
+    console.log("No sections yet. A super admin can grant them on the Staff page.");
   }
 };
 

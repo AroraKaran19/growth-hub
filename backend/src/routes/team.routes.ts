@@ -4,7 +4,7 @@ import { panelRateLimit, requireAuth, requirePermission } from "../middlewares";
 
 const router = Router();
 
-router.use(requireAuth("admin"), panelRateLimit, requirePermission("team"));
+router.use(requireAuth("admin"), panelRateLimit, requirePermission("users.staff"));
 router.get("/", getTeam);
 router.post("/", postTeamMember);
 router.patch("/:id", patchTeamMember);

@@ -57,7 +57,7 @@ const AdminOverviewPage = () => {
   const { account } = useAdminSession();
   const canOpenVenues = account ? canAccessSection(account, "workspaces.venues") : false;
   const canOpenBookings = account ? canAccessSection(account, "bookings") : false;
-  const canOpenMemberships = account ? canAccessSection(account, "memberships") : false;
+  const canOpenMemberships = account ? canAccessSection(account, "memberships.manage") : false;
   const { overview, operations, isLoading } = useCatalogueOverview();
   const canOpenPayouts = account ? canAccessSection(account, "payouts") : false;
   const { bookings, isLoading: areBookingsLoading } = useAdminBookings(canOpenBookings);

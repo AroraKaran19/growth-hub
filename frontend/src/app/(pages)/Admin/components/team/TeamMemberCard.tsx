@@ -17,6 +17,7 @@ type TeamMemberCardProps = {
   isYou: boolean;
   /** Sections the signed-in admin may give; undefined for super admins. */
   grantable?: string[];
+  viewerIsSuper: boolean;
   onUpdate: (change: TeamChange) => Promise<void>;
 };
 
@@ -30,13 +31,13 @@ const initials = (name: string) =>
 
 const QUIET = "text-sm font-medium transition-opacity hover:opacity-75 disabled:opacity-50";
 
-const TeamMemberCard = ({ member, isYou, grantable, onUpdate }: TeamMemberCardProps) => {
+const TeamMemberCard = ({ member, isYou, grantable, viewerIsSuper, onUpdate }: TeamMemberCardProps) => {
   const [mode, setMode] = useState<Mode>("view");
   const [isSaving, setIsSaving] = useState(false);
 
   const isSuper = member.role === "super-admin";
   const isDisabled = member.status === "disabled";
-  const canManage = !isSuper && !isYou;
+  const canManage = !isYou && (!isSuper || viewerIsSuper);
 
   const setStatus = async (status: "active" | "disabled") => {
     setIsSaving(true);
@@ -166,6 +167,7 @@ const TeamMemberCard = ({ member, isYou, grantable, onUpdate }: TeamMemberCardPr
           account={member}
           canEditDetails
           access={{ permissions: member.permissions, grantable }}
+          role={viewerIsSuper ? member.role : undefined}
           onSave={onUpdate}
           onClose={() => setMode("view")}
         />

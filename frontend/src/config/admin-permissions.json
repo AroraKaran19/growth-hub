@@ -9,13 +9,17 @@
     { "key": "workspaces.availability", "group": "workspaces", "label": "Availability", "description": "Seats out of service" },
     { "key": "workspaces.seat-maps", "group": "workspaces", "label": "Seat maps", "description": "The floor plan library" },
     { "key": "bookings", "label": "Bookings", "description": "Bookings and cancellation requests" },
-    { "key": "memberships", "label": "Memberships", "description": "Members' plans, renewals and stops" },
+    { "key": "memberships", "label": "Memberships", "description": "Every membership page" },
+    { "key": "memberships.manage", "group": "memberships", "label": "Memberships", "description": "Members' memberships, renewals, stops and cancellations" },
+    { "key": "memberships.plans", "group": "memberships", "label": "Membership plans", "description": "Create and edit the plans each venue sells" },
     { "key": "coupons", "label": "Coupons", "description": "Coupon codes and limits" },
     { "key": "addons", "label": "Add-on types", "description": "The add-ons venues can offer" },
     { "key": "partners", "label": "Partner accounts", "description": "Partner venue admin logins" },
     { "key": "payouts", "label": "Payouts", "description": "Venue statements and bank details" },
     { "key": "reports", "label": "Reports", "description": "Sales, bookings and occupancy reports" },
-    { "key": "team", "label": "Team accounts", "description": "Admin logins, and editing any staff member's details" },
+    { "key": "users", "label": "Users", "description": "Every user page" },
+    { "key": "users.manage", "group": "users", "label": "Manage users", "description": "See every account; edit and disable customers and partner logins" },
+    { "key": "users.staff", "group": "users", "label": "Staff (create admins)", "description": "Create admins, choose their pages, edit and disable them" },
     { "key": "settings", "label": "Site settings", "description": "Landing page content and testimonials" }
   ]
 }

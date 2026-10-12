@@ -1,10 +1,5 @@
-import type { Metadata } from "next";
-import AdminTeamPage from "../../../(pages)/Admin/AdminTeamPage";
-
-export const metadata: Metadata = {
-  title: "Team",
-};
+import { permanentRedirect } from "next/navigation";
 
 export default function AdminTeam() {
-  return <AdminTeamPage />;
+  permanentRedirect("/admin/users/staff");
 }

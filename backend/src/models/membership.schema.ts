@@ -18,6 +18,8 @@ export type FirstCycle = { couponCode: string | null; discount: number; total: n
 export interface MembershipDoc {
   _id: Types.ObjectId;
   ref: string;
+  /** The plan it was bought from; null for memberships bought from the old price grid. */
+  planId?: Types.ObjectId | null;
   memberId: Types.ObjectId;
   venueId: Types.ObjectId;
   venueSlug: string;
@@ -55,6 +57,7 @@ export interface MembershipDoc {
 const membershipSchema = new Schema<MembershipDoc>(
   {
     ref: { type: String, required: true, unique: true },
+    planId: { type: Schema.Types.ObjectId, default: null },
     memberId: { type: Schema.Types.ObjectId, required: true },
     venueId: { type: Schema.Types.ObjectId, required: true },
     venueSlug: { type: String, required: true },
@@ -107,6 +110,7 @@ const membershipSchema = new Schema<MembershipDoc>(
 
 membershipSchema.index({ memberId: 1, requestKey: 1 }, { unique: true });
 membershipSchema.index({ replacedSubscriptionIds: 1 });
+membershipSchema.index({ planId: 1 }, { sparse: true });
 membershipSchema.index({ "razorpay.subscriptionId": 1 }, { sparse: true });
 membershipSchema.index({ venueId: 1, status: 1 });
 membershipSchema.index({ status: 1, holdExpiresAt: 1 });

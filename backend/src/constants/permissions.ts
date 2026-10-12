@@ -10,12 +10,16 @@ export const ADMIN_PERMISSIONS = [
   "workspaces.seat-maps",
   "bookings",
   "memberships",
+  "memberships.manage",
+  "memberships.plans",
   "coupons",
   "addons",
   "partners",
   "payouts",
   "reports",
-  "team",
+  "users",
+  "users.manage",
+  "users.staff",
   "settings",
 ] as const;
 

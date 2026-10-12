@@ -17,3 +17,9 @@ export type AddonUnit = (typeof ADDON_UNITS)[number];
 
 export const PRICE_UNITS = ["hr", "day", "month"] as const;
 export type PriceUnit = (typeof PRICE_UNITS)[number];
+
+export const PLAN_SPACES = ["desk", "private-cabin", "office", "meeting-room"] as const;
+export type PlanSpace = (typeof PLAN_SPACES)[number];
+
+export const ROOM_MODES = ["full-day", "time-slot"] as const;
+export type RoomMode = (typeof ROOM_MODES)[number];

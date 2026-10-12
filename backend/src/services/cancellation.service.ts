@@ -330,7 +330,7 @@ const stopAtGateway = async (target: Target) => {
 };
 
 /** Add-on orders sit with bookings for admin access. */
-export const permissionFor = (kind: RequestKind) => (kind === "membership" ? "memberships" : "bookings");
+export const permissionFor = (kind: RequestKind) => (kind === "membership" ? "memberships.manage" : "bookings");
 
 const authorise = (request: CancellationRequestDoc, decider: Decider) => {
   if (decider.type === "partner" && request.venueSlug !== decider.venueSlug) {

@@ -14,17 +14,20 @@ export const hasPermission = (held: readonly string[], permission: string) => {
 export const canAccess = (account: AccountSummary, permission: AdminPermission) =>
   account.type === "admin" && (account.role === "super-admin" || hasPermission(account.permissions, permission));
 
-/** The old single "venues" permission became the whole workspaces group. */
+/** Old single keys became whole groups. */
+const RENAMED: [string, AdminPermission][] = [
+  ["venues", "workspaces"],
+  ["team", "users"],
+];
+
 export const migrateLegacyPermissions = async () => {
-  // The raw collection, since the model no longer accepts the old key.
-  const { modifiedCount } = await Admin.collection.updateMany({ permissions: "venues" }, [
-    {
-      $set: {
-        permissions: {
-          $setUnion: [{ $filter: { input: "$permissions", cond: { $ne: ["$$this", "venues"] } } }, ["workspaces"]],
-        },
-      },
-    },
-  ]);
-  return modifiedCount;
+  let modified = 0;
+  for (const [from, to] of RENAMED) {
+    // The raw collection, since the model no longer accepts the old key.
+    const { modifiedCount } = await Admin.collection.updateMany({ permissions: from }, [
+      { $set: { permissions: { $setUnion: [{ $filter: { input: "$permissions", cond: { $ne: ["$$this", from] } } }, [to]] } } },
+    ]);
+    modified += modifiedCount;
+  }
+  return modified;
 };

@@ -54,6 +54,7 @@ import { getReport, getReportCsv } from "../controllers/report.controller";
 import { getAdminAmenities, postAmenity, putAmenity, putAmenityOrder, removeAmenity } from "../controllers/amenity.controller";
 import { getVenueAddonChoices, putVenueAddonChoices } from "../controllers/partner.controller";
 import { deleteAdminVenue, getDeletionImpact, getRefunds, postRefundDone } from "../controllers/venueRemoval.controller";
+import { getPlans, postPlan, putPlan, putPlanOrder, removePlan } from "../controllers/membershipPlan.controller";
 import { panelRateLimit, requireAuth, requirePermission, requireSuperAdmin } from "../middlewares";
 
 const guarded = (...permissions: AdminPermission[]) => {
@@ -98,9 +99,10 @@ adminAddonTypeRoutes.get("/", getAddonTypes);
 adminAddonTypeRoutes.post("/", postAddonType);
 adminAddonTypeRoutes.patch("/:id", patchAddonType);
 
-export const adminPartnerRoutes = guarded("partners");
-adminPartnerRoutes.get("/", getPartnerAccounts);
-adminPartnerRoutes.post("/", postPartnerAccount);
+// Manage users edits any partner login; the partners page lists, invites, moves and disables.
+export const adminPartnerRoutes = guarded("partners", "users.manage");
+adminPartnerRoutes.get("/", requirePermission("partners"), getPartnerAccounts);
+adminPartnerRoutes.post("/", requirePermission("partners"), postPartnerAccount);
 adminPartnerRoutes.patch("/:id", patchPartnerAccount);
 
 export const adminCouponRoutes = guarded("coupons");
@@ -146,7 +148,14 @@ adminAddonOrderRoutes.get("/", getAdminOrders);
 adminAddonOrderRoutes.delete("/:ref", deleteAdminOrder);
 adminAddonOrderRoutes.post("/:ref/cancel", postAdminAddonOrderCancel);
 
-export const adminMembershipRoutes = guarded("memberships");
+export const adminPlanRoutes = guarded("memberships.plans");
+adminPlanRoutes.get("/", getPlans);
+adminPlanRoutes.post("/", postPlan);
+adminPlanRoutes.put("/order", putPlanOrder);
+adminPlanRoutes.put("/:id", putPlan);
+adminPlanRoutes.delete("/:id", removePlan);
+
+export const adminMembershipRoutes = guarded("memberships.manage");
 adminMembershipRoutes.get("/", getAdminMemberships);
 adminMembershipRoutes.get("/:ref", getAdminMembershipDetail);
 adminMembershipRoutes.post("/:ref/stop-renewal", postAdminStopRenewal);

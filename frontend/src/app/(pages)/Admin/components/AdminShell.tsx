@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { ExternalLink, LogOut, ShieldQuestion } from "lucide-react";
 import Logo from "@/app/components/ui/Logo";
-import { isPathAllowed, visibleNav, visibleSections } from "@/config/adminPermissions";
+import { isPathAllowed, sectionForPath, visibleNav, visibleSections } from "@/config/adminPermissions";
 import { useAuthBootstrap } from "@/hooks/useAuthBootstrap";
 import { useAdminSession } from "@/stores/admin";
 import { cn } from "@/utils";
@@ -33,8 +33,8 @@ const AdminShell = ({ children }: { children: ReactNode }) => {
     }
   }, [isReady, session, pathname, router]);
 
-  const isActive = (href: string) =>
-    href === "/admin" ? pathname === href : pathname.startsWith(href);
+  const activeHref = sectionForPath(pathname)?.href;
+  const isActive = (href: string) => href === activeHref;
 
   if (!isReady || !session) {
     return (

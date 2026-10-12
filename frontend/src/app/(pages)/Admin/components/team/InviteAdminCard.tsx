@@ -1,14 +1,16 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { UserPlus } from "lucide-react";
+import { ShieldCheck, UserPlus } from "lucide-react";
 import type { InviteAdminInput } from "@/hooks/useTeam";
+import type { AdminRole } from "@/types/auth";
 import { readApiError } from "@/libs/api/errors";
 import { toastFailed, toastInvited } from "@/libs/toast";
 import { cn } from "@/utils";
 import { passwordProblem } from "@/utils/password";
 import TemporaryPasswordField from "../TemporaryPasswordField";
 import PermissionPicker from "./PermissionPicker";
+import RolePicker from "./RolePicker";
 
 const INPUT =
   "w-full rounded-lg border bg-secondary px-3.5 py-2.5 text-sm text-tertiary outline-none transition-colors placeholder:text-tertiary/40 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20";
@@ -18,10 +20,12 @@ type Errors = Partial<Record<"name" | "email" | "permissions" | "temporaryPasswo
 
 type InviteAdminCardProps = {
   grantable?: string[];
+  canCreateSuperAdmin: boolean;
   onInvite: (input: InviteAdminInput) => Promise<void>;
 };
 
-const InviteAdminCard = ({ grantable, onInvite }: InviteAdminCardProps) => {
+const InviteAdminCard = ({ grantable, canCreateSuperAdmin, onInvite }: InviteAdminCardProps) => {
+  const [role, setRole] = useState<AdminRole>("admin");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [permissions, setPermissions] = useState<string[]>([]);
@@ -32,7 +36,7 @@ const InviteAdminCard = ({ grantable, onInvite }: InviteAdminCardProps) => {
   const validate = (): Errors => ({
     ...(name.trim().length < 2 && { name: "Enter a name." }),
     ...(!/^\S+@\S+\.\S+$/.test(email.trim()) && { email: "Enter a valid email address." }),
-    ...(permissions.length === 0 && { permissions: "Pick at least one section." }),
+    ...(role === "admin" && permissions.length === 0 && { permissions: "Pick at least one section." }),
     ...(passwordProblem(temporaryPassword) && { temporaryPassword: passwordProblem(temporaryPassword)! }),
   });
 
@@ -44,11 +48,12 @@ const InviteAdminCard = ({ grantable, onInvite }: InviteAdminCardProps) => {
 
     setIsSaving(true);
     try {
-      await onInvite({ name: name.trim(), email: email.trim(), permissions, temporaryPassword });
+      await onInvite({ name: name.trim(), email: email.trim(), role, permissions: role === "admin" ? permissions : [], temporaryPassword });
       toastInvited({ email: email.trim().toLowerCase(), password: temporaryPassword, portal: "admin" });
       setName("");
       setEmail("");
       setPermissions([]);
+      setRole("admin");
       setTemporaryPassword("");
     } catch (error) {
       const info = readApiError(error);
@@ -83,7 +88,7 @@ const InviteAdminCard = ({ grantable, onInvite }: InviteAdminCardProps) => {
           <UserPlus aria-hidden="true" className="size-5" />
         </span>
         <div>
-          <h2 className="text-base font-bold text-tertiary">Invite an admin</h2>
+          <h2 className="text-base font-bold text-tertiary">{canCreateSuperAdmin ? "Add staff" : "Invite an admin"}</h2>
           <p className="text-sm text-tertiary/55">They sign in with this email and a temporary password you set.</p>
         </div>
       </div>
@@ -119,13 +124,22 @@ const InviteAdminCard = ({ grantable, onInvite }: InviteAdminCardProps) => {
           {errors.email && <p className="mt-1.5 text-sm text-primary">{errors.email}</p>}
         </div>
 
-        <PermissionPicker
-          value={permissions}
-          onChange={setPermissions}
-          grantable={grantable}
-          error={errors.permissions}
-          idPrefix="invite-permissions"
-        />
+        {canCreateSuperAdmin && <RolePicker value={role} onChange={setRole} idPrefix="invite-role" />}
+
+        {role === "admin" ? (
+          <PermissionPicker
+            value={permissions}
+            onChange={setPermissions}
+            grantable={grantable}
+            error={errors.permissions}
+            idPrefix="invite-permissions"
+          />
+        ) : (
+          <p className="flex items-start gap-3 rounded-xl bg-tertiary p-4 text-sm text-secondary/80 shadow-lg shadow-tertiary/15">
+            <ShieldCheck aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" />
+            Super admins open every page, can create other super admins and can change any staff account.
+          </p>
+        )}
 
         <TemporaryPasswordField
           id="invite-temporary-password"
@@ -140,7 +154,7 @@ const InviteAdminCard = ({ grantable, onInvite }: InviteAdminCardProps) => {
         disabled={isSaving}
         className="cta-gradient mt-5 w-full rounded-lg px-5 py-3 text-sm font-medium text-secondary transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {isSaving ? "Inviting..." : "Invite admin"}
+        {isSaving ? "Inviting..." : role === "super-admin" ? "Invite super admin" : "Invite admin"}
       </button>
     </form>
   );

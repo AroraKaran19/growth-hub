@@ -3,6 +3,7 @@ import { AppError } from "../middlewares/error.middleware";
 import { Booking, Member, type BookingDoc, type MemberDoc } from "../models";
 import { addDays, indiaNow, isIsoDate, timeLabel } from "../utils/indiaTime";
 import { canonicalRef, isRef } from "../utils/refs";
+import { escapeRegex } from "../utils/regex";
 import { effectiveStatus } from "./bookingRules";
 
 const HIDDEN = ["pending-payment", "expired"];
@@ -87,8 +88,6 @@ export const listVenueBookings = async (venueSlug: string, query: { from?: unkno
     .lean<BookingDoc[]>();
   return toStaffBookingViews(bookings, new Date());
 };
-
-const escapeRegex = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const membersMatching = async (search: string): Promise<Types.ObjectId[]> => {
   const digits = search.replace(/\D/g, "");

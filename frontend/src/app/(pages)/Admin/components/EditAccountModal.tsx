@@ -7,7 +7,9 @@ import { readApiError } from "@/libs/api/errors";
 import { toastDone, toastFailed, toastInvited } from "@/libs/toast";
 import { cn } from "@/utils";
 import { passwordProblem } from "@/utils/password";
+import type { AdminRole } from "@/types/auth";
 import PermissionPicker from "./team/PermissionPicker";
+import RolePicker from "./team/RolePicker";
 import TemporaryPasswordField from "./TemporaryPasswordField";
 
 export type AccountChange = {
@@ -15,17 +17,21 @@ export type AccountChange = {
   email?: string;
   temporaryPassword?: string;
   venueSlug?: string;
+  role?: AdminRole;
   permissions?: string[];
 };
 
 type Field = keyof AccountChange;
 
 type EditAccountModalProps = {
-  portal: "admin" | "partner";
-  account: { id: string; name: string; email: string };
+  portal: "admin" | "partner" | "member";
+  /** Customers sign in with their phone, so it shows but never changes here. */
+  account: { id: string; name: string; email: string; phone?: string };
   canEditDetails: boolean;
   venue?: { slug: string; options: { slug: string; name: string }[] };
   access?: { permissions: string[]; grantable?: string[] };
+  /** Set only when the viewer may change the role. */
+  role?: AdminRole;
   onSave: (change: AccountChange) => Promise<void>;
   onClose: () => void;
 };
@@ -44,12 +50,14 @@ const initials = (name: string) =>
 
 const sameSet = (a: string[], b: string[]) => a.length === b.length && a.every((item) => b.includes(item));
 
-const EditAccountModal = ({ portal, account, canEditDetails, venue, access, onSave, onClose }: EditAccountModalProps) => {
+const EditAccountModal = ({ portal, account, canEditDetails, venue, access, role: currentRole, onSave, onClose }: EditAccountModalProps) => {
+  const [role, setRole] = useState(currentRole);
   const [name, setName] = useState(account.name);
   const [email, setEmail] = useState(account.email);
   const [venueSlug, setVenueSlug] = useState(venue?.slug ?? "");
   const [permissions, setPermissions] = useState(access?.permissions ?? []);
   const [isResetting, setIsResetting] = useState(false);
+  const isCustomer = portal === "member";
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState<Partial<Record<Field, string>>>({});
   const [isSaving, setIsSaving] = useState(false);
@@ -68,8 +76,10 @@ const EditAccountModal = ({ portal, account, canEditDetails, venue, access, onSa
     ...(canEditDetails && nextEmail !== account.email && { email: nextEmail }),
     ...(canEditDetails && isResetting && password && { temporaryPassword: password }),
     ...(venue && venueSlug !== venue.slug && { venueSlug }),
-    ...(access && !sameSet(permissions, access.permissions) && { permissions }),
+    ...(role !== currentRole && { role }),
+    ...(access && role !== "super-admin" && (role !== currentRole || !sameSet(permissions, access.permissions)) && { permissions }),
   };
+  const showsAccess = access && role !== "super-admin";
   const hasChanges = Object.keys(change).length > 0;
 
   const clearError = (field: Field) => setErrors((current) => ({ ...current, [field]: undefined }));
@@ -80,7 +90,7 @@ const EditAccountModal = ({ portal, account, canEditDetails, venue, access, onSa
       ...(change.name !== undefined && change.name.length < 2 && { name: "Enter a name." }),
       ...(change.email !== undefined && !/^\S+@\S+\.\S+$/.test(change.email) && { email: "Enter a valid email address." }),
       ...(canEditDetails && isResetting && passwordProblem(password) && { temporaryPassword: passwordProblem(password)! }),
-      ...(access && permissions.length === 0 && { permissions: "Pick at least one section." }),
+      ...(showsAccess && permissions.length === 0 && { permissions: "Pick at least one section." }),
     };
     setErrors(found);
     if (Object.keys(found).length > 0 || !hasChanges) return;
@@ -90,10 +100,12 @@ const EditAccountModal = ({ portal, account, canEditDetails, venue, access, onSa
       await onSave(change);
       const shownName = change.name ?? account.name;
       const venueName = venue?.options.find((option) => option.slug === change.venueSlug)?.name;
-      if (change.temporaryPassword) {
+      if (change.temporaryPassword && portal !== "member") {
         toastInvited({ email: change.email ?? account.email, password: change.temporaryPassword, portal });
-      } else if (change.email) {
+      } else if (change.email && !isCustomer) {
         toastDone(`Saved. ${shownName} now signs in with ${change.email} and has been signed out.`);
+      } else if (change.role) {
+        toastDone(`${shownName} is now ${change.role === "super-admin" ? "a super admin" : "an admin"}.`);
       } else if (venueName) {
         toastDone(`${shownName} now manages ${venueName}. They sign in again to see it.`);
       } else {
@@ -142,7 +154,7 @@ const EditAccountModal = ({ portal, account, canEditDetails, venue, access, onSa
                 {canEditDetails ? "Edit details" : "Move venue"}
               </h2>
               <p className="truncate text-sm text-secondary/70">
-                {account.name} · {account.email}
+                {[account.name, account.email || account.phone].filter(Boolean).join(" · ")}
               </p>
             </div>
           </div>
@@ -182,12 +194,12 @@ const EditAccountModal = ({ portal, account, canEditDetails, venue, access, onSa
                       setEmail(event.target.value);
                       clearError("email");
                     }}
-                    placeholder="Their work email"
+                    placeholder={isCustomer ? "Their email" : "Their work email"}
                     className={field("email")}
                   />
                   {errors.email && <p className="mt-1.5 text-sm text-primary">{errors.email}</p>}
                 </div>
-                {change.email && !errors.email && (
+                {change.email && !errors.email && !isCustomer && (
                   <p className="rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-900 sm:col-span-2">
                     They&apos;ll be signed out and sign in again with {change.email}. Any reset link sent to the old
                     address stops working.
@@ -217,7 +229,9 @@ const EditAccountModal = ({ portal, account, canEditDetails, venue, access, onSa
               </div>
             )}
 
-            {access && (
+            {role && <RolePicker value={role} onChange={setRole} idPrefix={`edit-${account.id}-role`} />}
+
+            {showsAccess && (
               <PermissionPicker
                 value={permissions}
                 onChange={(next) => {
@@ -230,7 +244,14 @@ const EditAccountModal = ({ portal, account, canEditDetails, venue, access, onSa
               />
             )}
 
+            {isCustomer && account.phone && (
+              <p className="rounded-xl bg-tertiary/4 px-4 py-3 text-sm text-tertiary/65">
+                They sign in with <span className="font-medium text-tertiary">{account.phone}</span>. Only they can change it.
+              </p>
+            )}
+
             {canEditDetails &&
+              !isCustomer &&
               (isResetting ? (
                 <div className="rounded-xl border border-tertiary/10 bg-tertiary/3 p-4">
                   <TemporaryPasswordField
