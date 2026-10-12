@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import { asyncHandler, sendSuccessResponse } from "../middlewares/error.middleware";
 import type { AdminAccount } from "../services/account.service";
-import { inviteAdmin, listTeam, updateAdmin } from "../services/team.service";
+import { deleteAdmin, inviteAdmin, listTeam, sendAdminResetLink, updateAdmin } from "../services/team.service";
 import { parseBody } from "../utils/validate";
 import { inviteAdminSchema, updateAdminSchema } from "../validators/team";
 
@@ -23,4 +23,13 @@ export const patchTeamMember = asyncHandler(async (req: Request, res: Response) 
   const change = parseBody(updateAdminSchema, req.body);
   const member = await updateAdmin(String(req.params.id), change, actorOf(req));
   sendSuccessResponse(res, { member }, "Admin updated");
+});
+
+export const removeTeamMember = asyncHandler(async (req: Request, res: Response) => {
+  await deleteAdmin(String(req.params.id), actorOf(req), req.auth!.accountId);
+  sendSuccessResponse(res, {}, "Admin deleted");
+});
+
+export const postTeamResetLink = asyncHandler(async (req: Request, res: Response) => {
+  sendSuccessResponse(res, await sendAdminResetLink(String(req.params.id), actorOf(req)), "Reset link sent");
 });

@@ -1,9 +1,10 @@
-import { Types, type PipelineStage } from "mongoose";
+import mongoose, { Types, type PipelineStage } from "mongoose";
 import { AppError } from "../middlewares/error.middleware";
 import { Member, Membership, Venue, type MemberDoc, type MembershipDoc, type VenueDoc } from "../models";
 import type { AccountStatus, AccountType } from "../types/auth";
 import { escapeRegex } from "../utils/regex";
 import type { ListUsersQuery, UpdateCustomerInput, UserKind } from "../validators/users";
+import { keepSnapshot } from "./accountSnapshot.service";
 import { stopRenewalOf } from "./membership.service";
 import { lastActiveAt, revokeAccountSessions } from "./session.service";
 
@@ -222,4 +223,17 @@ export const updateCustomer = async (id: string, change: UpdateCustomerInput) =>
     },
   ]);
   return { user, stoppedMemberships };
+};
+
+/** Removes the account; a snapshot keeps their bookings, invoices and payouts readable. */
+export const deleteCustomer = async (id: string, deletedBy: string) => {
+  const member = Types.ObjectId.isValid(id) ? await Member.findById(id).lean<MemberDoc>() : null;
+  if (!member) throw notFound();
+  await revokeAccountSessions("member", member._id, "disabled");
+  const stoppedMemberships = await stopEveryRenewal(member._id);
+  await mongoose.connection.transaction(async (session) => {
+    await keepSnapshot("member", member as unknown as MemberDoc & Record<string, unknown>, deletedBy, session);
+    await Member.deleteOne({ _id: member._id }, { session });
+  });
+  return { stoppedMemberships };
 };

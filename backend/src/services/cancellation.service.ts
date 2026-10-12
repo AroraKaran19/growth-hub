@@ -6,13 +6,11 @@ import {
   AddonOrder,
   Booking,
   CancellationRequest,
-  Member,
   Membership,
   MembershipCharge,
   type AddonOrderDoc,
   type BookingDoc,
   type CancellationRequestDoc,
-  type MemberDoc,
   type MembershipDoc,
   type RequestDecider,
 } from "../models";
@@ -23,6 +21,7 @@ import { effectiveMembershipStatus } from "./membershipView";
 import { notifyMember, notifyVenueStaff } from "./notify.service";
 import { cancelSubscription } from "./razorpay.service";
 import { releaseDays, releaseRanges } from "./seatDays.service";
+import { findMembers } from "./accountSnapshot.service";
 import { phoneOf } from "./staffBookings.service";
 
 const LOCK_MS = 60_000;
@@ -195,7 +194,7 @@ const toViews = async (requests: CancellationRequestDoc[]): Promise<RequestView[
       return request.kind === kind && id ? [id] : [];
     });
   const [members, bookings, memberships, orders, charges] = await Promise.all([
-    Member.find({ _id: { $in: [...new Set(requests.map((request) => request.memberId))] } }).lean<MemberDoc[]>(),
+    findMembers(requests.map((request) => request.memberId)),
     Booking.find({ _id: { $in: idsOf("booking") } }, { venue: 1, payment: 1 }).lean<BookingDoc[]>(),
     Membership.find({ _id: { $in: idsOf("membership") } }, { venue: 1 }).lean<MembershipDoc[]>(),
     AddonOrder.find({ _id: { $in: idsOf("addon-order") } }, { venueName: 1, payment: 1 }).lean<AddonOrderDoc[]>(),

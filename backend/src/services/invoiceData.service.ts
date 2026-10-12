@@ -3,17 +3,16 @@ import { INVOICE_ISSUER, type InvoiceIssuer } from "../constants/invoiceIssuer";
 import {
   AddonOrder,
   Booking,
-  Member,
   Membership,
   MembershipCharge,
   type AddonOrderDoc,
   type BookingDoc,
   type InvoiceJobDoc,
-  type MemberDoc,
   type MembershipChargeDoc,
   type MembershipDoc,
 } from "../models";
 import { dateLabel, indiaNow, timeLabel } from "../utils/indiaTime";
+import { findMember } from "./accountSnapshot.service";
 import { invoiceFigures, type GrossLine } from "./invoiceFigures";
 
 export type InvoiceData = {
@@ -181,7 +180,7 @@ export const invoiceSummary = async (job: InvoiceJobDoc) => {
 };
 
 export const invoiceDataFor = async (job: InvoiceJobDoc, issuer: InvoiceIssuer = INVOICE_ISSUER): Promise<InvoiceData> => {
-  const [source, member] = await Promise.all([LOADERS[job.source.kind](job), Member.findById(job.memberId).lean<MemberDoc>()]);
+  const [source, member] = await Promise.all([LOADERS[job.source.kind](job), findMember(job.memberId)]);
   const taxInvoice = Boolean(issuer.gstin);
   const figures = invoiceFigures({
     lines: source.lines,

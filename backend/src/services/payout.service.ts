@@ -6,7 +6,6 @@ import {
   AddonOrder,
   Booking,
   CancellationRequest,
-  Member,
   Membership,
   MembershipCharge,
   PayoutStatement,
@@ -15,7 +14,6 @@ import {
   type BookingDoc,
   type Byline,
   type CancellationRequestDoc,
-  type MemberDoc,
   type MembershipChargeDoc,
   type MembershipDoc,
   type PayoutStatementDoc,
@@ -25,6 +23,7 @@ import {
 import { toCsv } from "../utils/csv";
 import { addDays, dateLabel, indiaNow, instantOf } from "../utils/indiaTime";
 import { notifyVenueStaff } from "./notify.service";
+import { findMembers } from "./accountSnapshot.service";
 import { markPayable } from "./payable.service";
 
 const PASS_NAMES: Record<string, string> = { hourly: "Hourly pass", "half-day": "Half-day pass", "full-day": "Full-day pass" };
@@ -84,7 +83,7 @@ const collectLines = async (venueId: Types.ObjectId, before: Date): Promise<Stat
   const memberships = await Membership.find({ _id: { $in: charges.map((charge) => charge.membershipId) } }).lean<MembershipDoc[]>();
   const membershipById = new Map(memberships.map((membership) => [membership._id.toString(), membership]));
   const memberIds = [...bookings.map((item) => item.memberId), ...memberships.map((item) => item.memberId), ...orders.map((item) => item.memberId)];
-  const members = await Member.find({ _id: { $in: memberIds } }, { name: 1 }).lean<MemberDoc[]>();
+  const members = await findMembers(memberIds);
   const nameOf = (id: Types.ObjectId) => members.find((member) => member._id.equals(id))?.name ?? "Member";
   const [bookingRefunds, orderRefunds] = await Promise.all([
     refundsFor("bookingId", bookings.filter((item) => item.status === "cancelled").map((item) => item._id)),

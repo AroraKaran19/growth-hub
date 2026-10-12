@@ -4,6 +4,7 @@ import { Booking, Member, type BookingDoc, type MemberDoc } from "../models";
 import { addDays, indiaNow, isIsoDate, timeLabel } from "../utils/indiaTime";
 import { canonicalRef, isRef } from "../utils/refs";
 import { escapeRegex } from "../utils/regex";
+import { deletedMemberIdsMatching, findMembers } from "./accountSnapshot.service";
 import { effectiveStatus } from "./bookingRules";
 
 const HIDDEN = ["pending-payment", "expired"];
@@ -40,9 +41,7 @@ export const phoneOf = (member: MemberDoc) =>
     : `${member.countryCode} ${member.phoneNumber}`;
 
 export const toStaffBookingViews = async (bookings: BookingDoc[], now: Date): Promise<StaffBookingView[]> => {
-  const members = await Member.find({ _id: { $in: [...new Set(bookings.map((booking) => booking.memberId))] } }).lean<
-    MemberDoc[]
-  >();
+  const members = await findMembers(bookings.map((booking) => booking.memberId));
   const byId = new Map(members.map((member) => [member._id.toString(), member]));
   return bookings.map((booking) => {
     const member = byId.get(booking.memberId.toString());
@@ -95,9 +94,11 @@ const membersMatching = async (search: string): Promise<Types.ObjectId[]> => {
   const filter: QueryFilter<MemberDoc> = looksLikePhone
     ? { phoneE164: { $regex: escapeRegex(digits) } }
     : { name: { $regex: escapeRegex(search), $options: "i" } };
-  return (await Member.find(filter, { _id: 1 }).limit(ADMIN_LIMIT).lean<{ _id: Types.ObjectId }[]>()).map(
-    (member) => member._id,
-  );
+  const [live, deleted] = await Promise.all([
+    Member.find(filter, { _id: 1 }).limit(ADMIN_LIMIT).lean<{ _id: Types.ObjectId }[]>(),
+    deletedMemberIdsMatching(filter),
+  ]);
+  return [...live.map((member) => member._id), ...deleted];
 };
 
 export type AdminBookingQuery = { venue?: unknown; status?: unknown; from?: unknown; to?: unknown; q?: unknown };

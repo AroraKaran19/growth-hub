@@ -4,12 +4,10 @@ import { AppError } from "../middlewares/error.middleware";
 import {
   AddonOrder,
   Booking,
-  Member,
   Membership,
   Venue,
   type AddonOrderDoc,
   type BookingDoc,
-  type MemberDoc,
   type MembershipDoc,
   type VenueDoc,
 } from "../models";
@@ -27,6 +25,7 @@ import { effectiveMembershipStatus } from "./membershipView";
 import { notifyMember } from "./notify.service";
 import { addonLines } from "./pricing";
 import { capturePayment, createOrder, fetchPayment, verifyPaymentSignature } from "./razorpay.service";
+import { findMembers } from "./accountSnapshot.service";
 import { offeredAddons } from "./venueCatalogue.service";
 
 const HOLD_STEP_MS = 2 * 60_000;
@@ -364,7 +363,7 @@ export const listAdminOrders = async (query: { venue?: unknown; channel?: unknow
   if (typeof query.venue === "string" && query.venue) filter.venueSlug = query.venue;
   if (query.channel === "app" || query.channel === "desk") filter.channel = query.channel;
   const orders = await AddonOrder.find(filter).sort({ createdAt: -1 }).limit(ADMIN_LIMIT).lean<AddonOrderDoc[]>();
-  const members = await Member.find({ _id: { $in: [...new Set(orders.map((order) => order.memberId))] } }).lean<MemberDoc[]>();
+  const members = await findMembers(orders.map((order) => order.memberId));
   const byId = new Map(members.map((member) => [member._id.toString(), member]));
   return orders.map((order) => {
     const member = byId.get(order.memberId.toString());

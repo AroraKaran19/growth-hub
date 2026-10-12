@@ -2,11 +2,27 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, PencilLine, Search, UserCog, UsersRound } from "lucide-react";
+import {
+  BadgeIndianRupee,
+  CalendarCheck,
+  ChevronLeft,
+  ChevronRight,
+  History,
+  KeyRound,
+  LogOut,
+  Mail,
+  PencilLine,
+  Search,
+  Trash2,
+  UserCheck,
+  UserCog,
+  UsersRound,
+  UserX,
+} from "lucide-react";
 import SelectField from "@/app/components/ui/form/SelectField";
 import { canAccessSection } from "@/config/adminPermissions";
 import { updateCustomer, useUsers, type UserKind, type UserRow, type UsersQuery } from "@/hooks/useUsers";
-import { adminApi } from "@/libs/api/client";
+import { adminApi, publicApi } from "@/libs/api/client";
 import { readApiError } from "@/libs/api/errors";
 import { toastDone, toastFailed } from "@/libs/toast";
 import { useAdminSession } from "@/stores/admin";
@@ -14,7 +30,9 @@ import { cn } from "@/utils";
 import { formatDay, timeAgo } from "@/utils/date";
 import { PARTNER_CARD as CARD, PartnerPageHeader as PageHeader, PartnerSkeleton as Skeleton } from "../Partner/components/PartnerUi";
 import EditAccountModal, { type AccountChange } from "./components/EditAccountModal";
-import DisableUserDialog from "./components/users/DisableUserDialog";
+import ResetPasswordDialog from "./components/users/ResetPasswordDialog";
+import RowActionsMenu, { type RowAction } from "./components/users/RowActionsMenu";
+import UserConfirmDialog, { type Consequence } from "./components/users/UserConfirmDialog";
 import { indiaDay, initials, KIND_AVATAR, KIND_BADGE, KIND_LABEL, KINDS } from "./components/users/userKinds";
 
 const STATUS_OPTIONS = [
@@ -25,6 +43,27 @@ const STATUS_OPTIONS = [
 
 const pathFor = (user: UserRow) =>
   user.kind === "customer" ? `/admin/users/customers/${user.id}` : user.kind === "partner" ? `/admin/partner-staff/${user.id}` : `/admin/staff/${user.id}`;
+
+const plural = (count: number, noun: string) => `${count} ${noun}${count === 1 ? "" : "s"}`;
+
+const consequencesOf = (user: UserRow, action: "disable" | "delete"): Consequence[] => {
+  const plans = user.activeMemberships;
+  return [
+    action === "disable"
+      ? { icon: LogOut, text: "They're signed out everywhere and can't sign in until you enable them again." }
+      : { icon: LogOut, text: "They're signed out and the login is removed for good." },
+    ...(user.kind === "customer" && plans > 0
+      ? [{ icon: BadgeIndianRupee, text: `${plural(plans, "membership")} stop renewing. No more auto-debits; the seat stays theirs until the paid period ends.` }]
+      : []),
+    ...(user.kind === "customer" ? [{ icon: CalendarCheck, text: "Upcoming bookings stay as they are." }] : []),
+    ...(action === "delete"
+      ? [{ icon: History, text: "Bookings, invoices and payouts keep a copy of their details, so history still reads." }]
+      : []),
+    ...(action === "delete" && user.kind === "customer"
+      ? [{ icon: UserCheck, text: "Their phone number can sign up again as a new account." }]
+      : []),
+  ];
+};
 
 const detailOf = (user: UserRow) => {
   if (user.kind === "customer") {
@@ -44,7 +83,8 @@ const AdminUsersPage = () => {
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
   const [editing, setEditing] = useState<UserRow | null>(null);
-  const [disabling, setDisabling] = useState<UserRow | null>(null);
+  const [confirming, setConfirming] = useState<{ user: UserRow; action: "disable" | "delete" } | null>(null);
+  const [resetting, setResetting] = useState<UserRow | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -95,12 +135,55 @@ const AdminUsersPage = () => {
             ? `${name} is disabled and signed out. ${stopped} membership${stopped === 1 ? "" : "s"} will stop renewing.`
             : `${name} is disabled and signed out.`,
       );
-      setDisabling(null);
+      setConfirming(null);
     } catch (caught) {
       toastFailed(readApiError(caught).message);
     } finally {
       setBusyId(null);
     }
+  };
+
+  const deleteUser = async (user: UserRow) => {
+    setBusyId(user.id);
+    try {
+      const result = (await adminApi.delete<{ data: { stoppedMemberships?: number } }>(pathFor(user))).data.data;
+      await mutate();
+      const stopped = result.stoppedMemberships ?? 0;
+      toastDone(`${user.name ?? "The customer"}'s account is deleted.${stopped ? ` ${plural(stopped, "membership")} will stop renewing.` : ""}`);
+      setConfirming(null);
+    } catch (caught) {
+      toastFailed(readApiError(caught).message);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const sendResetLink = async (user: UserRow) => {
+    try {
+      if (user.id === account.id) await publicApi.post("/auth/admin/password/forgot", { email: user.email });
+      else await adminApi.post(`${pathFor(user)}/reset-link`);
+      toastDone(`Reset link sent to ${user.email}. It works for a limited time.`);
+    } catch (caught) {
+      toastFailed(readApiError(caught).message);
+    }
+  };
+
+  const actionsFor = (user: UserRow): RowAction[] => {
+    if (user.id === account.id) {
+      return [{ key: "reset-link", label: "Send me a reset link", icon: Mail, onSelect: () => void sendResetLink(user) }];
+    }
+    if (!canChange(user)) return [];
+    const isStaff = user.kind !== "customer";
+    const isDisabled = user.status === "disabled";
+    return [
+      { key: "edit", label: "Edit details", icon: PencilLine, onSelect: () => setEditing(user) },
+      ...(isStaff ? [{ key: "reset", label: "Reset password", icon: KeyRound, onSelect: () => setResetting(user) }] : []),
+      ...(isStaff && !isDisabled ? [{ key: "reset-link", label: "Send reset link", icon: Mail, onSelect: () => void sendResetLink(user) }] : []),
+      isDisabled
+        ? { key: "enable", label: "Enable account", icon: UserCheck, tone: "success", onSelect: () => void setUserStatus(user, "active") }
+        : { key: "disable", label: "Disable account", icon: UserX, onSelect: () => setConfirming({ user, action: "disable" }) },
+      { key: "delete", label: "Delete account", icon: Trash2, tone: "danger", onSelect: () => setConfirming({ user, action: "delete" }) },
+    ];
   };
 
   const saveEdit = async (user: UserRow, change: AccountChange) => {
@@ -240,26 +323,9 @@ const AdminUsersPage = () => {
                     <td className="whitespace-nowrap px-5 py-3.5 text-tertiary/70">{formatDay(indiaDay(user.joinedAt))}</td>
                     <td className="whitespace-nowrap px-5 py-3.5 text-tertiary/70">{user.lastActiveAt ? timeAgo(user.lastActiveAt) : "Not signed in"}</td>
                     <td className="px-5 py-3.5">
-                      {canChange(user) && (
-                        <div className="flex items-center justify-end gap-3">
-                          <button
-                            type="button"
-                            aria-label={`Edit ${user.name ?? "customer"}`}
-                            onClick={() => setEditing(user)}
-                            className="rounded-lg p-2 text-tertiary/60 transition-colors hover:bg-tertiary/5 hover:text-tertiary"
-                          >
-                            <PencilLine aria-hidden="true" className="size-4" />
-                          </button>
-                          <button
-                            type="button"
-                            disabled={busyId === user.id}
-                            onClick={() => (isDisabled ? void setUserStatus(user, "active") : setDisabling(user))}
-                            className={cn("w-16 text-right text-sm font-medium transition-opacity hover:opacity-75 disabled:opacity-50", isDisabled ? "text-green-700" : "text-primary")}
-                          >
-                            {isDisabled ? "Enable" : "Disable"}
-                          </button>
-                        </div>
-                      )}
+                      <div className="flex justify-end">
+                        <RowActionsMenu label={`Actions for ${user.name ?? "this customer"}`} actions={actionsFor(user)} />
+                      </div>
                     </td>
                   </tr>
                 );
@@ -317,12 +383,27 @@ const AdminUsersPage = () => {
         />
       )}
 
-      {disabling && (
-        <DisableUserDialog
-          user={disabling}
-          isSaving={busyId === disabling.id}
-          onConfirm={() => void setUserStatus(disabling, "disabled")}
-          onClose={() => setDisabling(null)}
+      {confirming && (
+        <UserConfirmDialog
+          title={`${confirming.action === "delete" ? "Delete" : "Disable"} ${confirming.user.name ?? "this customer"}?`}
+          subtitle={confirming.user.email ?? confirming.user.phone ?? ""}
+          icon={confirming.action === "delete" ? Trash2 : UserX}
+          consequences={consequencesOf(confirming.user, confirming.action)}
+          confirmLabel={confirming.action === "delete" ? "Delete account" : "Disable"}
+          busyLabel={confirming.action === "delete" ? "Deleting..." : "Disabling..."}
+          isSaving={busyId === confirming.user.id}
+          onConfirm={() => void (confirming.action === "delete" ? deleteUser(confirming.user) : setUserStatus(confirming.user, "disabled"))}
+          onClose={() => setConfirming(null)}
+        />
+      )}
+
+      {resetting && (
+        <ResetPasswordDialog
+          name={resetting.name ?? "their"}
+          email={resetting.email ?? ""}
+          portal={resetting.kind === "partner" ? "partner" : "admin"}
+          onSave={(temporaryPassword) => adminApi.patch(pathFor(resetting), { temporaryPassword })}
+          onClose={() => setResetting(null)}
         />
       )}
     </>

@@ -4,7 +4,6 @@ import {
   AddonOrder,
   Booking,
   CancellationRequest,
-  Member,
   Membership,
   MembershipCharge,
   PartnerStaff,
@@ -16,7 +15,6 @@ import {
   type AddonOrderDoc,
   type BookingDoc,
   type Byline,
-  type MemberDoc,
   type MembershipChargeDoc,
   type MembershipDoc,
   type PayoutStatementDoc,
@@ -31,6 +29,7 @@ import { cancelSubscription } from "./razorpay.service";
 import { notifyVenuesChanged } from "./revalidate.service";
 import { releaseDays, releaseRanges } from "./seatDays.service";
 import { revokeAccountSessions } from "./session.service";
+import { findMembers } from "./accountSnapshot.service";
 import { phoneOf } from "./staffBookings.service";
 
 const rupees = (paise: number) => `₹${(paise / 100).toLocaleString("en-IN")}`;
@@ -86,7 +85,7 @@ export const deletionImpact = async (slug: string) => {
 type Affected = { kind: RefundKind; itemId: Types.ObjectId; ref: string; memberId: Types.ObjectId; paid: number; suggested: number | null };
 
 const recordRefunds = async (affected: Affected[], venue: VenueDoc, reason: string, by: Byline) => {
-  const members = await Member.find({ _id: { $in: affected.map((item) => item.memberId) } }).lean<MemberDoc[]>();
+  const members = await findMembers(affected.map((item) => item.memberId));
   for (const item of affected) {
     const member = members.find((entry) => entry._id.equals(item.memberId));
     await RefundDue.updateOne(

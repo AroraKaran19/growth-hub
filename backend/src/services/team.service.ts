@@ -1,4 +1,4 @@
-import { Types } from "mongoose";
+import mongoose, { Types } from "mongoose";
 import type { AdminRole } from "../constants/permissions";
 import { AppError } from "../middlewares/error.middleware";
 import { Admin, PartnerStaff, type AdminDoc } from "../models";
@@ -7,7 +7,8 @@ import type { InviteAdminInput, UpdateAdminInput } from "../validators/team";
 import { adminSummary, type AdminAccount } from "./account.service";
 import { lastActiveAt, revokeAccountSessions } from "./session.service";
 import { hasPermission } from "./permissions";
-import { hashPassword } from "./staffAuth.service";
+import { hashPassword, requestPasswordReset } from "./staffAuth.service";
+import { keepSnapshot } from "./accountSnapshot.service";
 import { detailsUpdate, emailTaken, isDuplicateKey } from "./staffDetails";
 
 export type TeamActor = { id: string; role: AdminRole; permissions: readonly string[] };
@@ -140,4 +141,33 @@ export const promoteLegacyAdmins = async () => {
     { $set: { role: "super-admin", permissions: [] } },
   );
   return result.modifiedCount;
+};
+
+const loadReachable = async (targetId: string, actor: TeamActor) => {
+  const admin = Types.ObjectId.isValid(targetId) ? await Admin.findById(targetId).lean<AdminDoc>() : null;
+  if (!admin) throw notFound();
+  if (adminSummary(admin).role === "super-admin" && actor.role !== "super-admin") {
+    throw new AppError("Only a super admin can change a super admin.", 403, "SUPER_ADMIN_LOCKED");
+  }
+  return admin;
+};
+
+export const deleteAdmin = async (targetId: string, actor: TeamActor, deletedBy: string) => {
+  if (targetId === actor.id) throw new AppError("You can't delete your own account.", 409, "SELF_CHANGE");
+  const admin = await loadReachable(targetId, actor);
+  if (adminSummary(admin).role === "super-admin") {
+    const others = await Admin.countDocuments({ _id: { $ne: admin._id }, role: "super-admin", status: "active" });
+    if (others === 0) throw new AppError("Keep at least one active super admin.", 409, "LAST_SUPER_ADMIN");
+  }
+  await revokeAccountSessions("admin", admin._id, "disabled");
+  await mongoose.connection.transaction(async (session) => {
+    await keepSnapshot("admin", admin as unknown as AdminDoc & Record<string, unknown>, deletedBy, session);
+    await Admin.deleteOne({ _id: admin._id }, { session });
+  });
+};
+
+export const sendAdminResetLink = async (targetId: string, actor: TeamActor) => {
+  const admin = await loadReachable(targetId, actor);
+  if (admin.status !== "active") throw new AppError("Enable this admin before sending a reset link.", 409, "ACCOUNT_DISABLED");
+  return requestPasswordReset("admin", admin.email);
 };

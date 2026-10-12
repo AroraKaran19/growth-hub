@@ -5,7 +5,6 @@ import {
   Booking,
   INVOICE_JOB_STATUSES,
   InvoiceJob,
-  Member,
   Membership,
   MembershipCharge,
   type InvoiceJobDoc,
@@ -13,6 +12,7 @@ import {
   type InvoiceSourceKind,
 } from "../models";
 import { invoiceSummary } from "./invoiceData.service";
+import { findMembers } from "./accountSnapshot.service";
 import { signedInvoiceUrl } from "./invoiceStorage.service";
 
 const LIST_LIMIT = 200;
@@ -53,7 +53,7 @@ export const invoiceDownloadUrl = async (memberId: string, id: string) => {
 export const listInvoiceJobs = async (status?: string) => {
   const filter = INVOICE_JOB_STATUSES.includes(status as InvoiceJobStatus) ? { status: status as InvoiceJobStatus } : {};
   const jobs = await InvoiceJob.find(filter).sort({ createdAt: -1 }).limit(LIST_LIMIT).lean<InvoiceJobDoc[]>();
-  const members = await Member.find({ _id: { $in: jobs.map((job) => job.memberId) } }, { name: 1 }).lean<{ _id: Types.ObjectId; name: string | null }[]>();
+  const members = await findMembers(jobs.map((job) => job.memberId));
   const names = new Map(members.map((member) => [member._id.toString(), member.name ?? "Member"]));
   return Promise.all(
     jobs.map(async (job) => ({

@@ -24,6 +24,8 @@ import {
 import {
   getPartnerAccounts,
   patchPartnerAccount,
+  postPartnerResetLink,
+  removePartnerAccount,
   postPartnerAccount,
 } from "../controllers/partnerAccount.controller";
 import {
@@ -104,6 +106,8 @@ export const adminPartnerRoutes = guarded("partners", "users.manage");
 adminPartnerRoutes.get("/", requirePermission("partners"), getPartnerAccounts);
 adminPartnerRoutes.post("/", requirePermission("partners"), postPartnerAccount);
 adminPartnerRoutes.patch("/:id", patchPartnerAccount);
+adminPartnerRoutes.delete("/:id", requirePermission("users.manage"), removePartnerAccount);
+adminPartnerRoutes.post("/:id/reset-link", requirePermission("users.manage"), postPartnerResetLink);
 
 export const adminCouponRoutes = guarded("coupons");
 adminCouponRoutes.get("/", getAdminCoupons);

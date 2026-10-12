@@ -1,5 +1,6 @@
-import { Member, Membership, type MemberDoc, type MembershipDoc } from "../models";
+import { Membership, type MembershipDoc } from "../models";
 import { toMembershipView } from "./membershipView";
+import { findMembers } from "./accountSnapshot.service";
 import { phoneOf } from "./staffBookings.service";
 
 const ADMIN_LIMIT = 200;
@@ -23,9 +24,7 @@ export type StaffMembershipView = {
 };
 
 export const toStaffMembershipViews = async (memberships: MembershipDoc[]): Promise<StaffMembershipView[]> => {
-  const members = await Member.find({ _id: { $in: [...new Set(memberships.map((item) => item.memberId))] } }).lean<
-    MemberDoc[]
-  >();
+  const members = await findMembers(memberships.map((item) => item.memberId));
   const byId = new Map(members.map((member) => [member._id.toString(), member]));
   const now = new Date();
   return memberships.map((membership) => {

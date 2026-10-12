@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import { AppError, asyncHandler, sendSuccessResponse } from "../middlewares/error.middleware";
-import { invitePartner, listPartnerAccounts, updatePartner } from "../services/partnerAccount.service";
+import { deletePartner, invitePartner, listPartnerAccounts, sendPartnerResetLink, updatePartner } from "../services/partnerAccount.service";
 import { canAccess } from "../services/permissions";
 import { hasDetails } from "../services/staffDetails";
 import { parseBody } from "../utils/validate";
@@ -23,4 +23,13 @@ export const patchPartnerAccount = asyncHandler(async (req: Request, res: Respon
   }
   const account = await updatePartner(String(req.params.id), change);
   sendSuccessResponse(res, { account }, "Partner updated");
+});
+
+export const removePartnerAccount = asyncHandler(async (req: Request, res: Response) => {
+  await deletePartner(String(req.params.id), req.auth!.accountId);
+  sendSuccessResponse(res, {}, "Partner deleted");
+});
+
+export const postPartnerResetLink = asyncHandler(async (req: Request, res: Response) => {
+  sendSuccessResponse(res, await sendPartnerResetLink(String(req.params.id)), "Reset link sent");
 });

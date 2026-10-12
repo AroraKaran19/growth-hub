@@ -1,10 +1,11 @@
-import { Types } from "mongoose";
+import mongoose, { Types } from "mongoose";
 import { AppError } from "../middlewares/error.middleware";
 import { Admin, PartnerStaff, Venue, type PartnerStaffDoc, type VenueDoc } from "../models";
 import type { AccountStatus } from "../types/auth";
 import type { InvitePartnerInput, UpdatePartnerInput } from "../validators/catalogue";
+import { keepSnapshot } from "./accountSnapshot.service";
 import { lastActiveAt, revokeAccountSessions } from "./session.service";
-import { hashPassword } from "./staffAuth.service";
+import { hashPassword, requestPasswordReset } from "./staffAuth.service";
 import { detailsUpdate, emailTaken, isDuplicateKey } from "./staffDetails";
 
 export type PartnerAccountView = {
@@ -118,4 +119,25 @@ export const updatePartner = async (id: string, change: UpdatePartnerInput) => {
     await revokeAccountSessions("partner", staff._id, "venue-changed");
   }
   return viewOne(updated);
+};
+
+const findPartner = async (id: string) => {
+  const staff = Types.ObjectId.isValid(id) ? await PartnerStaff.findById(id).lean<PartnerStaffDoc>() : null;
+  if (!staff) throw notFound();
+  return staff;
+};
+
+export const deletePartner = async (id: string, deletedBy: string) => {
+  const staff = await findPartner(id);
+  await revokeAccountSessions("partner", staff._id, "disabled");
+  await mongoose.connection.transaction(async (session) => {
+    await keepSnapshot("partner", staff as unknown as PartnerStaffDoc & Record<string, unknown>, deletedBy, session);
+    await PartnerStaff.deleteOne({ _id: staff._id }, { session });
+  });
+};
+
+export const sendPartnerResetLink = async (id: string) => {
+  const staff = await findPartner(id);
+  if (staff.status !== "active") throw new AppError("Enable this login before sending a reset link.", 409, "ACCOUNT_DISABLED");
+  return requestPasswordReset("partner", staff.email);
 };

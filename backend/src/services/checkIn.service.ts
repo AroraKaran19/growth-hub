@@ -3,7 +3,6 @@ import { env } from "../config/env";
 import { AppError } from "../middlewares/error.middleware";
 import {
   Booking,
-  Member,
   Membership,
   MembershipCheckIn,
   type BookingDoc,
@@ -14,6 +13,7 @@ import { dateLabel, indiaNow, instantOf, timeLabel } from "../utils/indiaTime";
 import { isRef } from "../utils/refs";
 import { readCode } from "../utils/qr";
 import { withdrawForCheckIn } from "./cancellation.service";
+import { findMember } from "./accountSnapshot.service";
 import { effectiveMembershipStatus } from "./membershipView";
 
 const EARLY_MS = 60 * 60_000;
@@ -53,7 +53,7 @@ const targetOf = (input: CheckInInput): { kind: "b" | "m"; ref: string } => {
 };
 
 const nameOf = async (memberId: unknown) =>
-  (await Member.findById(memberId, { name: 1 }).lean<{ name?: string }>())?.name || "Member";
+  (await findMember(String(memberId)))?.name || "Member";
 
 const bookingResult = async (booking: BookingDoc, warning: CheckInWarning | null): Promise<CheckInResult> => ({
   kind: "booking",
