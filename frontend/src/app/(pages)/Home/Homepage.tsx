@@ -10,7 +10,6 @@ import FeaturesSection from "./sections/FeaturesSection";
 import WorkspaceCategoriesSection from "./sections/WorkspaceCategoriesSection";
 import HowItWorksSection from "./sections/HowItWorksSection";
 import AmenitiesSection from "./sections/AmenitiesSection";
-import PlansSection from "./sections/PlansSection";
 import CommunitySection from "./sections/CommunitySection";
 import TestimonialsSection from "./sections/TestimonialsSection";
 import CtaBannerSection from "./sections/CtaBannerSection";
@@ -41,7 +40,6 @@ const Homepage = async () => {
       <WorkspaceCategoriesSection content={content.categories} categories={categories} />
       <HowItWorksSection content={content.steps} />
       <AmenitiesSection content={content.amenities} amenities={amenities} />
-      <PlansSection />
       <CommunitySection content={content.community} />
       <TestimonialsSection content={content.testimonials} testimonials={testimonials} />
       <CtaBannerSection content={content.cta} />
