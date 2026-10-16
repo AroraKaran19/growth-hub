@@ -1,6 +1,7 @@
 import type { MembershipLength } from "../constants/catalogue";
 import type { BookingDoc, MembershipDoc } from "../models";
 import { dateLabel, timeLabel } from "../utils/indiaTime";
+import { siteLink } from "../utils/siteLink";
 import { notifyMember } from "./notify.service";
 
 const PLAN_NAMES: Record<MembershipLength, string> = {
@@ -15,6 +16,13 @@ export const rupees = (paise: number) => `₹${(paise / 100).toLocaleString("en-
 
 const timeOf = (booking: BookingDoc) =>
   booking.passType === "full-day" ? "Full day" : `${timeLabel(booking.startMin)} to ${timeLabel(booking.endMin)}`;
+
+export const tellWelcome = (memberId: unknown) =>
+  notifyMember("WELCOME", memberId, {
+    memberships_link: siteLink("/memberships"),
+    billing_link: siteLink("/account/billing"),
+    help_link: siteLink("/support"),
+  });
 
 export const tellBookingConfirmed = (booking: BookingDoc) =>
   notifyMember("BOOKING_CONFIRMED", booking.memberId, {

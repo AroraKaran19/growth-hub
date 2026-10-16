@@ -1,4 +1,5 @@
 export const MEMBER_EVENTS = [
+  "WELCOME",
   "BOOKING_CONFIRMED",
   "MEMBERSHIP_STARTED",
   "ADDON_ORDER_CONFIRMED",
@@ -22,6 +23,7 @@ export type StaffEvent = (typeof STAFF_EVENTS)[number];
 
 // Where each email's button points when the sender gives no link of its own.
 export const EVENT_PATHS: Record<MemberEvent | StaffEvent, string> = {
+  WELCOME: "/workspaces",
   BOOKING_CONFIRMED: "/account/bookings",
   MEMBERSHIP_STARTED: "/account/memberships",
   ADDON_ORDER_CONFIRMED: "/account/memberships",
@@ -47,6 +49,7 @@ export const PURCHASE_PATHS: Record<"booking" | "membership" | "addon-order", st
 
 // Create each MSG91 template with exactly this ID, from the matching file in templates/email.
 export const EMAIL_TEMPLATE_IDS: Record<MemberEvent | StaffEvent, string> = {
+  WELCOME: "growthhub_welcome",
   BOOKING_CONFIRMED: "growthhub_booking_confirmed",
   MEMBERSHIP_STARTED: "growthhub_membership_started",
   ADDON_ORDER_CONFIRMED: "growthhub_addon_order_confirmed",

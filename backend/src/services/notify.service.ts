@@ -27,10 +27,11 @@ export const createNotifier = (
 ) => {
   // Every template can greet by name and carry a button, whatever the sender passed.
   const site = settings.siteUrl.replace(/\/+$/, "");
+  const firstName = (name: string | null | undefined) => name?.trim().split(/\s+/)[0] ?? "";
   const withDefaults = (event: MemberEvent | StaffEvent, name: string | null | undefined, variables: Variables): Variables => ({
     link: `${site}${EVENT_PATHS[event]}`,
     ...variables,
-    name: variables.name?.trim() || name?.trim() || "there",
+    name: firstName(variables.name) || firstName(name) || "there",
   });
 
   const emailTo = async (event: MemberEvent | StaffEvent, to: string, variables: Variables, attachments?: EmailAttachment[]) => {

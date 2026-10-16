@@ -14,6 +14,7 @@ The header logo loads from `https://growthhubconnect.in/email/logo-white.png`, w
 
 | File | MSG91 template ID | Sent when | Variables |
 | --- | --- | --- | --- |
+| welcome.html | `growthhub_welcome` | A new customer saves their email for the first time, finishing sign-up | memberships_link, billing_link, help_link |
 | booking-confirmed.html | `growthhub_booking_confirmed` | A day pass is paid | ref, venue, date, time, amount |
 | membership-started.html | `growthhub_membership_started` | A membership is paid | ref, venue, plan, starts, amount |
 | addon-order-confirmed.html | `growthhub_addon_order_confirmed` | An add-on order is paid | ref, venue, dates, amount |

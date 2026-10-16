@@ -7,6 +7,7 @@ import type { ParsedPhone } from "../utils/phone";
 import { parseBody } from "../utils/validate";
 import { profileFieldsSchema, type ProfileFieldsInput } from "../validators/member";
 import { memberSummary, type MemberAccount } from "./account.service";
+import { tellWelcome } from "./memberNotices";
 import { verifyWidgetToken } from "./msg91.service";
 import { claimSend, clearChallenge, hasLiveChallenge } from "./otpChallenge.service";
 import { startSession, type DeviceInfo, type IssuedTokens } from "./session.service";
@@ -106,11 +107,17 @@ export const updateMemberProfile = async (
     changes.email = email;
   }
 
+  // Claimed in one write, so only the member's first saved email brings the welcome.
+  const isFirstEmail = changes.email
+    ? (await Member.updateOne({ _id: memberId, email: null }, { $set: { email: changes.email } })).modifiedCount === 1
+    : false;
+
   const member = await Member.findByIdAndUpdate(
     memberId,
     { $set: changes },
     { returnDocument: "after" },
   ).lean<MemberDoc>();
   if (!member) throw new AppError("Please sign in again.", 401, "SESSION_REVOKED");
+  if (isFirstEmail) await tellWelcome(member._id);
   return memberSummary(member);
 };
