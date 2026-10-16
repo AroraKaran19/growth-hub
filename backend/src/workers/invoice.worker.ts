@@ -1,10 +1,9 @@
 import { InvoiceJob, type InvoiceJobDoc } from "../models";
 import { invoiceDataFor } from "../services/invoiceData.service";
 import { invoiceFileName, signedInvoiceUrl, storeInvoicePdf } from "../services/invoiceStorage.service";
-import { notifyMember } from "../services/notify.service";
+import { sendInvoiceEmail } from "../services/purchaseNotices";
 import { convertDocx } from "../utils/docxToPdf";
 import { fillInvoiceDocx } from "../utils/invoiceDocx";
-import { env } from "../config/env";
 
 export type InvoiceWorkerDeps = {
   render: (job: InvoiceJobDoc) => Promise<Buffer>;
@@ -85,20 +84,8 @@ export const productionDeps: InvoiceWorkerDeps = {
   render: async (job) => convertDocx(fillInvoiceDocx(await invoiceDataFor(job)), "pdf"),
   store: (job, pdf) => storeInvoicePdf(job.invoiceNumber, pdf),
   email: async (job, pdfKey) => {
-    const data = await invoiceDataFor(job);
     const url = await signedInvoiceUrl(pdfKey, job.invoiceNumber, ATTACHMENT_LINK_SECONDS);
-    await notifyMember(
-      "INVOICE_READY",
-      job.memberId,
-      {
-        invoice_number: job.invoiceNumber,
-        description: data.lines[0]?.description ?? data.reference,
-        amount: `₹${data.total}`,
-        reference: data.reference,
-        download_url: `${env().frontendUrl.replace(/\/+$/, "")}/account/invoices`,
-      },
-      [{ file: url, filename: invoiceFileName(job.invoiceNumber) }],
-    );
+    await sendInvoiceEmail(job, { file: url, filename: invoiceFileName(job.invoiceNumber) });
   },
 };
 

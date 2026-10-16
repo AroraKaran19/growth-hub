@@ -34,6 +34,8 @@ export interface InvoiceJobDoc {
   emailedAt: Date | null;
   /** Backfilled invoices become downloadable without emailing past customers. */
   skipEmail: boolean;
+  /** The purchase or renewal email carries this invoice; false on jobs queued before that. */
+  sendsConfirmation: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -76,6 +78,7 @@ const invoiceJobSchema = new Schema<InvoiceJobDoc>(
     pdfKey: { type: String, default: null },
     emailedAt: { type: Date, default: null },
     skipEmail: { type: Boolean, default: false },
+    sendsConfirmation: { type: Boolean, default: false },
   },
   { timestamps: true },
 );

@@ -29,7 +29,7 @@ module.exports = {
       instances: 1,
       exec_mode: "fork",
       time: true,
-      env: { NODE_ENV: "production", INVOICE_WORKER_POLL_MS: "30000", INVOICE_WORKER_BATCH: "5" },
+      env: { NODE_ENV: "production", INVOICE_WORKER_POLL_MS: "10000", INVOICE_WORKER_BATCH: "5" },
       max_memory_restart: "350M",
     },
   ],

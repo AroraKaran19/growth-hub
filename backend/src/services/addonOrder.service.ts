@@ -13,7 +13,7 @@ import {
   type MembershipDoc,
   type VenueDoc,
 } from "../models";
-import { addDays, dateLabel, indiaNow, instantOf, isIsoDate } from "../utils/indiaTime";
+import { addDays, indiaNow, instantOf, isIsoDate } from "../utils/indiaTime";
 import { freshRef, isRef } from "../utils/refs";
 import type { ConfirmInput } from "../validators/booking";
 import { holdRanOut, refundQuietly } from "./booking.service";
@@ -21,11 +21,8 @@ import { latestRequests } from "./cancellation.service";
 import { removalNotices } from "./refund.service";
 import type { DeskStaff } from "./checkIn.service";
 import { issueInvoice } from "./invoiceIssue.service";
-import { rupees } from "./memberNotices";
 import { phoneOf } from "./staffBookings.service";
 import { effectiveMembershipStatus } from "./membershipView";
-import { notifyMember } from "./notify.service";
-import { siteLink } from "../utils/siteLink";
 import { addonLines } from "./pricing";
 import { capturePayment, createOrder, fetchPayment, verifyPaymentSignature } from "./razorpay.service";
 import { findMembers } from "./accountSnapshot.service";
@@ -192,15 +189,6 @@ export const releaseOrderHold = async (memberId: string, ref: string) => {
   return toAddonOrderView(await reload(order._id));
 };
 
-const tellConfirmed = (order: AddonOrderDoc) =>
-  notifyMember("ADDON_ORDER_CONFIRMED", order.memberId, {
-    ref: order.ref,
-    venue: order.venueName,
-    dates: order.dates.map(dateLabel).join(", "),
-    amount: rupees(order.total),
-    ...(order.bookingId ? { link: siteLink("/account/bookings") } : {}),
-  });
-
 /** One confirmation path for the browser and the webhook; a payment after the hold is never captured. */
 const confirmOrder = async (order: AddonOrderDoc, paymentId: string) => {
   if (order.status === "paid") return order;
@@ -267,7 +255,6 @@ const confirmOrder = async (order: AddonOrderDoc, paymentId: string) => {
     await refundQuietly(paymentId, payment.amount);
     throw lateRelease();
   }
-  await tellConfirmed(paid);
   return paid;
 };
 

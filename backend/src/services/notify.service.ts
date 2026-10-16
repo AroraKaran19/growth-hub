@@ -7,7 +7,7 @@ import {
   type StaffEvent,
 } from "../constants/notifications";
 import { Member, PartnerStaff, type MemberDoc } from "../models";
-import { sendTemplateEmail, type EmailAttachment } from "./msg91.service";
+import { sendTemplateEmail, type EmailAttachment, type EmailVariables } from "./msg91.service";
 
 export type NotifySettings = NotificationTemplates & {
   authKey: string | null;
@@ -18,7 +18,7 @@ export type NotifySettings = NotificationTemplates & {
 type Senders = { email: typeof sendTemplateEmail };
 type Logger = Pick<Console, "error" | "warn">;
 type Recipient = Pick<MemberDoc, "email" | "billingEmail"> & { name?: string | null };
-type Variables = Record<string, string>;
+type Variables = EmailVariables;
 
 export const createNotifier = (
   settings: NotifySettings,
@@ -27,7 +27,7 @@ export const createNotifier = (
 ) => {
   // Every template can greet by name and carry a button, whatever the sender passed.
   const site = settings.siteUrl.replace(/\/+$/, "");
-  const firstName = (name: string | null | undefined) => name?.trim().split(/\s+/)[0] ?? "";
+  const firstName = (name: unknown) => (typeof name === "string" ? name.trim().split(/\s+/)[0] : "");
   const withDefaults = (event: MemberEvent | StaffEvent, name: string | null | undefined, variables: Variables): Variables => ({
     link: `${site}${EVENT_PATHS[event]}`,
     ...variables,

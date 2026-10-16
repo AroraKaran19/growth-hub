@@ -50,7 +50,7 @@ import {
   verifySubscriptionSignature,
 } from "./razorpay.service";
 import { announceRequest, latestRequests, openSystemRequest } from "./cancellation.service";
-import { tellLatePaymentReleased, tellMembershipLapsed, tellMembershipStarted, tellRenewalFailed } from "./memberNotices";
+import { tellMembershipLapsed, tellRenewalFailed } from "./memberNotices";
 import { releaseDays, reserveDays, reserveFreeDays, setDayHold, type SeatDate } from "./seatDays.service";
 
 const HOLD_STEP_MS = 2 * 60_000;
@@ -451,7 +451,6 @@ const giveBack = async (membership: MembershipDoc, paymentId: string | null) => 
   }
   if (paymentId) await refundQuietly(paymentId, membership.firstCycle.payable);
   else console.error(`Membership ${membership.ref} lost its seat after paying; refund it from the Razorpay dashboard.`);
-  await tellLatePaymentReleased(membership, membership.firstCycle.payable);
 };
 
 /** One confirmation path for the browser and the webhook; safe to run twice at once. */
@@ -504,12 +503,11 @@ const confirmMembership = async (id: Types.ObjectId, givenPaymentId: string | nu
     throw lostFirstPayment();
   }
 
-  const { membership: final, startedNow } = await finalise(id, paymentId, subscriptionId);
+  const { membership: final } = await finalise(id, paymentId, subscriptionId);
   if (!isPaid(final.status)) {
     await giveBack(membership, paymentId);
     throw lostFirstPayment();
   }
-  if (startedNow) await tellMembershipStarted(final);
   return final;
 };
 

@@ -29,6 +29,6 @@ export const issueInvoice = async (
   const invoiceNumber = await nextInvoiceNumber(date, session);
   const member = await Member.findById(memberId).session(session).lean<MemberDoc>();
   const billedTo = member ? billedToFrom(member, company) : undefined;
-  await InvoiceJob.create([{ source: { kind, id }, memberId, invoiceNumber, billedTo }], { session });
+  await InvoiceJob.create([{ source: { kind, id }, memberId, invoiceNumber, billedTo, sendsConfirmation: true }], { session });
   return invoiceNumber;
 };

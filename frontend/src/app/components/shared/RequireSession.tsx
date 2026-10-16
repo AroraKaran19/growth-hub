@@ -12,7 +12,8 @@ const RequireSession = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     if (isReady && !session) {
-      router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+      // Keeps the query, such as an emailed link's ?show=qr, through sign-in.
+      router.replace(`/login?next=${encodeURIComponent(`${pathname}${window.location.search}`)}`);
     }
   }, [isReady, session, pathname, router]);
 

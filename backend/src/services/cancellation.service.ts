@@ -239,15 +239,15 @@ const tellVenue = (view: RequestView) =>
     venue: view.venue.name,
     starts: indiaLabel(new Date(view.startsAt)),
     reason: REASON_LABELS[view.reason],
-    details: view.details || "No details given.",
+    details: view.details || "The customer did not add any comments.",
   });
 
 // Email templates can't branch, so the outcome arrives as finished sentences.
 const refundLine = (view: RequestView) => {
-  if (view.status !== "approved") return "Your booking stays as it is, so nothing is refunded.";
+  if (view.status !== "approved") return "Your booking remains in place, so no refund applies.";
   return view.refundAmount
-    ? `A refund of ${rupees(view.refundAmount)} is on its way to your original payment method.`
-    : "This cancellation carries no refund.";
+    ? `A refund of ${rupees(view.refundAmount)} has been approved.`
+    : "No refund applies to this cancellation.";
 };
 
 const tellMember = (request: CancellationRequestDoc, view: RequestView) =>
@@ -258,7 +258,7 @@ const tellMember = (request: CancellationRequestDoc, view: RequestView) =>
     outcome: view.status === "approved" ? "approved" : "declined",
     amount: rupees(view.refundAmount ?? 0),
     refund: refundLine(view),
-    note: view.decisionNote || "No note was added.",
+    note: view.decisionNote || "The venue did not add a note.",
     link: siteLink(PURCHASE_PATHS[view.kind]),
   });
 

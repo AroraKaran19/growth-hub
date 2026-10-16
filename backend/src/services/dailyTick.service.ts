@@ -3,6 +3,7 @@ import { expireLapsedBookings, finishPastBookings, removeOldSeatDays } from "./b
 import { endStoppedMemberships, expireLapsedMemberships, extendRenewingReservations } from "./membership.service";
 import { markPayable } from "./payable.service";
 import { draftLastMonth } from "./payout.service";
+import { sendOverdueConfirmations } from "./purchaseNotices";
 
 /** Every 10 minutes: keeps statuses and venue earnings current. Seats free themselves without it. */
 export const runFrequentTick = async (now: Date) => ({
@@ -12,6 +13,7 @@ export const runFrequentTick = async (now: Date) => ({
   endedMemberships: await endStoppedMemberships(now),
   ...(await runAddonOrderTick(now)),
   payable: await markPayable(now),
+  lateConfirmations: await sendOverdueConfirmations(now),
 });
 
 /** Once a day: work tied to calendar days, and last month's statements once cancellations have settled. */

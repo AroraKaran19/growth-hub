@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
   CalendarDays,
@@ -47,7 +48,16 @@ type Dialog = "qr" | "reschedule" | "cancel" | null;
 
 const BookingDetailPage = ({ bookingId }: { bookingId: string }) => {
   const { booking: fromApi, error, isLoading, mutate } = useBooking(bookingId);
-  const [dialog, setDialog] = useState<Dialog>(null);
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  // The confirmation email links here with ?show=qr, so the check-in code opens straight away.
+  const [dialog, setDialog] = useState<Dialog>(searchParams.get("show") === "qr" ? "qr" : null);
+
+  const closeQr = () => {
+    setDialog(null);
+    if (searchParams.has("show")) router.replace(pathname, { scroll: false });
+  };
   const [isWithdrawing, setIsWithdrawing] = useState(false);
 
   const booking = fromApi ? toMemberBooking(fromApi) : null;
@@ -358,9 +368,7 @@ const BookingDetailPage = ({ bookingId }: { bookingId: string }) => {
         </aside>
       </div>
 
-      {dialog === "qr" && (
-        <BookingQrModal booking={booking} onClose={() => setDialog(null)} />
-      )}
+      {dialog === "qr" && !isPast && <BookingQrModal booking={booking} onClose={closeQr} />}
 
       {dialog === "cancel" && (
         <CancelRequestModal

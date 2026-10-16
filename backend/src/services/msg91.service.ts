@@ -48,10 +48,13 @@ export const verifyWidgetToken = async (
 /** MSG91 downloads each attachment from its URL at send time. */
 export type EmailAttachment = { file: string; filename: string };
 
+// MSG91 email templates use Handlebars, so a list renders with {{#each}}.
+export type EmailVariables = Record<string, string | Record<string, string>[]>;
+
 export const sendTemplateEmail = async (
   settings: TemplateEmailSettings,
   to: string,
-  variables: Record<string, string>,
+  variables: EmailVariables,
   fetchImpl: typeof fetch = fetch,
   attachments?: EmailAttachment[],
 ) => {

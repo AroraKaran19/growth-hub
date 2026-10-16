@@ -6,7 +6,7 @@
   <meta http-equiv="X-UA-Compatible" content="IE=edge" />
   <meta name="color-scheme" content="light" />
   <meta name="supported-color-schemes" content="light" />
-  <title>Payout account changed for {{venue}}</title>
+  <title>The payout bank account for {{venue}} has been changed</title>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet" />
   <style>
     body, table, td, a { font-family: 'Plus Jakarta Sans', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
@@ -20,7 +20,7 @@
 </head>
 <body style="margin:0; padding:0; background-color:#f4efee; -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%;">
   <div style="display:none; max-height:0; overflow:hidden; opacity:0; mso-hide:all;">
-    Payouts for {{venue}} will now go to the account ending {{last4}}. Didn't expect this? Tell us straight away.
+    Payouts for {{venue}} will now be made to the account ending {{last4}}.
   </div>
 
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f4efee" style="background-color:#f4efee;">
@@ -37,10 +37,10 @@
           <tr>
             <td class="card-pad" bgcolor="#ffffff" style="padding:40px 40px 8px 40px; background-color:#ffffff;">
               <div style="font-size:12px; font-weight:700; line-height:16px; color:#ec2024; letter-spacing:2px; text-transform:uppercase;">Security notice</div>
-              <div style="padding-top:10px; font-size:24px; font-weight:800; line-height:32px; color:#111111;">Your payout account was changed</div>
+              <div style="padding-top:10px; font-size:24px; font-weight:800; line-height:32px; color:#111111;">Your payout bank account has been changed</div>
               <div style="padding-top:12px; font-size:15px; line-height:24px; color:#4a4a4a;">
-                Hello {{name}},<br />
-                The bank account that receives payouts for {{venue}} has been changed. From now on, payouts will go to the account below.
+                Dear {{name}},<br />
+                The bank account that receives payouts for {{venue}} has been updated. Future payouts will be made to the account below.
               </div>
             </td>
           </tr>
@@ -56,8 +56,12 @@
                         <td align="right" valign="top" style="padding:8px 0; font-size:14px; font-weight:600; line-height:20px; color:#111111; word-break:break-word;">{{venue}}</td>
                       </tr>
                       <tr>
-                        <td valign="top" style="padding:8px 16px 8px 0; font-size:13px; line-height:20px; color:#8a8080;">New payout account</td>
-                        <td align="right" valign="top" style="padding:8px 0; font-size:14px; font-weight:600; line-height:20px; color:#111111; word-break:break-word;">{{bank}}<br />Account ending {{last4}}</td>
+                        <td valign="top" style="padding:8px 16px 8px 0; font-size:13px; line-height:20px; color:#8a8080;">Bank</td>
+                        <td align="right" valign="top" style="padding:8px 0; font-size:14px; font-weight:600; line-height:20px; color:#111111; word-break:break-word;">{{bank}}</td>
+                      </tr>
+                      <tr>
+                        <td valign="top" style="padding:8px 16px 8px 0; font-size:13px; line-height:20px; color:#8a8080;">Account ending</td>
+                        <td align="right" valign="top" style="padding:8px 0; font-size:14px; font-weight:600; line-height:20px; color:#111111; word-break:break-word;">{{last4}}</td>
                       </tr>
                     </table>
                   </td>
@@ -76,7 +80,7 @@
                 </tr>
               </table>
               <div style="padding-top:16px; font-size:12px; line-height:18px; color:#8a8080; word-break:break-all;">
-                Button not working? Paste this link into your browser:<br />
+                If the button does not work, copy and paste this link into your browser:<br />
                 <a href="{{link}}" style="color:#a8202a; text-decoration:underline;">{{link}}</a>
               </div>
             </td>
@@ -87,9 +91,9 @@
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
                 <tr>
                   <td bgcolor="#f7f7f7" style="padding:16px 20px; background-color:#f7f7f7; border-left:4px solid #ec2024; border-radius:0 10px 10px 0;">
-                    <div style="font-size:14px; font-weight:700; line-height:20px; color:#111111;">Didn't expect this?</div>
+                    <div style="font-size:14px; font-weight:700; line-height:20px; color:#111111;">Did not make this change?</div>
                     <div style="padding-top:4px; font-size:13px; line-height:20px; color:#555555;">
-                      If you didn't make or approve this change, write to <a href="mailto:hello@growthhubconnect.in" style="color:#a8202a; font-weight:600; text-decoration:underline;">hello@growthhubconnect.in</a> straight away, before the next payout is made.
+                      If you did not request this change, please contact us immediately at <a href="mailto:hello@growthhubconnect.in" style="color:#a8202a; font-weight:600; text-decoration:underline;">hello@growthhubconnect.in</a>, before the next payout is made.
                     </div>
                   </td>
                 </tr>
@@ -100,7 +104,7 @@
           <tr>
             <td class="card-pad" align="center" bgcolor="#1a1a1a" style="padding:24px 40px; background-color:#1a1a1a; border-radius:0 0 16px 16px;">
               <div style="font-size:13px; line-height:20px; color:#d9d9d9;">
-                Need help? Write to
+                Need assistance? Contact us at
                 <a href="mailto:hello@growthhubconnect.in" style="color:#ff6868; font-weight:600; text-decoration:none;">hello@growthhubconnect.in</a>
               </div>
             </td>
@@ -108,7 +112,7 @@
 
           <tr>
             <td align="center" style="padding:24px 16px 0 16px; font-size:12px; line-height:18px; color:#8a8080;">
-              You received this email because you are on the staff of {{venue}} on Growth Hub.<br />
+              You are receiving this email because you are a member of staff at {{venue}} on Growth Hub.<br />
               &copy; Growth Hub, a coworking marketplace in Bangalore.
             </td>
           </tr>

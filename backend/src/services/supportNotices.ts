@@ -22,20 +22,20 @@ export const tellSupportUpdated = async (request: SupportRequestDoc, reply: stri
     const site = frontendUrl.replace(/\/+$/, "");
     const variables = {
       name: request.contact.name,
-      ref: request.ref,
+      request_id: request.ref,
       subject: request.subject,
       status: SUPPORT_STATUS_LABELS[request.status],
-      reply: reply || "No new message this time, just the status change above.",
+      reply: reply || "There is no new message. Only the status of your request has changed.",
       ...(request.memberId
         ? {
             link: `${site}/account/support/${request.ref}`,
             action: "View request",
-            follow_up: "If you'd like to add anything, you can reply from the request page.",
+            follow_up: "If you would like to add anything, you can reply from the request page.",
           }
         : {
             link: `${site}/support`,
             action: "Visit the Help Center",
-            follow_up: "If you'd like to add anything, write to hello@growthhubconnect.in and quote your reference.",
+            follow_up: "If you would like to add anything, please write to hello@growthhubconnect.in, quoting your request ID.",
           }),
     };
     if (!msg91AuthKey || !email) {

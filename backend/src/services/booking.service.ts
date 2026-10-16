@@ -22,7 +22,6 @@ import { latestRequests } from "./cancellation.service";
 import { couponFor, recordRedemption, rememberCoupon } from "./coupon.service";
 import { removalNotices } from "./refund.service";
 import { couponDiscount } from "./couponRules";
-import { tellBookingConfirmed, tellLatePaymentReleased } from "./memberNotices";
 import { issueInvoice } from "./invoiceIssue.service";
 import { discountedPrice, quotePassLines } from "./pricing";
 import { capturePayment, createOrder, fetchPayment, refundPayment, verifyPaymentSignature } from "./razorpay.service";
@@ -223,7 +222,6 @@ export const createBooking = async (memberId: string, input: BookingInput, reque
   }
 
   const created = (await Booking.findById(bookingId).lean<BookingDoc>())!;
-  if (isFree) await tellBookingConfirmed(created);
   return withCheckout(created);
 };
 
@@ -297,7 +295,6 @@ export const setBookingCoupon = async (memberId: string, ref: string, code: stri
       await Booking.updateOne({ _id: booking._id }, { invoiceNumber }, { session });
       return { ...updated, invoiceNumber };
     });
-    await tellBookingConfirmed(free);
     return withCheckout(free);
   }
 
@@ -434,7 +431,6 @@ const confirmBooking = async (bookingId: Types.ObjectId, paymentId: string): Pro
   if (secured === "lost") {
     // Manual capture keeps this rare: only a payment captured outside our flow needs money sent back.
     if (payment.status === "captured") await refundQuietly(paymentId, payment.amount);
-    await tellLatePaymentReleased(booking, payment.amount);
     throw holdExpired();
   }
 
@@ -448,10 +444,9 @@ const confirmBooking = async (bookingId: Types.ObjectId, paymentId: string): Pro
     }
   }
 
-  const { booking: final, confirmedNow } = await finalise(bookingId, paymentId, booking.payment.orderId);
+  const { booking: final } = await finalise(bookingId, paymentId, booking.payment.orderId);
   if (!final || !isPaid(final.status)) {
     await refundQuietly(paymentId, payment.amount);
-    await tellLatePaymentReleased(booking, payment.amount);
     throw holdExpired();
   }
   // Paid another way meanwhile (a coupon covering it, or a newer order): this capture goes back.
@@ -459,7 +454,6 @@ const confirmBooking = async (bookingId: Types.ObjectId, paymentId: string): Pro
     await refundQuietly(paymentId, payment.amount);
     return final;
   }
-  if (confirmedNow) await tellBookingConfirmed(final);
   return final;
 };
 
