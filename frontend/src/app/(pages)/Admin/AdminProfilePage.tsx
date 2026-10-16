@@ -13,7 +13,6 @@ const AdminProfilePage = () => {
     <StaffProfilePage
       surface="admin"
       roleLabel={isSuper ? "Super admin" : "Admin"}
-      emailNote={isSuper ? "Another super admin can change it on the Staff page." : "A super admin or staff manager can change it."}
       access={
         isSuper ? (
           <p className="text-sm text-secondary/70">You can open every page of the admin panel.</p>

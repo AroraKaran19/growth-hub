@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Check, Copy, Sparkles } from "lucide-react";
+import RequiredMark from "@/app/components/ui/form/RequiredMark";
 import { cn } from "@/utils";
 import { generatePassword } from "@/utils/password";
 
@@ -10,12 +11,13 @@ type TemporaryPasswordFieldProps = {
   value: string;
   onChange: (value: string) => void;
   error?: string;
+  required?: boolean;
 };
 
 const ICON_BUTTON =
   "flex size-9 shrink-0 items-center justify-center rounded-lg border border-tertiary/15 text-tertiary/70 transition-colors hover:border-tertiary/35 hover:text-tertiary disabled:opacity-40";
 
-const TemporaryPasswordField = ({ id, value, onChange, error }: TemporaryPasswordFieldProps) => {
+const TemporaryPasswordField = ({ id, value, onChange, error, required = false }: TemporaryPasswordFieldProps) => {
   const [isCopied, setIsCopied] = useState(false);
 
   const copy = async () => {
@@ -32,11 +34,13 @@ const TemporaryPasswordField = ({ id, value, onChange, error }: TemporaryPasswor
     <div>
       <label htmlFor={id} className="mb-1.5 block text-sm font-medium text-tertiary">
         Temporary password
+        {required && <RequiredMark />}
       </label>
       <div className="flex items-center gap-2">
         <input
           id={id}
           value={value}
+          aria-required={required || undefined}
           autoComplete="off"
           spellCheck={false}
           onChange={(event) => {

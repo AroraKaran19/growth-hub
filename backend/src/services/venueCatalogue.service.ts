@@ -9,20 +9,19 @@ import {
   Venue,
   type Actor,
   type AddonTypeDoc,
+  type DayHours,
   type SeatMapDoc,
   type SeatMapSeat,
   type VenueDoc,
+  type VenueOutage,
 } from "../models";
-import type { CreateVenueInput, PatchVenueInput, VenuePricesInput } from "../validators/catalogue";
-import { refuseSeatsInUse, refuseStrandedBookings, seatsInUse } from "./catalogueGuards";
-import {
-  crossFieldErrors,
-  formatOpenHours,
-  hasAnyPrice,
-  publishBlocker,
-  toLocalityId,
-  unknownSeatIds,
-} from "./catalogueRules";
+import { addDays, indiaNow, toMinutes } from "../utils/indiaTime";
+import type { CreateVenueInput, PatchVenueInput, TakeSeatOutInput, VenuePricesInput } from "../validators/catalogue";
+import { refuseHoursChange, refuseSeatsInUse, seatsInUse } from "./catalogueGuards";
+import { liveOutages, OUTAGE_MAX_DAYS, outageEnd, outNow } from "./outages";
+import { refreshWorkspaceTypes } from "./workspaceTypes.service";
+import { crossFieldErrors, hasAnyPrice, publishBlocker, toLocalityId, unknownSeatIds } from "./catalogueRules";
+import { hoursSummary, sameHoursOn, sameWeek, sortHours } from "./venueHours";
 
 export type PublicVenue = {
   id: string;
@@ -42,11 +41,10 @@ export type PublicVenue = {
   distanceKm: number;
   description: string;
   longDescription: string;
-  openDays: number[];
-  opensAt: string;
-  closesAt: string;
-  openHours: string;
-  openDaysLabel: string;
+  /** Open weekdays only, in weekday order. */
+  hours: DayHours[];
+  /** Such as "Mon to Fri 8:00 AM to 8:00 PM, Sat and Sun closed". */
+  hoursSummary: string;
   hoursNote: string;
   googleMapsUrl: string;
   rules: string[];
@@ -56,7 +54,8 @@ export type PublicVenue = {
   published: boolean;
 };
 
-export type PublicSeat = SeatMapSeat & { available: boolean };
+/** outUntil is only set while the seat is out; null means until someone turns it back on. */
+export type PublicSeat = SeatMapSeat & { available: boolean; outUntil?: Date | null };
 
 export type VenueAddonOffer = {
   addonTypeId: string;
@@ -76,15 +75,13 @@ export type AdminVenueAddon = VenueAddonOffer & { enabled: boolean; active: bool
 
 export type AdminVenue = PublicVenue & {
   version: number;
-  outOfServiceSeatIds: string[];
+  /** Only outages that have not ended. */
+  outages: VenueOutage[];
   addons: AdminVenueAddon[];
   seatMap: { id: string; name: string; image: string; seatCount: number; seats: SeatMapSeat[] } | null;
 };
 
-export type AdminVenueRow = PublicVenue & {
-  version: number;
-  seatMap: { id: string; name: string; seatCount: number } | null;
-};
+export type AdminVenueRow = PublicVenue & { version: number };
 
 const notFound = () => new AppError("That venue doesn't exist.", 404, "VENUE_NOT_FOUND");
 const stale = () =>
@@ -93,7 +90,10 @@ const venueHasMap = () => new AppError("This venue already has a seat map.", 409
 const validationFailed = (fields: Record<string, string>) =>
   new AppError("Check the highlighted fields.", 400, "VALIDATION_FAILED", { fields });
 
-export const toPublicVenue = (venue: VenueDoc): PublicVenue => ({
+const seatsOutNow = (venue: VenueDoc, now: Date) =>
+  new Set((venue.outages ?? []).map((outage) => outage.seatId).filter((seatId) => outNow(venue.outages, seatId, now))).size;
+
+export const toPublicVenue = (venue: VenueDoc, now = new Date()): PublicVenue => ({
   id: venue._id.toString(),
   slug: venue.slug,
   name: venue.name,
@@ -103,7 +103,7 @@ export const toPublicVenue = (venue: VenueDoc): PublicVenue => ({
   image: venue.image,
   gallery: venue.gallery,
   rating: venue.rating,
-  seatsAvailable: venue.seatsAvailable,
+  seatsAvailable: Math.max(0, venue.seatsAvailable - seatsOutNow(venue, now)),
   startingPrice: venue.startingPrice ?? null,
   priceUnit: venue.priceUnit,
   halfDayPrice: venue.halfDayPrice ?? null,
@@ -111,11 +111,8 @@ export const toPublicVenue = (venue: VenueDoc): PublicVenue => ({
   distanceKm: venue.distanceKm,
   description: venue.description,
   longDescription: venue.longDescription,
-  openDays: venue.openDays,
-  opensAt: venue.opensAt,
-  closesAt: venue.closesAt,
-  openHours: formatOpenHours(venue.opensAt, venue.closesAt),
-  openDaysLabel: venue.openDaysLabel,
+  hours: sortHours(venue.hours ?? []),
+  hoursSummary: hoursSummary(venue.hours),
   hoursNote: venue.hoursNote,
   googleMapsUrl: venue.googleMapsUrl,
   rules: venue.rules,
@@ -174,19 +171,26 @@ export const offeredAddons = async (venue: VenueDoc): Promise<VenueAddonOffer[]>
     }));
 
 export const listPublishedVenues = async () =>
-  (await Venue.find({ published: true }).sort({ name: 1 }).lean<VenueDoc[]>()).map(toPublicVenue);
+  (await Venue.find({ published: true }).sort({ name: 1 }).lean<VenueDoc[]>()).map((venue) => toPublicVenue(venue));
 
-export const getPublicVenue = async (slug: string): Promise<PublicVenueDetail> => {
+const outUntil = (venue: VenueDoc, seatId: string, now: Date) =>
+  liveOutages(venue.outages, now).find((outage) => outage.seatId === seatId && outage.startsAt <= now)?.endsAt ?? null;
+
+/** Seats show whether they are usable right now; booking screens ask per time window. */
+export const getPublicVenue = async (slug: string, now = new Date()): Promise<PublicVenueDetail> => {
   const venue = await findVenue(slug);
   const map = await mapFor(venue._id);
-  const outOfService = new Set(venue.outOfServiceSeatIds);
   return {
-    ...toPublicVenue(venue),
+    ...toPublicVenue(venue, now),
     seatMap: map
       ? {
           id: map._id.toString(),
           image: map.image,
-          seats: map.seats.map((seat) => ({ ...seat, available: !outOfService.has(seat.id) })),
+          seats: map.seats.map((seat) =>
+            outNow(venue.outages, seat.id, now)
+              ? { ...seat, available: false, outUntil: outUntil(venue, seat.id, now) }
+              : { ...seat, available: true },
+          ),
         }
       : null,
     addons: await offeredAddons(venue),
@@ -198,7 +202,7 @@ const toAdminVenue = async (venue: VenueDoc): Promise<AdminVenue> => {
   return {
     ...toPublicVenue(venue),
     version: venue.__v,
-    outOfServiceSeatIds: venue.outOfServiceSeatIds,
+    outages: liveOutages(venue.outages).sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime()),
     addons: await joinAddons(venue),
     seatMap: map
       ? { id: map._id.toString(), name: map.name, image: map.image, seatCount: map.seats.length, seats: map.seats }
@@ -206,29 +210,13 @@ const toAdminVenue = async (venue: VenueDoc): Promise<AdminVenue> => {
   };
 };
 
-export const listAdminVenues = async (): Promise<AdminVenueRow[]> => {
-  const venues = await Venue.find().sort({ name: 1 }).lean<VenueDoc[]>();
-  const maps = await SeatMap.find({ venueId: { $in: venues.map((venue) => venue._id) } }).lean<SeatMapDoc[]>();
-  const byVenue = new Map(maps.map((map) => [String(map.venueId), map]));
-  return venues.map((venue) => {
-    const map = byVenue.get(venue._id.toString());
-    return {
-      ...toPublicVenue(venue),
-      version: venue.__v,
-      seatMap: map ? { id: map._id.toString(), name: map.name, seatCount: map.seats.length } : null,
-    };
-  });
-};
+export const listAdminVenues = async (): Promise<AdminVenueRow[]> =>
+  (await Venue.find().sort({ name: 1 }).lean<VenueDoc[]>()).map((venue) => ({ ...toPublicVenue(venue), version: venue.__v }));
 
 export const getAdminVenue = async (slug: string) => toAdminVenue(await findVenue(slug));
 
 export const createVenue = async (input: CreateVenueInput, actor: Actor) => {
-  const fields = crossFieldErrors({
-    startingPrice: input.startingPrice ?? null,
-    dayPassPrice: input.dayPassPrice ?? null,
-    opensAt: input.opensAt ?? "",
-    closesAt: input.closesAt ?? "",
-  });
+  const fields = crossFieldErrors({ startingPrice: input.startingPrice ?? null, dayPassPrice: input.dayPassPrice ?? null });
   if (Object.keys(fields).length > 0) throw validationFailed(fields);
 
   const slugTaken = () => new AppError("That address is already used.", 409, "SLUG_TAKEN");
@@ -259,25 +247,11 @@ export const patchVenue = async (slug: string, patch: PatchVenueInput, actor: Ac
   // A price sent as null clears it, so presence decides, not ??.
   const next = <K extends keyof typeof changes & keyof VenueDoc>(key: K) =>
     (key in changes ? changes[key] : venue[key]) as VenueDoc[K];
-  const fields = crossFieldErrors({
-    startingPrice: next("startingPrice"),
-    dayPassPrice: next("dayPassPrice"),
-    opensAt: changes.opensAt ?? venue.opensAt,
-    closesAt: changes.closesAt ?? venue.closesAt,
-  });
+  const fields = crossFieldErrors({ startingPrice: next("startingPrice"), dayPassPrice: next("dayPassPrice") });
   if (Object.keys(fields).length > 0) throw validationFailed(fields);
 
-  const nextHours = {
-    openDays: changes.openDays ?? venue.openDays,
-    opensAt: changes.opensAt ?? venue.opensAt,
-    closesAt: changes.closesAt ?? venue.closesAt,
-  };
-  const hoursChanged =
-    nextHours.opensAt !== venue.opensAt ||
-    nextHours.closesAt !== venue.closesAt ||
-    nextHours.openDays.length !== venue.openDays.length ||
-    nextHours.openDays.some((day) => !venue.openDays.includes(day));
-  if (hoursChanged) await refuseStrandedBookings(venue._id, nextHours);
+  const nextHours = changes.hours ?? venue.hours ?? [];
+  if (!sameWeek(nextHours, venue.hours)) await refuseHoursChange(venue._id, nextHours);
 
   // Checked on the result, so a live venue can't lose its cover or hours either.
   if (changes.published ?? venue.published) {
@@ -290,9 +264,8 @@ export const patchVenue = async (slug: string, patch: PatchVenueInput, actor: Ac
         hasPlan: await hasVisiblePlan(venue._id),
       }),
       image: changes.image ?? venue.image,
-      openDays: changes.openDays ?? venue.openDays,
-      opensAt: changes.opensAt ?? venue.opensAt,
-      closesAt: changes.closesAt ?? venue.closesAt,
+      galleryCount: (changes.gallery ?? venue.gallery ?? []).length,
+      hours: nextHours,
     });
     if (blocker) throw blocker;
   }
@@ -310,7 +283,8 @@ export const patchVenue = async (slug: string, patch: PatchVenueInput, actor: Ac
     { returnDocument: "after" },
   ).lean<VenueDoc>();
   if (!updated) throw stale();
-  return toAdminVenue(updated);
+  await refreshWorkspaceTypes(venue._id);
+  return toAdminVenue((await Venue.findById(venue._id).lean<VenueDoc>())!);
 };
 
 const bump = (venueId: Types.ObjectId, set: Record<string, unknown>, actor: Actor) =>
@@ -339,13 +313,14 @@ export const assignSeatMap = async (slug: string, seatMapId: string, actor: Acto
   }
 
   // Seats listed always follows the map, never a typed number.
-  await bump(venue._id, { outOfServiceSeatIds: [], seatsAvailable: seatCount }, actor);
+  await bump(venue._id, { outages: [], seatsAvailable: seatCount }, actor);
+  await refreshWorkspaceTypes(venue._id);
   return getAdminVenue(slug);
 };
 
 export const unassignSeatMap = async (slug: string, actor: Actor) => {
   const venue = await findVenue(slug);
-  refuseSeatsInUse(await seatsInUse(venue._id, null), "remove the seat map");
+  refuseSeatsInUse(await seatsInUse(venue, null), "remove the seat map");
 
   const session = await mongoose.startSession();
   try {
@@ -353,7 +328,7 @@ export const unassignSeatMap = async (slug: string, actor: Actor) => {
       // Gated inside the transaction, so a publish landing meanwhile wins or loses cleanly.
       const hidden = await Venue.updateOne(
         { _id: venue._id, published: false },
-        { $set: { outOfServiceSeatIds: [], seatsAvailable: 0, updatedBy: actor }, $inc: { __v: 1 } },
+        { $set: { outages: [], seatsAvailable: 0, updatedBy: actor }, $inc: { __v: 1 } },
         { session },
       );
       if (hidden.matchedCount === 0) {
@@ -369,25 +344,117 @@ export const unassignSeatMap = async (slug: string, actor: Actor) => {
   } finally {
     await session.endSession();
   }
+  await refreshWorkspaceTypes(venue._id);
   return getAdminVenue(slug);
 };
 
-export const setOutOfService = async (slug: string, seatIds: string[], actor: Actor) => {
+// Guarded on the version read, so two admins changing outages at once can't drop either change.
+const saveOutages = async (venue: VenueDoc, outages: VenueOutage[], actor: Actor) => {
+  const saved = await Venue.updateOne(
+    { _id: venue._id, __v: venue.__v },
+    { $set: { outages, updatedBy: actor }, $inc: { __v: 1 } },
+  );
+  if (saved.matchedCount === 0) throw stale();
+};
+
+const badUntil = () =>
+  new AppError(`Pick a day from today up to ${OUTAGE_MAX_DAYS} days ahead.`, 400, "VALIDATION_FAILED", {
+    fields: { until: `Pick a day from today up to ${OUTAGE_MAX_DAYS} days ahead.` },
+  });
+
+/** Takes one seat out from now; a seat already out gets the new end instead. */
+export const takeSeatOut = async (slug: string, input: TakeSeatOutInput, actor: Actor, now = new Date()) => {
   const venue = await findVenue(slug);
   const map = await mapFor(venue._id);
   if (!map) throw new AppError("Assign a seat map first.", 422, "MAP_REQUIRED");
 
   const unknown = unknownSeatIds(
-    seatIds,
+    [input.seatId],
     map.seats.map((seat) => seat.id),
   );
   if (unknown.length > 0) {
-    throw new AppError("Some seats are not on this venue's map.", 422, "SEAT_UNKNOWN", { seatIds: unknown });
+    throw new AppError("That seat is not on this venue's map.", 422, "SEAT_UNKNOWN", { seatIds: unknown });
   }
-  const added = seatIds.filter((id) => !venue.outOfServiceSeatIds.includes(id));
-  refuseSeatsInUse(await seatsInUse(venue._id, added), "take seats out of service");
-  await bump(venue._id, { outOfServiceSeatIds: seatIds, seatsAvailable: map.seats.length - seatIds.length }, actor);
+  const { duration } = input;
+  if (duration.kind === "days") {
+    const today = indiaNow(now).date;
+    if (duration.until < today || duration.until > addDays(today, OUTAGE_MAX_DAYS)) throw badUntil();
+  }
+
+  const endsAt = outageEnd(duration, now);
+  const label = map.seats.find((seat) => seat.id === input.seatId)?.label ?? input.seatId;
+  refuseSeatsInUse(
+    await seatsInUse(venue, [input.seatId], { start: now, end: endsAt }, now),
+    endsAt ? `take ${label} out of service for that time` : `take ${label} out of service`,
+  );
+  const kept = liveOutages(venue.outages, now).filter((outage) => outage.seatId !== input.seatId);
+  await saveOutages(venue, [...kept, { seatId: input.seatId, startsAt: now, endsAt }], actor);
   return getAdminVenue(slug);
+};
+
+/** Ends a seat's outage now; safe to repeat. */
+export const endOutage = async (slug: string, seatId: string, actor: Actor, now = new Date()) => {
+  const venue = await findVenue(slug);
+  const kept = liveOutages(venue.outages, now).filter((outage) => outage.seatId !== seatId);
+  if (kept.length !== (venue.outages ?? []).length) await saveOutages(venue, kept, actor);
+  return getAdminVenue(slug);
+};
+
+/** Turns the old flat out-of-service list into outages that last until turned back on. */
+export const migrateOutOfServiceSeats = async (now = new Date()) => {
+  const legacy = await Venue.collection
+    .find({ outOfServiceSeatIds: { $exists: true } }, { projection: { outOfServiceSeatIds: 1, outages: 1 } })
+    .toArray();
+  let migrated = 0;
+  for (const venue of legacy) {
+    const map = await SeatMap.findOne({ venueId: venue._id }, { "seats.id": 1 }).lean<Pick<SeatMapDoc, "seats">>();
+    const onMap = new Set((map?.seats ?? []).map((seat) => seat.id));
+    const existing: VenueOutage[] = venue.outages ?? [];
+    const ids: string[] = venue.outOfServiceSeatIds ?? [];
+    const added = [...new Set(ids)]
+      .filter((seatId) => onMap.has(seatId) && !existing.some((outage) => outage.seatId === seatId))
+      .map((seatId) => ({ seatId, startsAt: now, endsAt: null }));
+    // seatsAvailable now holds the map's size; listings subtract seats out at read time.
+    const result = await Venue.collection.updateOne(
+      { _id: venue._id, outOfServiceSeatIds: { $exists: true } },
+      { $set: { outages: [...existing, ...added], seatsAvailable: onMap.size }, $unset: { outOfServiceSeatIds: "" } },
+    );
+    migrated += result.modifiedCount;
+  }
+  return migrated;
+};
+
+const LEGACY_HOURS_FIELDS = ["openDays", "opensAt", "closesAt", "openDaysLabel"];
+
+type LegacyHours = { _id: Types.ObjectId; openDays?: unknown; opensAt?: unknown; closesAt?: unknown; hours?: DayHours[] };
+
+const textOf = (value: unknown) => (typeof value === "string" ? value : "");
+
+/** Copies the old single range onto each old open day, then drops the old fields; safe to run again. */
+export const migrateVenueHours = async () => {
+  const legacy = await Venue.collection
+    .find(
+      { $or: LEGACY_HOURS_FIELDS.map((field) => ({ [field]: { $exists: true } })) },
+      { projection: { openDays: 1, opensAt: 1, closesAt: 1, hours: 1 } },
+    )
+    .toArray();
+  let migrated = 0;
+  for (const venue of legacy as unknown as LegacyHours[]) {
+    const opensAt = textOf(venue.opensAt);
+    const closesAt = textOf(venue.closesAt);
+    const opens = toMinutes(opensAt);
+    const closes = toMinutes(closesAt);
+    const days = Array.isArray(venue.openDays) ? venue.openDays.filter((day): day is number => Number.isInteger(day)) : [];
+    const copied = opens !== null && closes !== null && closes > opens ? sameHoursOn(days, opensAt, closesAt) : [];
+    // Hours already saved in the new shape win over the old fields.
+    const hours = venue.hours?.length ? venue.hours : copied;
+    const result = await Venue.collection.updateOne(
+      { _id: venue._id },
+      { $set: { hours }, $unset: Object.fromEntries(LEGACY_HOURS_FIELDS.map((field) => [field, ""])) },
+    );
+    migrated += result.modifiedCount;
+  }
+  return migrated;
 };
 
 /** The venue's own staff set its pass prices; blank means not sold. */
@@ -398,11 +465,12 @@ export const setVenuePrices = async (slug: string, prices: VenuePricesInput, act
     halfDayPrice: "halfDayPrice" in prices ? (prices.halfDayPrice ?? null) : (venue.halfDayPrice ?? null),
     dayPassPrice: "dayPassPrice" in prices ? (prices.dayPassPrice ?? null) : (venue.dayPassPrice ?? null),
   };
-  const fields = crossFieldErrors({ ...next, opensAt: venue.opensAt, closesAt: venue.closesAt });
+  const fields = crossFieldErrors(next);
   if (Object.keys(fields).length > 0) throw validationFailed(fields);
   if (venue.published && !hasAnyPrice({ ...next, hasPlan: await hasVisiblePlan(venue._id) })) {
     throw new AppError("A live venue needs at least one price.", 422, "PRICE_REQUIRED");
   }
   await bump(venue._id, prices, actor);
+  await refreshWorkspaceTypes(venue._id);
   return getAdminVenue(slug);
 };

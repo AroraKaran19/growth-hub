@@ -4,12 +4,15 @@ import { useEffect, useId, useRef, useState } from "react";
 import { Check, ChevronDown, type LucideIcon } from "lucide-react";
 import type { SelectOption } from "@/types/search";
 import { cn } from "@/utils";
+import RequiredMark from "./RequiredMark";
+
+export type SelectFieldOption = SelectOption & { disabled?: boolean; note?: string };
 
 type SelectFieldProps = {
   label: string;
   value: string;
   onChange: (value: string) => void;
-  options: SelectOption[];
+  options: SelectFieldOption[];
   placeholder?: string;
   className?: string;
   /** Keeps the label for screen readers only, for compact toolbars. */
@@ -17,6 +20,7 @@ type SelectFieldProps = {
   icon?: LucideIcon;
   /** Closed field shows the raw value, for narrow pickers like dialling codes. */
   compact?: boolean;
+  required?: boolean;
 };
 
 // Custom listbox: a native <select>'s popup can't be themed.
@@ -30,6 +34,7 @@ const SelectField = ({
   hideLabel = false,
   icon: Icon,
   compact = false,
+  required = false,
 }: SelectFieldProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
@@ -48,9 +53,16 @@ const SelectField = ({
 
   const select = (index: number) => {
     const option = options[index];
-    if (!option) return;
+    if (!option || option.disabled) return;
     onChange(option.value);
     setIsOpen(false);
+  };
+
+  const nextEnabled = (from: number, step: 1 | -1) => {
+    for (let index = from + step; index >= 0 && index < options.length; index += step) {
+      if (!options[index].disabled) return index;
+    }
+    return from;
   };
 
   useEffect(() => {
@@ -78,22 +90,22 @@ const SelectField = ({
       case "ArrowDown":
         event.preventDefault();
         if (!isOpen) return open();
-        setActiveIndex((index) => Math.min(index + 1, options.length - 1));
+        setActiveIndex((index) => nextEnabled(index, 1));
         break;
       case "ArrowUp":
         event.preventDefault();
         if (!isOpen) return open();
-        setActiveIndex((index) => Math.max(index - 1, 0));
+        setActiveIndex((index) => (index < 0 ? nextEnabled(-1, 1) : nextEnabled(index, -1)));
         break;
       case "Home":
         if (!isOpen) return;
         event.preventDefault();
-        setActiveIndex(0);
+        setActiveIndex(nextEnabled(-1, 1));
         break;
       case "End":
         if (!isOpen) return;
         event.preventDefault();
-        setActiveIndex(options.length - 1);
+        setActiveIndex(nextEnabled(options.length, -1));
         break;
       case "Enter":
       case " ":
@@ -121,6 +133,7 @@ const SelectField = ({
         )}
       >
         {label}
+        {required && <RequiredMark />}
       </span>
 
       <button
@@ -130,6 +143,7 @@ const SelectField = ({
         aria-expanded={isOpen}
         aria-controls={listboxId}
         aria-labelledby={labelId}
+        aria-required={required || undefined}
         aria-activedescendant={
           isOpen && activeIndex >= 0 ? optionId(activeIndex) : undefined
         }
@@ -183,16 +197,19 @@ const SelectField = ({
                 id={optionId(index)}
                 role="option"
                 aria-selected={isSelected}
+                aria-disabled={option.disabled || undefined}
                 onClick={() => select(index)}
-                onMouseEnter={() => setActiveIndex(index)}
+                onMouseEnter={() => !option.disabled && setActiveIndex(index)}
                 className={cn(
-                  "flex cursor-pointer items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm transition-colors",
-                  index === activeIndex && "bg-primary/8",
-                  isSelected ? "font-semibold text-primary" : "text-tertiary",
+                  "flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm transition-colors",
+                  option.disabled ? "cursor-not-allowed text-tertiary/40" : "cursor-pointer",
+                  index === activeIndex && !option.disabled && "bg-primary/8",
+                  !option.disabled && (isSelected ? "font-semibold text-primary" : "text-tertiary"),
                 )}
               >
                 <span className="truncate">{option.label}</span>
-                {isSelected && <Check aria-hidden="true" className="size-4 shrink-0" />}
+                {option.note && <span className="shrink-0 rounded-full bg-tertiary/6 px-2 py-0.5 text-xs font-medium text-tertiary/55">{option.note}</span>}
+                {isSelected && !option.note && <Check aria-hidden="true" className="size-4 shrink-0" />}
               </li>
             );
           })}

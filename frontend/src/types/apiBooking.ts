@@ -1,3 +1,5 @@
+import type { CompanyBillingInput } from "@/utils/companyInvoice";
+import type { MemberBilling } from "./auth";
 import type { RequestSummary, VenueRemovalNotice } from "./cancellation";
 import type { AddonUnit } from "./catalogue";
 import type { PassType } from "./booking";
@@ -48,7 +50,9 @@ export type ApiBooking = {
   endMin: number;
   timeLabel: string;
   people: number;
-  extras: { preference: string; companyName: string };
+  extras: { preference: string };
+  /** The company invoiced; null when the member is. */
+  billing: MemberBilling | null;
   addons: ApiBookedAddon[];
   price: ApiPassPrice;
   invoiceNumber: string | null;
@@ -78,7 +82,7 @@ export type BookingRequest = {
   seatIds: string[];
   addonKeys: string[];
   preference: string;
-  companyName: string;
+  billing: CompanyBillingInput | null;
 };
 
 export type SlotAvailability = {
@@ -92,6 +96,7 @@ export type WindowAvailability = {
   start: number;
   end: number;
   takenSeatIds: string[];
+  /** Seats out of service at some point in this window. */
   outOfServiceSeatIds: string[];
 };
 
@@ -102,6 +107,7 @@ export type MembershipAvailability = {
   /** The daily window a time-slot room plan locks; null for whole-day plans. */
   window?: { start: number; end: number } | null;
   takenSeatIds: string[];
+  /** Seats out of service during any day or window the plan would keep. */
   outOfServiceSeatIds: string[];
 };
 
@@ -131,5 +137,5 @@ export type StaffBooking = {
   invoiceNumber: string | null;
   rescheduleCount: number;
   checkedInAt: string | null;
-  extras: { preference: string; companyName: string };
+  extras: { preference: string };
 };

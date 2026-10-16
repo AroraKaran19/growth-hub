@@ -1,4 +1,4 @@
-import type { HomeContent, HomeOverrides } from "@/types/homeContent";
+import { SEO_PAGES, type HomeContent, type HomeOverrides } from "@/types/homeContent";
 
 const FEATURE_COPY =
   "Book your preferred workspace in just a few clicks with real-time availability and instant confirmation.";
@@ -76,6 +76,26 @@ export const HOME_DEFAULTS: HomeContent = {
     primary: { label: "Book Your Workspace", href: "/workspaces" },
     secondary: { label: "Explore Spaces", href: "/locations" },
   },
+  signin: {
+    member: { src: "/assets/home/hero-bg.webp", alt: "Members working in a Growth Hub workspace" },
+    partner: { src: "", alt: "" },
+    admin: { src: "", alt: "" },
+  },
+  seo: {
+    siteName: "Growth Hub",
+    siteUrl: "",
+    defaultTitle: "Growth Hub | Coworking spaces in Bangalore",
+    description:
+      "Book coworking desks, private cabins, offices and meeting rooms across Bangalore. Pay online and check in with a QR code.",
+    keywords: [],
+    shareImage: { src: "", alt: "" },
+    favicon: { src: "", alt: "" },
+    appleIcon: { src: "", alt: "" },
+    twitterHandle: "",
+    googleVerification: "",
+    hideFromSearch: false,
+  },
+  seoPages: Object.fromEntries(SEO_PAGES.map((page) => [page, { title: "", description: "" }])) as HomeContent["seoPages"],
 };
 
 export const withDefaults = (overrides: HomeOverrides): HomeContent => ({ ...HOME_DEFAULTS, ...overrides });

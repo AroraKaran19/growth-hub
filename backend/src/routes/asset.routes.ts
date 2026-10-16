@@ -4,7 +4,7 @@ import { panelRateLimit, requireAuth, requirePermission } from "../middlewares";
 
 const router = Router();
 
-// Nothing on the member or partner surfaces uploads anything today.
+// Customers upload support screenshots through /members/me/upload-url; partners upload nothing.
 router.post("/upload-url", requireAuth("admin"), panelRateLimit, requirePermission("workspaces.venues", "workspaces.types", "workspaces.amenities", "workspaces.seat-maps", "settings"), createUploadUrl);
 
 export default router;

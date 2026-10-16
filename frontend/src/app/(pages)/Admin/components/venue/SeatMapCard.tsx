@@ -6,8 +6,9 @@ import { readApiError } from "@/libs/api/errors";
 import type { AdminVenue, ApiSeat, SeatMapDetail, SeatMapSummary } from "@/types/catalogue";
 import { SEAT_TYPE_LABELS, type SeatType } from "@/types/seat";
 import { cn } from "@/utils";
+import { isOutNow } from "@/utils/outages";
 import { QUIET, Section } from "./fields";
-import SeatPlan from "./SeatPlan";
+import MapThumbnail from "./MapThumbnail";
 
 const CONTACT = process.env.NEXT_PUBLIC_DEVELOPER_CONTACT_EMAIL;
 
@@ -46,7 +47,7 @@ export const ContactDeveloper = () => (
     ) : (
       <span className="font-medium text-tertiary">Contact the developer</span>
     )}
-    . Maps are drawn and added for you.
+    .
   </p>
 );
 
@@ -99,16 +100,26 @@ const SeatMapCard = ({ venue, onAssign, onUnassign, onVersion }: SeatMapCardProp
 
   return (
     <Section
+      id="seat-map"
       title="Seat map"
       hint="Each venue has one map, and a map belongs to one venue until it is unassigned."
     >
       {current ? (
         <>
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p className="font-medium text-tertiary">{current.name}</p>
-              <div className="mt-1.5">
-                <SeatCounts counts={countsOf(current.seats)} />
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="flex min-w-0 flex-wrap items-start gap-4">
+              <MapThumbnail
+                image={current.image}
+                seats={current.seats}
+                title={current.name}
+                isOff={(seat) => isOutNow(venue.outages, seat.id)}
+                className="w-48"
+              />
+              <div className="min-w-0">
+                <p className="font-medium text-tertiary">{current.name}</p>
+                <div className="mt-1.5">
+                  <SeatCounts counts={countsOf(current.seats)} />
+                </div>
               </div>
             </div>
             {!isConfirming && (
@@ -139,12 +150,6 @@ const SeatMapCard = ({ venue, onAssign, onUnassign, onVersion }: SeatMapCardProp
               </div>
             </div>
           )}
-          <SeatPlan
-            image={current.image}
-            seats={current.seats}
-            isOff={(seat) => venue.outOfServiceSeatIds.includes(seat.id)}
-            className="mt-4"
-          />
         </>
       ) : isLoading ? (
         <p className="text-sm text-tertiary/55">Loading free maps...</p>
@@ -184,9 +189,9 @@ const SeatMapCard = ({ venue, onAssign, onUnassign, onVersion }: SeatMapCardProp
           {picked && (
             <div className="mt-4">
               {preview ? (
-                <SeatPlan image={preview.image} seats={preview.seats} />
+                <MapThumbnail image={preview.image} seats={preview.seats} title={picked.name} className="w-56" />
               ) : (
-                <div className="h-48 animate-pulse rounded-xl bg-tertiary/5" aria-label="Loading preview" />
+                <div className="h-40 w-56 animate-pulse rounded-xl bg-tertiary/5" aria-label="Loading preview" />
               )}
               <button
                 type="button"

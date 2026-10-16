@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { withDefaults } from "@/config/homeDefaults";
+import { getHomeOverrides } from "@/libs/api/site";
 import LoginPage from "../(pages)/Login/LoginPage";
 
 export const metadata: Metadata = {
@@ -7,6 +9,7 @@ export const metadata: Metadata = {
     "Log in or sign up to Growth Hub with your mobile number or Google account.",
 };
 
-export default function Login() {
-  return <LoginPage />;
+export default async function Login() {
+  const { signin } = withDefaults(await getHomeOverrides());
+  return <LoginPage image={signin.member} />;
 }

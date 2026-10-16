@@ -1,5 +1,6 @@
 "use client";
 
+import RequiredMark from "@/app/components/ui/form/RequiredMark";
 import type { SelectOption } from "@/types/search";
 import { cn } from "@/utils";
 
@@ -10,6 +11,7 @@ type ChipGroupProps = {
   /** string for single-select, string[] for multi-select */
   value: string | string[];
   onChange: (value: string) => void;
+  required?: boolean;
 };
 
 const ChipGroup = ({
@@ -18,14 +20,16 @@ const ChipGroup = ({
   options,
   value,
   onChange,
+  required = false,
 }: ChipGroupProps) => {
   const isSelected = (option: string) =>
     Array.isArray(value) ? value.includes(option) : value === option;
 
   return (
-    <fieldset>
+    <fieldset aria-required={required || undefined}>
       <legend className="text-sm font-medium text-tertiary">
         {label}
+        {required && <RequiredMark />}
         {hint && (
           <span className="ml-1.5 font-normal text-tertiary/45">{hint}</span>
         )}

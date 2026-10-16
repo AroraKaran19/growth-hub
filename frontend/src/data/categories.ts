@@ -22,6 +22,12 @@ export const CATEGORIES: WorkspaceCategory[] = [
     image: "/assets/home/categories/categories-3.webp",
   },
   {
+    slug: "office",
+    name: "Office",
+    description: "A private office for a whole team, furnished and ready to move into.",
+    image: "/assets/home/extras/2.webp",
+  },
+  {
     slug: "meeting-room",
     name: "Meeting Room",
     description: "Book by the hour for client calls, interviews and workshops.",

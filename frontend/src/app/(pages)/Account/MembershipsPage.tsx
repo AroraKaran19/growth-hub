@@ -10,11 +10,12 @@ import { toastDone } from "@/libs/toast";
 import { askToCancel, withdrawCancellation } from "@/libs/api/cancellations";
 import { stopRenewal } from "@/libs/api/memberships";
 import type { ApiAddonOrder } from "@/types/addonOrder";
-import type { VenueAddonOffer } from "@/types/catalogue";
+import type { DayHours, VenueAddonOffer } from "@/types/catalogue";
 import { isLiveMembership, type ApiMembership } from "@/types/membership";
 import { formatDay, todayIso } from "@/utils/date";
 import { upcomingAddonOrders } from "./addonOrderRules";
 import BuyAddonsModal from "./components/BuyAddonsModal";
+import InvoiceDetailsModal from "./components/InvoiceDetailsModal";
 import MemberPassModal from "./components/MemberPassModal";
 import CancelRequestModal from "./components/CancelRequestModal";
 import MembershipCard from "./components/MembershipCard";
@@ -24,8 +25,8 @@ import StopRenewalModal from "./components/StopRenewalModal";
 const HISTORY_PAGE_SIZE = 3;
 
 type Dialog =
-  | { kind: "pass" | "stop" | "cancel"; membership: ApiMembership }
-  | { kind: "addons"; membership: ApiMembership; offers: VenueAddonOffer[]; openDays: number[] }
+  | { kind: "pass" | "stop" | "cancel" | "invoice"; membership: ApiMembership }
+  | { kind: "addons"; membership: ApiMembership; offers: VenueAddonOffer[]; hours: DayHours[] }
   | { kind: "cancel-addons"; order: ApiAddonOrder };
 
 const MembershipsPage = () => {
@@ -127,13 +128,14 @@ const MembershipsPage = () => {
                 membership={membership}
                 onShowPass={(item) => setDialog({ kind: "pass", membership: item })}
                 onStopRenewal={(item) => setDialog({ kind: "stop", membership: item })}
+                onEditInvoice={(item) => setDialog({ kind: "invoice", membership: item })}
                 onRequestCancel={(item) => setDialog({ kind: "cancel", membership: item })}
                 onWithdrawRequest={async (item) => {
                   await withdrawCancellation("membership", item.ref);
                   await mutate();
                 }}
                 addonOrders={ordersFor(membership.ref)}
-                onBuyAddons={(item, offers, openDays) => setDialog({ kind: "addons", membership: item, offers, openDays })}
+                onBuyAddons={(item, offers, hours) => setDialog({ kind: "addons", membership: item, offers, hours })}
                 onRequestAddonCancel={(order) => setDialog({ kind: "cancel-addons", order })}
                 onWithdrawAddonRequest={async (order) => {
                   await withdrawCancellation("addon-order", order.ref);
@@ -185,6 +187,10 @@ const MembershipsPage = () => {
         <MemberPassModal membership={dialog.membership} onClose={() => setDialog(null)} />
       )}
 
+      {dialog?.kind === "invoice" && (
+        <InvoiceDetailsModal membership={dialog.membership} onClose={() => setDialog(null)} onSaved={() => mutate()} />
+      )}
+
       {dialog?.kind === "cancel" && (
         <CancelRequestModal
           subject={`Membership ${dialog.membership.ref}`}
@@ -202,7 +208,7 @@ const MembershipsPage = () => {
         <BuyAddonsModal
           membership={dialog.membership}
           offers={dialog.offers}
-          openDays={dialog.openDays}
+          hours={dialog.hours}
           onClose={() => setDialog(null)}
           onBought={() => void addonOrders.mutate()}
         />

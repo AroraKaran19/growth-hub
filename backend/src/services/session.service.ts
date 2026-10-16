@@ -146,8 +146,10 @@ export const revokeAccountSessions = async (
   accountType: AccountType,
   accountId: Types.ObjectId | string,
   reason: RevokeReason,
+  keepSessionId?: string,
 ) => {
-  const sessions = await Session.find({ accountType, accountId, revokedAt: null }, { _id: 1 }).lean<
+  const keep = keepSessionId && Types.ObjectId.isValid(keepSessionId) ? { _id: { $ne: new Types.ObjectId(keepSessionId) } } : {};
+  const sessions = await Session.find({ accountType, accountId, revokedAt: null, ...keep }, { _id: 1 }).lean<
     { _id: Types.ObjectId }[]
   >();
   const ids = sessions.map((session) => session._id);

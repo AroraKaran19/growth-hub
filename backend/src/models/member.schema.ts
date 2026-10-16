@@ -1,13 +1,9 @@
 import { Schema, model, type Types } from "mongoose";
 import type { AccountStatus } from "../types/auth";
+import { billingDetailsSchema, type BillingDetails } from "./billing.schema";
 
-/** Optional details for a company invoice; state is a GST state code. */
-export interface MemberBilling {
-  companyName: string | null;
-  gstin: string | null;
-  address: string | null;
-  state: string | null;
-}
+/** Saved company details that prefill checkout; each purchase keeps its own copy. */
+export type MemberBilling = BillingDetails;
 
 export interface MemberDoc {
   _id: Types.ObjectId;
@@ -33,11 +29,6 @@ export interface MemberDoc {
 
 const optionalText = { type: String, trim: true, default: null };
 
-const billingSchema = new Schema<MemberBilling>(
-  { companyName: optionalText, gstin: optionalText, address: optionalText, state: optionalText },
-  { _id: false },
-);
-
 const memberSchema = new Schema<MemberDoc>(
   {
     phoneE164: { type: String, required: true, unique: true },
@@ -54,7 +45,7 @@ const memberSchema = new Schema<MemberDoc>(
     workType: optionalText,
     preferredLocation: optionalText,
     billingEmail: { type: String, trim: true, lowercase: true, default: null },
-    billing: { type: billingSchema, default: undefined },
+    billing: { type: billingDetailsSchema, default: undefined },
   },
   { timestamps: true },
 );

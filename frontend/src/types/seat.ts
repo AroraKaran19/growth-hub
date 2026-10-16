@@ -25,7 +25,10 @@ export type Seat = {
   y: number;
   width: number;
   height: number;
+  /** Usable right now; booking screens check their own time window. */
   available: boolean;
+  /** Set only while out of service: an ISO instant, or null until turned back on. */
+  outUntil?: string | null;
   /** Rooms only: how many people it seats. */
   capacity?: number;
 };

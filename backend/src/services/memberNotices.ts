@@ -38,7 +38,7 @@ export const tellRenewalFailed = (membership: MembershipDoc) =>
   notifyMember("RENEWAL_FAILED", membership.memberId, {
     ref: membership.ref,
     venue: membership.venue.name,
-    link: membership.razorpay.shortUrl ?? "",
+    ...(membership.razorpay.shortUrl ? { link: membership.razorpay.shortUrl } : {}),
   });
 
 export const tellMembershipLapsed = (membership: MembershipDoc) =>

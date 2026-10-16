@@ -1,5 +1,6 @@
 import { Schema, model, type Types } from "mongoose";
 import { ADDON_UNITS, type AddonUnit } from "../constants/catalogue";
+import { billingDetailsSchema, type BillingDetails } from "./billing.schema";
 
 export const ADDON_ORDER_STATUSES = ["pending-payment", "paid", "cancelled", "expired"] as const;
 export type AddonOrderStatus = (typeof ADDON_ORDER_STATUSES)[number];
@@ -28,6 +29,8 @@ export interface AddonOrderDoc {
   holdCapAt: Date | null;
   payment: { orderId: string | null; paymentId: string | null; amount: number; capturedAt: Date | null } | null;
   invoiceNumber: string | null;
+  /** The company invoiced; null or absent invoices the member. */
+  billing?: BillingDetails | null;
   recordedBy: { id: string; name: string } | null;
   openRequestId: Types.ObjectId | null;
   /** When the venue became owed this; null while not payable. */
@@ -78,6 +81,7 @@ const addonOrderSchema = new Schema<AddonOrderDoc>(
       default: null,
     },
     invoiceNumber: { type: String, default: null },
+    billing: { type: billingDetailsSchema, default: null },
     recordedBy: { type: new Schema({ id: String, name: String }, { _id: false }), default: null },
     openRequestId: { type: Schema.Types.ObjectId, default: null },
     payableAt: { type: Date, default: null },

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import VenuePage from "../../(pages)/Venue/VenuePage";
 import { getPublishedVenues, getVenue } from "@/libs/api/venues";
+import { loadSeo, sharedOpenGraph } from "@/libs/seo";
 
 type VenueRouteProps = {
   params: Promise<{ slug: string }>;
@@ -12,13 +13,23 @@ export async function generateMetadata({
   params,
 }: VenueRouteProps): Promise<Metadata> {
   const { slug } = await params;
-  const venue = await getVenue(slug);
+  const [venue, { seo }] = await Promise.all([getVenue(slug), loadSeo()]);
 
   if (!venue) return { title: "Workspace not found" };
 
+  const title = `${venue.name}, ${venue.locality}`;
   return {
-    title: `${venue.name}, ${venue.locality}`,
+    title,
     description: venue.description,
+    alternates: { canonical: `/workspaces/${venue.slug}` },
+    openGraph: {
+      ...sharedOpenGraph(seo),
+      title,
+      description: venue.description,
+      url: `/workspaces/${venue.slug}`,
+      // The venue's own cover beats the site-wide share image when it has one.
+      ...(venue.image && { images: [{ url: venue.image, alt: venue.name }] }),
+    },
   };
 }
 

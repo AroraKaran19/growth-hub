@@ -1,11 +1,8 @@
 import type { Metadata } from "next";
+import { pageMetadata } from "@/libs/seo";
 import WorkspacesPage from "../(pages)/Workspaces/WorkspacesPage";
 
-export const metadata: Metadata = {
-  title: "Workspaces",
-  description:
-    "Browse coworking spaces, meeting rooms and private offices from Growth Hub partner venues across Bangalore.",
-};
+export const generateMetadata = (): Promise<Metadata> => pageMetadata("workspaces");
 
 export const revalidate = 300;
 

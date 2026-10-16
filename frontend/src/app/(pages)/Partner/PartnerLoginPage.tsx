@@ -4,9 +4,11 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Armchair, ScanLine, Users } from "lucide-react";
+import AuthBackdrop from "@/app/components/shared/AuthBackdrop";
 import StaffPasswordSignIn from "@/app/components/shared/StaffPasswordSignIn";
 import Logo from "@/app/components/ui/Logo";
 import { useAuthBootstrap } from "@/hooks/useAuthBootstrap";
+import type { SiteImage } from "@/types/homeContent";
 
 const HIGHLIGHTS = [
   {
@@ -48,14 +50,11 @@ const PartnerLoginForm = () => {
   );
 };
 
-const PartnerLoginPage = () => {
+const PartnerLoginPage = ({ image }: { image: SiteImage }) => {
   return (
     <div className="grid min-h-screen grid-cols-1 lg:grid-cols-2">
       <div className="relative hidden flex-col justify-between overflow-hidden bg-tertiary p-12 text-secondary lg:flex">
-        <div
-          aria-hidden="true"
-          className="cta-banner absolute -right-40 -top-40 size-128 rounded-full opacity-40 blur-3xl"
-        />
+        <AuthBackdrop image={image} glow="top-right" />
         <Link href="/" aria-label="Growth Hub home" className="relative w-fit">
           <Logo className="h-12 w-auto text-secondary" />
         </Link>

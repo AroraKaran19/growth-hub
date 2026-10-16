@@ -1,5 +1,6 @@
 "use client";
 
+import RequiredMark from "@/app/components/ui/form/RequiredMark";
 import type { TimeSlot } from "@/types/booking";
 import { cn } from "@/utils";
 
@@ -9,6 +10,7 @@ type TimeSlotGridProps = {
   onChange: (value: string) => void;
   title?: string;
   note?: string;
+  required?: boolean;
 };
 
 const LEGEND = [
@@ -17,10 +19,13 @@ const LEGEND = [
   { label: "Unavailable", className: "bg-tertiary/30" },
 ];
 
-const TimeSlotGrid = ({ slots, value, onChange, title = "Select Time", note }: TimeSlotGridProps) => {
+const TimeSlotGrid = ({ slots, value, onChange, title = "Select Time", note, required = false }: TimeSlotGridProps) => {
   return (
     <div className="rounded-2xl border border-tertiary/10 bg-secondary p-5 lg:p-6">
-      <h2 className="text-base font-bold text-tertiary">{title}</h2>
+      <h2 className="text-base font-bold text-tertiary">
+        {title}
+        {required && <RequiredMark />}
+      </h2>
       {note && <p className="mt-1 text-sm text-tertiary/60">{note}</p>}
 
       {slots.length === 0 && (

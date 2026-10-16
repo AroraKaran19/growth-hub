@@ -9,21 +9,23 @@ import { getSeatMap, listSeatMaps } from "../services/seatMap.service";
 import {
   assignSeatMap,
   createVenue,
+  endOutage,
   getAdminVenue,
   getPublicVenue,
   listAdminVenues,
   listPublishedVenues,
   patchVenue,
-  setOutOfService,
+  takeSeatOut,
   unassignSeatMap,
 } from "../services/venueCatalogue.service";
+import { listVenueStats } from "../services/venueStats.service";
 import { parseBody } from "../utils/validate";
 import {
   assignSeatMapSchema,
   labelSchema,
   createVenueSchema,
-  outOfServiceSchema,
   patchVenueSchema,
+  takeSeatOutSchema,
 } from "../validators/catalogue";
 
 export const actorOf = (req: Request): Actor => ({
@@ -43,6 +45,13 @@ export const getVenue = asyncHandler(async (req: Request, res: Response) => {
 
 export const getAdminVenues = asyncHandler(async (_req: Request, res: Response) => {
   sendSuccessResponse(res, { venues: await listAdminVenues() }, "Venues");
+});
+
+export const getVenueStats = asyncHandler(async (req: Request, res: Response) => {
+  const account = req.auth!.account;
+  // Takings are for whoever can already see payouts or reports.
+  const showsMoney = canAccess(account, "payouts") || canAccess(account, "reports");
+  sendSuccessResponse(res, await listVenueStats({ showsMoney }), "Venue stats");
 });
 
 export const postAdminVenue = asyncHandler(async (req: Request, res: Response) => {
@@ -81,11 +90,16 @@ export const deleteVenueSeatMap = asyncHandler(async (req: Request, res: Respons
   sendSuccessResponse(res, { venue }, "Seat map removed");
 });
 
-export const putOutOfService = asyncHandler(async (req: Request, res: Response) => {
-  const { seatIds } = parseBody(outOfServiceSchema, req.body);
-  const venue = await setOutOfService(slugOf(req), seatIds, actorOf(req));
+export const postOutage = asyncHandler(async (req: Request, res: Response) => {
+  const venue = await takeSeatOut(slugOf(req), parseBody(takeSeatOutSchema, req.body), actorOf(req));
   notifyVenuesChanged(venue.slug);
-  sendSuccessResponse(res, { venue }, "Availability saved");
+  sendSuccessResponse(res, { venue }, "Seat taken out of service");
+});
+
+export const deleteOutage = asyncHandler(async (req: Request, res: Response) => {
+  const venue = await endOutage(slugOf(req), String(req.params.seatId), actorOf(req));
+  notifyVenuesChanged(venue.slug);
+  sendSuccessResponse(res, { venue }, "Seat back in service");
 });
 
 export const getSeatMaps = asyncHandler(async (req: Request, res: Response) => {

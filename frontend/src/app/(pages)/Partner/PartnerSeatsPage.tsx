@@ -6,6 +6,7 @@ import { SEAT_TYPE_LABELS, type Seat } from "@/types/seat";
 import { cn } from "@/utils";
 import { formatDay } from "@/utils/date";
 import { scheduleLabel } from "@/utils/membershipLabels";
+import { outageEndLabel } from "@/utils/outages";
 import {
   BookingStatusBadge,
   CHECK_IN_BUTTON,
@@ -237,7 +238,7 @@ const PartnerSeatsPage = () => {
                 )}
                 {selectedState.status === "blocked" && (
                   <p className="rounded-lg bg-tertiary/4 px-3 py-2 text-sm text-tertiary/65">
-                    Out of service. Availability is managed in the admin panel.
+                    {outageEndLabel(selected.outUntil ?? null)}. Availability is managed in the admin panel.
                   </p>
                 )}
                 {selectedState.status === "held" && (

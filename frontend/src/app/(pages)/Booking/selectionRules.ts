@@ -5,12 +5,10 @@ import { SEAT_TYPE_LABELS, type SeatType } from "@/types/seat";
 import type { VenueDetail } from "@/types/venue";
 import { KEY_FROM_LENGTH, LENGTH_FROM_KEY, isTimeSlotPlan, pricedLengths } from "@/utils/plans";
 import { toMinutes, toMinutes24 } from "@/utils/time";
+import { hoursOn, isOpenOn, sharedHours, type OpeningHours } from "@/utils/venueHours";
 import { isOffered, type PricedVenue } from "./pricing";
 
-type FittingVenue = Pick<
-  VenueDetail,
-  "startingPrice" | "halfDayPrice" | "dayPassPrice" | "openDays" | "opensAt" | "closesAt" | "addons" | "seatMap"
->;
+type FittingVenue = Pick<VenueDetail, "startingPrice" | "halfDayPrice" | "dayPassPrice" | "hours" | "addons" | "seatMap">;
 
 type OfferingVenue = PricedVenue & Pick<VenueDetail, "seatMap">;
 
@@ -35,17 +33,28 @@ export const durationMinutesFor = (selection: Pick<BookingSelection, "bookingTyp
   return null;
 };
 
-const fitsHours = (time: string, duration: number, venue: Pick<FittingVenue, "opensAt" | "closesAt">) => {
+/** The length today must still fit: the pass or room slot, null for a whole day. */
+export const saleMinutesFor = (
+  selection: Pick<BookingSelection, "bookingType" | "hours">,
+  plan: Pick<VenuePlan, "roomMode" | "slotHours"> | null,
+) => {
+  if (!plan) return durationMinutesFor(selection);
+  return isTimeSlotPlan(plan) ? (plan.slotHours ?? 0) * 60 : null;
+};
+
+/** A start that runs past closing on the day it is for no longer fits; no hours means nothing fits. */
+const fitsHours = (time: string, duration: number, hours: OpeningHours | null) => {
   const start = toMinutes(time);
-  const opens = toMinutes24(venue.opensAt);
-  const closes = toMinutes24(venue.closesAt);
-  if (start === null || opens === null || closes === null) return true;
+  if (start === null) return true;
+  const opens = hours ? toMinutes24(hours.opensAt) : null;
+  const closes = hours ? toMinutes24(hours.closesAt) : null;
+  if (opens === null || closes === null) return false;
   return start >= opens && start + duration <= closes;
 };
 
 const startFits = (selection: BookingSelection, venue: FittingVenue) => {
   const duration = durationMinutesFor(selection);
-  return duration === null || fitsHours(selection.time, duration, venue);
+  return duration === null || fitsHours(selection.time, duration, hoursOn(venue.hours, selection.date));
 };
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
@@ -92,7 +101,9 @@ export const fitSelectionToPlan = (selection: BookingSelection, plan: VenuePlan,
 
   const date = selection.date && !isOpenDay(plan.days, selection.date) ? "" : selection.date;
   const time =
-    date && isTimeSlotPlan(plan) && fitsHours(selection.time, (plan.slotHours ?? 0) * 60, venue) ? selection.time : "";
+    date && isTimeSlotPlan(plan) && fitsHours(selection.time, (plan.slotHours ?? 0) * 60, sharedHours(venue.hours, plan.days))
+      ? selection.time
+      : "";
 
   const unchanged =
     bookingType === selection.bookingType &&
@@ -137,7 +148,7 @@ export const fitSelectionToVenue = (
   const seats = venue.seatMap?.seats ?? [];
   const seatIds = selection.seatIds.filter((id) => seats.some((seat) => seat.id === id && seat.type === spaceType));
 
-  const date = selection.date && !isOpenDay(venue.openDays, selection.date) ? "" : selection.date;
+  const date = selection.date && !isOpenOn(venue.hours, selection.date) ? "" : selection.date;
   const time = !date || !startFits({ ...selection, bookingType }, venue) ? "" : selection.time;
   const hasHolders = Object.keys(selection.holders).length > 0;
 

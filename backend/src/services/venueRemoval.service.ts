@@ -1,4 +1,5 @@
 import { Types } from "mongoose";
+import { PURCHASE_PATHS } from "../constants/notifications";
 import { AppError } from "../middlewares/error.middleware";
 import {
   AddonOrder,
@@ -23,6 +24,7 @@ import {
 } from "../models";
 import { addDays, indiaNow } from "../utils/indiaTime";
 import { notifyMember } from "./notify.service";
+import { siteLink } from "../utils/siteLink";
 import { markPayable } from "./payable.service";
 import { generateStatements, monthBounds } from "./payout.service";
 import { cancelSubscription } from "./razorpay.service";
@@ -196,6 +198,7 @@ export const deleteVenue = async (slug: string, reason: string, by: Byline) => {
       venue: venue.name,
       reason,
       amount: item.suggested === null ? "to be confirmed" : rupees(item.suggested),
+      link: siteLink(PURCHASE_PATHS[item.kind]),
     });
   }
   return { refunds: affected.length, finalStatementId: final?.id ?? null };

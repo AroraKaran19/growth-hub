@@ -1,9 +1,15 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { CircleCheck } from "lucide-react";
+import { ArrowRight, CircleCheck } from "lucide-react";
+import RequiredMark from "@/app/components/ui/form/RequiredMark";
 import SelectField from "@/app/components/ui/form/SelectField";
+import { readApiError } from "@/libs/api/errors";
+import { raiseGuestRequest } from "@/libs/api/support";
+import { useSession } from "@/stores/session";
+import { SUPPORT_LIMITS } from "@/types/support";
 import { cn } from "@/utils";
 
 export const CONTACT_TOPICS = [
@@ -26,20 +32,27 @@ type Values = {
 type Errors = Partial<Record<keyof Values, string>>;
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-const MIN_MESSAGE = 20;
+const MOBILE_PATTERN = /^[6-9]\d{9}$/;
+const MAX_NAME = 80;
+const { messageMin: MIN_MESSAGE, messageMax: MAX_MESSAGE } = SUPPORT_LIMITS;
 
 const validate = (values: Values): Errors => {
   const errors: Errors = {};
-  if (values.name.trim().length < 2) errors.name = "Enter your name.";
+  const name = values.name.trim().length;
+  if (name < 2) errors.name = "Enter your name.";
+  else if (name > MAX_NAME) errors.name = `Keep the name under ${MAX_NAME} characters.`;
   if (!EMAIL_PATTERN.test(values.email.trim())) {
     errors.email = "Enter a valid email address, like name@example.com.";
   }
-  if (values.phone && values.phone.length !== 10) {
+  if (values.phone && !MOBILE_PATTERN.test(values.phone)) {
     errors.phone = "Enter a 10-digit mobile number, or leave it blank.";
   }
   if (!values.topic) errors.topic = "Choose what this is about.";
-  if (values.message.trim().length < MIN_MESSAGE) {
+  const message = values.message.trim().length;
+  if (message < MIN_MESSAGE) {
     errors.message = `Tell us a little more (at least ${MIN_MESSAGE} characters).`;
+  } else if (message > MAX_MESSAGE) {
+    errors.message = "Keep the message under 2,000 characters.";
   }
   return errors;
 };
@@ -63,24 +76,43 @@ const ContactForm = () => {
     message: area ? `I would like a Growth Hub workspace in ${area}. ` : "",
   }));
   const [errors, setErrors] = useState<Errors>({});
+  const [formError, setFormError] = useState<string | null>(null);
+  const [isSending, setIsSending] = useState(false);
   const [reference, setReference] = useState<string | null>(null);
+  const { session } = useSession();
 
   const set = (key: keyof Values, value: string) => {
     setValues((current) => ({ ...current, [key]: value }));
     if (errors[key]) setErrors((current) => ({ ...current, [key]: undefined }));
   };
 
-  const handleSubmit = (event: FormEvent) => {
+  const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     const found = validate(values);
     setErrors(found);
+    setFormError(null);
     if (Object.keys(found).length > 0) {
       const first = Object.keys(found)[0];
       document.getElementById(`contact-${first}`)?.focus();
       return;
     }
-    // MOCK: no enquiries API yet, so the message only gets a reference.
-    setReference(`GH-${String(Date.now()).slice(-6)}`);
+    setIsSending(true);
+    try {
+      const { ref } = await raiseGuestRequest({
+        name: values.name.trim(),
+        email: values.email.trim(),
+        phone: values.phone,
+        topic: values.topic,
+        message: values.message.trim(),
+      });
+      setReference(ref);
+    } catch (caught) {
+      const problem = readApiError(caught);
+      setErrors(problem.fields as Errors);
+      setFormError(Object.keys(problem.fields).length ? null : problem.message);
+    } finally {
+      setIsSending(false);
+    }
   };
 
   if (reference) {
@@ -134,10 +166,21 @@ const ContactForm = () => {
         Every field is required except your phone number.
       </p>
 
+      {session && (
+        <Link
+          href="/support#raise"
+          className="group mt-4 flex items-center justify-between gap-3 rounded-xl bg-primary/6 px-4 py-3 text-sm text-tertiary ring-1 ring-primary/15 transition-colors hover:bg-primary/10"
+        >
+          <span>You&apos;re signed in. Raise a support request instead to attach screenshots and track replies.</span>
+          <ArrowRight aria-hidden="true" className="size-4 shrink-0 text-primary transition-transform group-hover:translate-x-0.5 motion-reduce:transition-none" />
+        </Link>
+      )}
+
       <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2">
         <div>
           <label htmlFor="contact-name" className={LABEL}>
             Name
+            <RequiredMark />
           </label>
           <input
             id="contact-name"
@@ -146,6 +189,7 @@ const ContactForm = () => {
             placeholder="Your name"
             value={values.name}
             onChange={(event) => set("name", event.target.value)}
+            aria-required="true"
             aria-invalid={Boolean(errors.name)}
             aria-describedby={errors.name ? "contact-name-error" : undefined}
             className={fieldClass("name")}
@@ -156,6 +200,7 @@ const ContactForm = () => {
         <div>
           <label htmlFor="contact-email" className={LABEL}>
             Email
+            <RequiredMark />
           </label>
           <input
             id="contact-email"
@@ -165,6 +210,7 @@ const ContactForm = () => {
             placeholder="Your email"
             value={values.email}
             onChange={(event) => set("email", event.target.value)}
+            aria-required="true"
             aria-invalid={Boolean(errors.email)}
             aria-describedby={errors.email ? "contact-email-error" : undefined}
             className={fieldClass("email")}
@@ -202,6 +248,7 @@ const ContactForm = () => {
             onChange={(value) => set("topic", value)}
             options={CONTACT_TOPICS}
             placeholder="Choose a topic"
+            required
           />
           {errorText("topic")}
         </div>
@@ -209,6 +256,7 @@ const ContactForm = () => {
         <div className="sm:col-span-2">
           <label htmlFor="contact-message" className={LABEL}>
             Message
+            <RequiredMark />
           </label>
           <textarea
             id="contact-message"
@@ -217,6 +265,7 @@ const ContactForm = () => {
             placeholder="How can we help?"
             value={values.message}
             onChange={(event) => set("message", event.target.value)}
+            aria-required="true"
             aria-invalid={Boolean(errors.message)}
             aria-describedby={errors.message ? "contact-message-error" : undefined}
             className={cn(fieldClass("message"), "resize-y")}
@@ -225,11 +274,18 @@ const ContactForm = () => {
         </div>
       </div>
 
+      {formError && (
+        <p role="alert" className="mt-5 rounded-lg bg-primary/8 px-4 py-3 text-sm text-tertiary">
+          {formError}
+        </p>
+      )}
+
       <button
         type="submit"
-        className="cta-gradient mt-6 w-full rounded-lg px-6 py-3 text-sm font-medium text-secondary transition-opacity hover:opacity-90 sm:w-auto"
+        disabled={isSending}
+        className="cta-gradient mt-6 w-full rounded-lg px-6 py-3 text-sm font-medium text-secondary transition-opacity hover:opacity-90 disabled:opacity-60 sm:w-auto"
       >
-        Send message
+        {isSending ? "Sending..." : "Send message"}
       </button>
     </form>
   );

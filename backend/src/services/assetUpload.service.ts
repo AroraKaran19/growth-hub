@@ -20,6 +20,7 @@ const KEY_BUILDERS: Record<AssetKind, (ownerId: string, extension: string) => st
   category: (id, ext) => `categories/${id}.${ext}`,
   site: (id, ext) => `site/${id}.${ext}`,
   landing: (id, ext) => `landing/${id}/${crypto.randomUUID()}.${ext}`,
+  support: (id, ext) => `support/${id}/${crypto.randomUUID()}.${ext}`,
 };
 
 export const extensionFor = (contentType: string): string | null =>

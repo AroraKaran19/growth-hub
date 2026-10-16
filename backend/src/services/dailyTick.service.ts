@@ -9,13 +9,13 @@ export const runFrequentTick = async (now: Date) => ({
   expired: await expireLapsedBookings(now),
   finished: await finishPastBookings(now),
   expiredMemberships: await expireLapsedMemberships(now),
+  endedMemberships: await endStoppedMemberships(now),
   ...(await runAddonOrderTick(now)),
   payable: await markPayable(now),
 });
 
 /** Once a day: work tied to calendar days, and last month's statements once cancellations have settled. */
 export const runDailyTick = async (now: Date) => ({
-  endedMemberships: await endStoppedMemberships(now),
   extendedMemberships: await extendRenewingReservations(now),
   removedSeatDays: await removeOldSeatDays(now),
   ...(await draftLastMonth(now)),

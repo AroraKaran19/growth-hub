@@ -1,15 +1,15 @@
 import type { ClientSession, Types } from "mongoose";
 import { gstStateName } from "../constants/gstStates";
-import { InvoiceJob, Member, type BilledTo, type InvoiceSourceKind, type MemberDoc } from "../models";
+import { InvoiceJob, Member, type BilledTo, type BillingDetails, type InvoiceSourceKind, type MemberDoc } from "../models";
 import { nextInvoiceNumber } from "./invoiceNumber.service";
 
-const billedToFrom = (member: MemberDoc): BilledTo => {
-  const state = member.billing?.state ?? null;
+const billedToFrom = (member: MemberDoc, company: BillingDetails | null): BilledTo => {
+  const state = company?.state ?? null;
   return {
     name: member.name ?? null,
-    companyName: member.billing?.companyName ?? null,
-    gstin: member.billing?.gstin ?? null,
-    address: member.billing?.address ?? null,
+    companyName: company?.companyName ?? null,
+    gstin: company?.gstin ?? null,
+    address: company?.address ?? null,
     state: gstStateName(state),
     stateCode: state,
     email: member.billingEmail ?? member.email ?? null,
@@ -24,10 +24,11 @@ export const issueInvoice = async (
   memberId: Types.ObjectId,
   date: string,
   session: ClientSession,
+  company: BillingDetails | null = null,
 ) => {
   const invoiceNumber = await nextInvoiceNumber(date, session);
   const member = await Member.findById(memberId).session(session).lean<MemberDoc>();
-  const billedTo = member ? billedToFrom(member) : undefined;
+  const billedTo = member ? billedToFrom(member, company) : undefined;
   await InvoiceJob.create([{ source: { kind, id }, memberId, invoiceNumber, billedTo }], { session });
   return invoiceNumber;
 };

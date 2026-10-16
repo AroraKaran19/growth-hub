@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import mongoose, { Types, type ClientSession } from "mongoose";
 import { REASON_LABELS, type CancellationReason, type RequestKind, type RequestStatus } from "../constants/cancellation";
+import { PURCHASE_PATHS } from "../constants/notifications";
 import { AppError } from "../middlewares/error.middleware";
 import {
   AddonOrder,
@@ -19,6 +20,7 @@ import { isRef } from "../utils/refs";
 import { effectiveStatus } from "./bookingRules";
 import { effectiveMembershipStatus } from "./membershipView";
 import { notifyMember, notifyVenueStaff } from "./notify.service";
+import { siteLink } from "../utils/siteLink";
 import { cancelSubscription } from "./razorpay.service";
 import { releaseDays, releaseRanges } from "./seatDays.service";
 import { findMembers } from "./accountSnapshot.service";
@@ -237,8 +239,16 @@ const tellVenue = (view: RequestView) =>
     venue: view.venue.name,
     starts: indiaLabel(new Date(view.startsAt)),
     reason: REASON_LABELS[view.reason],
-    details: view.details,
+    details: view.details || "No details given.",
   });
+
+// Email templates can't branch, so the outcome arrives as finished sentences.
+const refundLine = (view: RequestView) => {
+  if (view.status !== "approved") return "Your booking stays as it is, so nothing is refunded.";
+  return view.refundAmount
+    ? `A refund of ${rupees(view.refundAmount)} is on its way to your original payment method.`
+    : "This cancellation carries no refund.";
+};
 
 const tellMember = (request: CancellationRequestDoc, view: RequestView) =>
   notifyMember("CANCELLATION_DECIDED", request.memberId, {
@@ -247,7 +257,9 @@ const tellMember = (request: CancellationRequestDoc, view: RequestView) =>
     venue: view.venue.name,
     outcome: view.status === "approved" ? "approved" : "declined",
     amount: rupees(view.refundAmount ?? 0),
-    note: view.decisionNote,
+    refund: refundLine(view),
+    note: view.decisionNote || "No note was added.",
+    link: siteLink(PURCHASE_PATHS[view.kind]),
   });
 
 const reload = async (id: Types.ObjectId) => (await CancellationRequest.findById(id).lean<CancellationRequestDoc>())!;

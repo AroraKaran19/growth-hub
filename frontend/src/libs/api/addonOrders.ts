@@ -3,6 +3,7 @@
 import { authStoreFor } from "@/stores/auth";
 import type { ApiAddonOrder, DeskAddonTarget } from "@/types/addonOrder";
 import type { ApiCheckout } from "@/types/apiBooking";
+import type { CompanyBillingInput } from "@/utils/companyInvoice";
 import { adminApi, memberApi, partnerApi } from "./client";
 
 type Envelope<T> = { data: { data: T } };
@@ -10,7 +11,11 @@ type Envelope<T> = { data: { data: T } };
 const data = async <T>(request: Promise<unknown>) => ((await request) as Envelope<T>).data.data;
 const orderOf = async (request: Promise<unknown>) => (await data<{ order: ApiAddonOrder }>(request)).order;
 
-export const createAddonOrder = (membershipRef: string, body: { dates: string[]; addonKeys: string[] }, requestKey: string) =>
+export const createAddonOrder = (
+  membershipRef: string,
+  body: { dates: string[]; addonKeys: string[]; billing: CompanyBillingInput | null },
+  requestKey: string,
+) =>
   data<{ order: ApiAddonOrder; checkout: ApiCheckout | null }>(
     memberApi.post(`/memberships/${membershipRef}/addon-orders`, body, { headers: { "Idempotency-Key": requestKey } }),
   );

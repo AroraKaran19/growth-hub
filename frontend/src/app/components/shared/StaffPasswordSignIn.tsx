@@ -4,11 +4,14 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, KeyRound, MailCheck } from "lucide-react";
 import PasswordInput from "@/app/components/ui/form/PasswordInput";
+import RequiredMark from "@/app/components/ui/form/RequiredMark";
 import { publicApi } from "@/libs/api/client";
 import { readApiError } from "@/libs/api/errors";
 import { authErrorMessage, readAuthError } from "@/libs/auth/errors";
+import { adminDestination } from "@/config/adminPermissions";
 import { changePasswordThroughRelay, signInThroughRelay } from "@/libs/auth/requests";
-import { useAuthStore } from "@/stores/auth";
+import { authStoreFor, useAuthStore } from "@/stores/auth";
+import type { AuthAccount } from "@/types/auth";
 import { cn } from "@/utils";
 import { passwordProblem } from "@/utils/password";
 
@@ -47,8 +50,13 @@ const StaffPasswordSignIn = ({ surface, next }: StaffPasswordSignInProps) => {
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [busy, setBusy] = useState(false);
 
+  // Admins land on a page they may open, so a partial permission set never bounces twice.
+  const destination = (signedIn: AuthAccount | null = authStoreFor(surface).getState().account) =>
+    signedIn?.type === "admin" ? adminDestination(signedIn, next) : next;
+
   useEffect(() => {
-    if (status === "authenticated" && account) router.replace(next);
+    if (status !== "authenticated" || !account) return;
+    router.replace(account.type === "admin" ? adminDestination(account, next) : next);
   }, [status, account, next, router]);
 
   useEffect(() => {
@@ -72,7 +80,7 @@ const StaffPasswordSignIn = ({ surface, next }: StaffPasswordSignInProps) => {
     setError(null);
     try {
       applySignIn(await signInThroughRelay(surface, { email: email.trim(), password }));
-      router.replace(next);
+      router.replace(destination());
     } catch (caught) {
       const info = readAuthError(caught);
       if (info.code === "PASSWORD_CHANGE_REQUIRED") goTo("change");
@@ -91,7 +99,7 @@ const StaffPasswordSignIn = ({ surface, next }: StaffPasswordSignInProps) => {
     setError(null);
     try {
       applySignIn(await changePasswordThroughRelay(surface, { email: email.trim(), password, newPassword }));
-      router.replace(next);
+      router.replace(destination());
     } catch (caught) {
       setError(authErrorMessage(readAuthError(caught)));
     } finally {
@@ -147,6 +155,7 @@ const StaffPasswordSignIn = ({ surface, next }: StaffPasswordSignInProps) => {
     <div>
       <label htmlFor={`${surface}-email`} className="mb-1.5 block text-sm font-medium text-tertiary">
         Work email
+        <RequiredMark />
       </label>
       <input
         id={`${surface}-email`}
@@ -160,6 +169,7 @@ const StaffPasswordSignIn = ({ surface, next }: StaffPasswordSignInProps) => {
           setEmail(event.target.value);
           setError(null);
         }}
+        aria-required="true"
         aria-invalid={Boolean(error)}
         className={cn(INPUT, error ? "border-primary" : "border-tertiary/20 hover:border-tertiary/35")}
       />
@@ -187,6 +197,7 @@ const StaffPasswordSignIn = ({ surface, next }: StaffPasswordSignInProps) => {
                 autoComplete="current-password"
                 placeholder="Your password"
                 invalid={Boolean(error)}
+                required
               />
               <div className="mt-2 flex justify-end">
                 <button type="button" onClick={() => goTo("forgot")} className={QUIET_LINK}>
@@ -225,6 +236,7 @@ const StaffPasswordSignIn = ({ surface, next }: StaffPasswordSignInProps) => {
               hint="At least 10 characters. A short phrase works well."
               invalid={Boolean(error)}
               autoFocus
+              required
             />
             <PasswordInput
               id={`${surface}-confirm-password`}
@@ -236,6 +248,7 @@ const StaffPasswordSignIn = ({ surface, next }: StaffPasswordSignInProps) => {
               }}
               autoComplete="new-password"
               invalid={Boolean(error)}
+              required
             />
             <button type="submit" disabled={busy} className={cn(PRIMARY_BUTTON, "mt-2")}>
               {busy ? "Saving..." : "Save and sign in"}

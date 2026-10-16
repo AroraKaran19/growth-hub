@@ -2,21 +2,17 @@ import { HALF_DAY_HOURS } from "@/data/bookingOptions";
 import type { BookingRequest } from "@/types/apiBooking";
 import { isMembershipType, type BookingSelection, type PassType } from "@/types/booking";
 import type { MembershipRequest, VenuePlan } from "@/types/membership";
+import { billingInputFrom } from "@/utils/companyInvoice";
 import { KEY_FROM_LENGTH, isTimeSlotPlan } from "@/utils/plans";
 import { formatDay } from "@/utils/date";
-import { toMinutes, toMinutes24 } from "@/utils/time";
+import { toMinutes } from "@/utils/time";
+import { hoursOn, windowOfHours, type DayHours } from "@/utils/venueHours";
 import type { PaymentFailure } from "./components/PaymentFailed";
 
-type Hours = { opensAt: string; closesAt: string };
-
-/** The minutes a pass occupies on its day, or null until it is scheduled. */
-export const windowOf = (selection: BookingSelection, venue: Hours) => {
+/** The minutes a pass occupies on its day, or null until it is scheduled; a whole day takes that day's hours. */
+export const windowOf = (selection: BookingSelection, venue: { hours: DayHours[] }) => {
   if (!selection.date) return null;
-  if (selection.bookingType === "full-day") {
-    const start = toMinutes24(venue.opensAt);
-    const end = toMinutes24(venue.closesAt);
-    return start === null || end === null ? null : { start, end };
-  }
+  if (selection.bookingType === "full-day") return windowOfHours(hoursOn(venue.hours, selection.date));
   const start = toMinutes(selection.time);
   if (start === null) return null;
   const hours = selection.bookingType === "hourly" ? selection.hours : HALF_DAY_HOURS;
@@ -37,7 +33,7 @@ export const requestFrom = (selection: BookingSelection, venueSlug: string): Boo
     seatIds: selection.seatIds,
     addonKeys: selection.addOns,
     preference: selection.preference,
-    companyName: selection.companyName.trim(),
+    billing: billingInputFrom(selection.invoice),
   };
 };
 
@@ -87,8 +83,13 @@ export const rupees = (paise: number) => {
 };
 
 /** Where an unfinished checkout should send the customer, or null when it can go ahead. */
-export const checkoutStepFor = (state: { isConfigured: boolean; isScheduled: boolean; isSeatingComplete: boolean }) => {
-  if (!state.isConfigured || !state.isScheduled) return "book" as const;
+export const checkoutStepFor = (state: {
+  isConfigured: boolean;
+  isScheduled: boolean;
+  isSeatingComplete: boolean;
+  isInvoiceReady: boolean;
+}) => {
+  if (!state.isConfigured || !state.isScheduled || !state.isInvoiceReady) return "book" as const;
   if (!state.isSeatingComplete) return "seats" as const;
   return null;
 };

@@ -30,6 +30,9 @@ export const ADDON_UNIT_LABELS: Record<AddonUnit, string> = {
   "per-day": "Per day",
 };
 
+/** One weekday's opening range; weekdays left out are closed. 0 is Sunday; times are "HH:MM". */
+export type DayHours = { day: number; opensAt: string; closesAt: string };
+
 /** A venue as the API returns it, public fields only. */
 export type ApiVenue = {
   id: string;
@@ -50,11 +53,10 @@ export type ApiVenue = {
   distanceKm: number;
   description: string;
   longDescription: string;
-  openDays: number[];
-  opensAt: string;
-  closesAt: string;
-  openHours: string;
-  openDaysLabel: string;
+  /** Open weekdays only, in weekday order. */
+  hours: DayHours[];
+  /** Such as "Mon to Fri 8:00 AM to 8:00 PM, Sat and Sun closed". */
+  hoursSummary: string;
   hoursNote: string;
   googleMapsUrl: string;
   rules: string[];
@@ -88,17 +90,38 @@ export type AdminVenueAddon = VenueAddonOffer & { enabled: boolean; active: bool
 
 export type AdminSeatMap = { id: string; name: string; image: string; seatCount: number; seats: ApiSeat[] };
 
+/** A seat out of service; a null end lasts until someone turns it back on. ISO instants. */
+export type SeatOutage = { seatId: string; startsAt: string; endsAt: string | null };
+
+export type OutageDuration = { kind: "hours"; hours: number } | { kind: "days"; until: string } | { kind: "open" };
+
 export type AdminVenue = ApiVenue & {
   version: number;
-  outOfServiceSeatIds: string[];
+  /** Only outages that have not ended. */
+  outages: SeatOutage[];
   addons: AdminVenueAddon[];
   seatMap: AdminSeatMap | null;
 };
 
-export type AdminVenueRow = ApiVenue & {
-  version: number;
-  seatMap: { id: string; name: string; seatCount: number } | null;
+export type AdminVenueRow = ApiVenue & { version: number };
+
+export type VenueHealthFlag = "no-bank-details" | "no-map" | "placeholder-map" | "no-prices" | "all-out-of-service";
+
+/** Every desk or room counts as one unit; money in paise. */
+export type VenueStats = {
+  slug: string;
+  capacity: { byType: Record<SeatType, number>; total: number; outOfService: number; usable: number };
+  /** freeNow is null outside today's opening hours. */
+  today: { open: boolean; taken: number; freeNow: number | null };
+  /** The seven days after today; average covers open days only. */
+  week: { average: number | null; days: { date: string; open: boolean; taken: number }[] };
+  health: VenueHealthFlag[];
+  activeMembers: number;
+  /** Only sent to admins who can open payouts or reports. */
+  collected?: number;
 };
+
+export type VenueStatsResponse = { date: string; showsMoney: boolean; venues: VenueStats[] };
 
 export type SeatMapSummary = {
   id: string;
@@ -119,22 +142,4 @@ export type AddonTypeView = {
   unit: AddonUnit;
   active: boolean;
   sortOrder: number;
-};
-
-export type CatalogueOverview = {
-  total: number;
-  published: number;
-  seatsListed: number;
-  liveCoupons: number;
-  hidden: { slug: string; name: string }[];
-  outOfService: { slug: string; name: string; count: number }[];
-};
-
-/** Money in paise. */
-export type OperationsOverview = {
-  today: { bookings: number; checkIns: number; walkIns: number; requestsWaiting: number; oldestRequestAt: string | null };
-  monthToDate: { collected: number; newMemberships: number; lapses: number };
-  attention: { pastDue: number; staleRequests: number; unpaidStatements: number; venuesWithoutBankDetails: number };
-  /** The last 30 India days, oldest first. */
-  trend: { date: string; collected: number; bookings: number }[];
 };

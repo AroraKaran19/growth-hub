@@ -6,6 +6,7 @@ import { escapeRegex } from "../utils/regex";
 import type { ListUsersQuery, UpdateCustomerInput, UserKind } from "../validators/users";
 import { keepSnapshot } from "./accountSnapshot.service";
 import { stopRenewalOf } from "./membership.service";
+import { withLoginStatus } from "./partnerAccount.service";
 import { lastActiveAt, revokeAccountSessions } from "./session.service";
 
 export const USERS_PAGE_SIZE = 20;
@@ -162,7 +163,7 @@ export const listUsers = async ({ kind, status, q, page }: ListUsersQuery) => {
   ]);
   return {
     users,
-    venues,
+    venues: await withLoginStatus(venues),
     counts,
     total: result.total[0]?.n ?? 0,
     page,

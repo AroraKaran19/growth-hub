@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { MessageSquareText, X } from "lucide-react";
+import RequiredMark from "@/app/components/ui/form/RequiredMark";
 import { readApiError } from "@/libs/api/errors";
 import { CUSTOMER_REASONS, REASON_LABELS, type CustomerReason } from "@/types/cancellation";
 import { cn } from "@/utils";
@@ -75,8 +76,11 @@ const CancelRequestModal = ({ subject, venueName, onClose, onSubmit }: CancelReq
         </div>
 
         <div className="flex flex-col gap-5 p-6">
-          <fieldset>
-            <legend className="text-sm font-medium text-tertiary">Why do you want to cancel?</legend>
+          <fieldset aria-required="true">
+            <legend className="text-sm font-medium text-tertiary">
+              Why do you want to cancel?
+              <RequiredMark />
+            </legend>
             <div className="mt-3 flex flex-wrap gap-2">
               {CUSTOMER_REASONS.map((option) => (
                 <button
@@ -102,7 +106,7 @@ const CancelRequestModal = ({ subject, venueName, onClose, onSubmit }: CancelReq
 
           <div>
             <label htmlFor="cancel-details" className="text-sm font-medium text-tertiary">
-              Anything the venue should know {reason === "other" ? "" : "(optional)"}
+              Anything the venue should know{reason === "other" ? <RequiredMark /> : " (optional)"}
             </label>
             <textarea
               id="cancel-details"
@@ -114,6 +118,7 @@ const CancelRequestModal = ({ subject, venueName, onClose, onSubmit }: CancelReq
                 setError(null);
               }}
               placeholder="A few words help the venue decide"
+              aria-required={reason === "other" || undefined}
               className="mt-2 w-full resize-none rounded-lg border border-tertiary/15 bg-secondary px-3 py-2.5 text-sm text-tertiary outline-none transition-colors hover:border-tertiary/30 focus-visible:border-primary"
             />
             <p className="mt-1 text-right text-xs text-tertiary/45">

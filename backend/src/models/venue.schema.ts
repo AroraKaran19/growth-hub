@@ -21,6 +21,12 @@ export type PayoutAccount = {
 
 export type VenueAddonPrice = { addonTypeId: Types.ObjectId; price: number; enabled: boolean };
 
+/** A seat taken out of service; a null end lasts until someone turns it back on. */
+export type VenueOutage = { seatId: string; startsAt: Date; endsAt: Date | null };
+
+/** One weekday's opening range; weekdays left out are closed. 0 is Sunday. */
+export type DayHours = { day: number; opensAt: string; closesAt: string };
+
 export interface VenueDoc {
   _id: Types.ObjectId;
   slug: string;
@@ -31,6 +37,7 @@ export interface VenueDoc {
   image: string;
   gallery: string[];
   rating: number;
+  /** Seats on the assigned map; listings subtract the seats out of service right now. */
   seatsAvailable: number;
   /** Rupees per hour; null when the venue doesn't sell hourly passes. Each price is set by a person, never derived. */
   startingPrice: number | null;
@@ -40,10 +47,8 @@ export interface VenueDoc {
   distanceKm: number;
   description: string;
   longDescription: string;
-  openDays: number[];
-  opensAt: string;
-  closesAt: string;
-  openDaysLabel: string;
+  /** Open weekdays only, in weekday order. */
+  hours: DayHours[];
   hoursNote: string;
   googleMapsUrl: string;
   rules: string[];
@@ -53,7 +58,8 @@ export interface VenueDoc {
   amenities: string[];
   addons: VenueAddonPrice[];
   published: boolean;
-  outOfServiceSeatIds: string[];
+  /** Ended ones stop applying on their own and are pruned on the next write. */
+  outages: VenueOutage[];
   /** Where payouts go; the account number is sealed with PAYOUT_ENCRYPTION_KEY. */
   payoutAccount: PayoutAccount | null;
   createdBy: Actor | null;
@@ -94,6 +100,24 @@ const addonPriceSchema = new Schema<VenueAddonPrice>(
   { _id: false },
 );
 
+const dayHoursSchema = new Schema<DayHours>(
+  {
+    day: { type: Number, required: true, min: 0, max: 6 },
+    opensAt: { type: String, required: true },
+    closesAt: { type: String, required: true },
+  },
+  { _id: false },
+);
+
+const outageSchema = new Schema<VenueOutage>(
+  {
+    seatId: { type: String, required: true },
+    startsAt: { type: Date, required: true },
+    endsAt: { type: Date, default: null },
+  },
+  { _id: false },
+);
+
 const venueSchema = new Schema<VenueDoc>(
   {
     slug: { type: String, required: true, unique: true, trim: true, lowercase: true },
@@ -112,10 +136,7 @@ const venueSchema = new Schema<VenueDoc>(
     distanceKm: { type: Number, default: 0 },
     description: { type: String, default: "" },
     longDescription: { type: String, default: "" },
-    openDays: { type: [Number], default: [] },
-    opensAt: { type: String, default: "" },
-    closesAt: { type: String, default: "" },
-    openDaysLabel: { type: String, default: "" },
+    hours: { type: [dayHoursSchema], default: [] },
     hoursNote: { type: String, default: "" },
     googleMapsUrl: { type: String, default: "" },
     rules: { type: [String], default: [] },
@@ -124,7 +145,7 @@ const venueSchema = new Schema<VenueDoc>(
     amenities: { type: [String], default: [] },
     addons: { type: [addonPriceSchema], default: [] },
     published: { type: Boolean, default: false },
-    outOfServiceSeatIds: { type: [String], default: [] },
+    outages: { type: [outageSchema], default: [] },
     payoutAccount: { type: payoutAccountSchema, default: null },
     createdBy: { type: actorSchema, default: null },
     updatedBy: { type: actorSchema, default: null },

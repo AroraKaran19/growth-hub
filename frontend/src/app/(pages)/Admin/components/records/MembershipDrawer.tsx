@@ -5,6 +5,7 @@ import { useAdminMembership } from "@/hooks/useStaffBookings";
 import { stopRenewalAsAdmin } from "@/libs/api/adminRecords";
 import { readApiError } from "@/libs/api/errors";
 import { MEMBERSHIP_STATUS_LABELS, isLiveMembership } from "@/types/membership";
+import { invoiceToLabel } from "@/utils/companyInvoice";
 import { formatDay } from "@/utils/date";
 import { cycleUnit, membershipTitle, scheduleLabel, spaceName } from "@/utils/membershipLabels";
 import { rupees } from "../../../Partner/requestRules";
@@ -119,6 +120,10 @@ const MembershipDrawer = ({
             <div className="col-span-2">
               <dt className="text-xs text-tertiary/50">Paid in total</dt>
               <dd className="mt-1 text-sm font-semibold text-tertiary">{rupees(membership.paid)}</dd>
+            </div>
+            <div className="col-span-2">
+              <dt className="text-xs text-tertiary/50">Invoice to</dt>
+              <dd className="mt-1 text-sm text-tertiary">{invoiceToLabel(membership.billing) ?? membership.member.name}</dd>
             </div>
           </dl>
 

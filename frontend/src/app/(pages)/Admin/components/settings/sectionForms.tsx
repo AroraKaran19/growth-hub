@@ -25,7 +25,7 @@ const Heading = ({
   errors: Errors;
 }) => (
   <div className="grid grid-cols-1 gap-4">
-    <TextInput id={`${id}-title`} label="Heading" value={value.title} max={90} error={errors.title} onChange={(title) => onChange({ ...value, title })} />
+    <TextInput id={`${id}-title`} label="Heading" value={value.title} max={90} error={errors.title} onChange={(title) => onChange({ ...value, title })} required />
     <TextArea
       id={`${id}-subtitle`}
       label="Line under the heading"
@@ -34,14 +34,15 @@ const Heading = ({
       rows={2}
       error={errors.subtitle}
       onChange={(subtitle) => onChange({ ...value, subtitle })}
+      required
     />
   </div>
 );
 
 const LinkFields = ({ id, label, value, onChange, errors, prefix }: { id: string; label: string; value: SiteLink; onChange: (next: SiteLink) => void; errors: Errors; prefix: string }) => (
   <div className="grid grid-cols-1 gap-4 rounded-xl border border-tertiary/10 bg-tertiary/2 p-4 sm:grid-cols-2">
-    <TextInput id={`${id}-label`} label={`${label} text`} value={value.label} max={40} error={errors[`${prefix}.label`]} onChange={(text) => onChange({ ...value, label: text })} />
-    <TextInput id={`${id}-href`} label={`${label} link`} value={value.href} max={300} placeholder="/workspaces" error={errors[`${prefix}.href`]} onChange={(href) => onChange({ ...value, href })} />
+    <TextInput id={`${id}-label`} label={`${label} text`} value={value.label} max={40} error={errors[`${prefix}.label`]} onChange={(text) => onChange({ ...value, label: text })} required />
+    <TextInput id={`${id}-href`} label={`${label} link`} value={value.href} max={300} placeholder="/workspaces" error={errors[`${prefix}.href`]} onChange={(href) => onChange({ ...value, href })} required />
   </div>
 );
 
@@ -63,7 +64,7 @@ export const HeroForm = ({ draft, set, errors }: FormProps<"hero">) => (
       </div>
       {draft.pill.show && (
         <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <TextInput id="hero-pill" label="Pill text" value={draft.pill.text} max={90} error={errors["pill.text"]} onChange={(text) => set({ ...draft, pill: { ...draft.pill, text } })} />
+          <TextInput id="hero-pill" label="Pill text" value={draft.pill.text} max={90} error={errors["pill.text"]} onChange={(text) => set({ ...draft, pill: { ...draft.pill, text } })} required />
           <TextInput
             id="hero-pill-href"
             label="Pill link (optional)"
@@ -76,9 +77,9 @@ export const HeroForm = ({ draft, set, errors }: FormProps<"hero">) => (
         </div>
       )}
     </div>
-    <TextInput id="hero-title" label="Headline" value={draft.title} max={90} error={errors.title} onChange={(title) => set({ ...draft, title })} />
-    <TextArea id="hero-subtitle" label="Line under the headline" value={draft.subtitle} max={300} rows={2} error={errors.subtitle} onChange={(subtitle) => set({ ...draft, subtitle })} />
-    <ImageField id="hero-image" label="Background photo" value={draft.image} hint="A wide photo, at least 1920 pixels across." onChange={(image) => set({ ...draft, image })} />
+    <TextInput id="hero-title" label="Headline" value={draft.title} max={90} error={errors.title} onChange={(title) => set({ ...draft, title })} required />
+    <TextArea id="hero-subtitle" label="Line under the headline" value={draft.subtitle} max={300} rows={2} error={errors.subtitle} onChange={(subtitle) => set({ ...draft, subtitle })} required />
+    <ImageField id="hero-image" label="Background photo" value={draft.image} hint="A wide photo, at least 1920 pixels across." onChange={(image) => set({ ...draft, image })} required />
   </>
 );
 
@@ -95,7 +96,7 @@ export const FeaturesForm = ({ draft, set, errors }: FormProps<"features">) => {
       <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
         {draft.cards.map((card, index) => (
           <ItemCard key={index} number={index + 1}>
-            <TextInput id={`feature-${index}-title`} label="Title" value={card.title} max={60} error={errors[`cards.${index}.title`]} onChange={(title) => setCard(index, { title })} />
+            <TextInput id={`feature-${index}-title`} label="Title" value={card.title} max={60} error={errors[`cards.${index}.title`]} onChange={(title) => setCard(index, { title })} required />
             <TextArea
               id={`feature-${index}-description`}
               label="Description"
@@ -104,8 +105,9 @@ export const FeaturesForm = ({ draft, set, errors }: FormProps<"features">) => {
               rows={2}
               error={errors[`cards.${index}.description`]}
               onChange={(description) => setCard(index, { description })}
+              required
             />
-            <IconPicker label="Icon" value={card.icon} onChange={(icon) => setCard(index, { icon })} />
+            <IconPicker label="Icon" value={card.icon} onChange={(icon) => setCard(index, { icon })} required />
           </ItemCard>
         ))}
       </div>
@@ -122,7 +124,7 @@ export const StepsForm = ({ draft, set, errors }: FormProps<"steps">) => {
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         {draft.items.map((step, index) => (
           <ItemCard key={index} number={index + 1}>
-            <TextInput id={`step-${index}-title`} label="Title" value={step.title} max={40} error={errors[`items.${index}.title`]} onChange={(title) => setStep(index, { title })} />
+            <TextInput id={`step-${index}-title`} label="Title" value={step.title} max={40} error={errors[`items.${index}.title`]} onChange={(title) => setStep(index, { title })} required />
             <TextArea
               id={`step-${index}-description`}
               label="Description"
@@ -131,6 +133,7 @@ export const StepsForm = ({ draft, set, errors }: FormProps<"steps">) => {
               rows={2}
               error={errors[`items.${index}.description`]}
               onChange={(description) => setStep(index, { description })}
+              required
             />
           </ItemCard>
         ))}
@@ -142,7 +145,7 @@ export const StepsForm = ({ draft, set, errors }: FormProps<"steps">) => {
 export const AmenitiesForm = ({ draft, set, errors }: FormProps<"amenities">) => (
   <>
     <Heading id="amenities" value={draft} errors={errors} onChange={(next) => set({ ...draft, ...next })} />
-    <ImageField id="amenities-image" label="Background photo" value={draft.image} hint="Shown blurred and dark behind the amenities." onChange={(image) => set({ ...draft, image })} />
+    <ImageField id="amenities-image" label="Background photo" value={draft.image} hint="Shown blurred and dark behind the amenities." onChange={(image) => set({ ...draft, image })} required />
   </>
 );
 
@@ -162,6 +165,7 @@ export const CommunityForm = ({ draft, set, errors }: FormProps<"community">) =>
             value={photo}
             aspect={index === 2 ? "aspect-[3/4]" : "aspect-video"}
             onChange={(next) => setPhoto(index, next)}
+            required
           />
         ))}
       </div>
@@ -169,10 +173,45 @@ export const CommunityForm = ({ draft, set, errors }: FormProps<"community">) =>
   );
 };
 
+export const SigninForm = ({ draft, set }: FormProps<"signin">) => (
+  <div className="flex flex-col gap-6">
+    <ImageField
+      id="signin-member"
+      label="Customer sign-in"
+      aspect="aspect-[4/5]"
+      compact
+      hint="Shown beside the mobile number form at /login, under a dark fade."
+      value={draft.member}
+      onChange={(member) => set({ ...draft, member })}
+      required
+    />
+    <ImageField
+      id="signin-partner"
+      label="Venue partner sign-in"
+      aspect="aspect-[4/5]"
+      compact
+      optional
+      hint="Leave it empty to keep the dark panel."
+      value={draft.partner}
+      onChange={(partner) => set({ ...draft, partner })}
+    />
+    <ImageField
+      id="signin-admin"
+      label="Admin sign-in"
+      aspect="aspect-[4/5]"
+      compact
+      optional
+      hint="Leave it empty to keep the dark panel."
+      value={draft.admin}
+      onChange={(admin) => set({ ...draft, admin })}
+    />
+  </div>
+);
+
 export const CtaForm = ({ draft, set, errors }: FormProps<"cta">) => (
   <>
-    <TextInput id="cta-title" label="Heading" value={draft.title} max={90} error={errors.title} onChange={(title) => set({ ...draft, title })} />
-    <TextArea id="cta-text" label="Text" value={draft.text} max={300} rows={2} error={errors.text} onChange={(text) => set({ ...draft, text })} />
+    <TextInput id="cta-title" label="Heading" value={draft.title} max={90} error={errors.title} onChange={(title) => set({ ...draft, title })} required />
+    <TextArea id="cta-text" label="Text" value={draft.text} max={300} rows={2} error={errors.text} onChange={(text) => set({ ...draft, text })} required />
     <LinkFields id="cta-primary" label="Main button" prefix="primary" value={draft.primary} errors={errors} onChange={(primary) => set({ ...draft, primary })} />
     <LinkFields id="cta-secondary" label="Second button" prefix="secondary" value={draft.secondary} errors={errors} onChange={(secondary) => set({ ...draft, secondary })} />
   </>

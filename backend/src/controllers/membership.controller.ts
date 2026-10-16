@@ -9,13 +9,19 @@ import {
   listMemberships,
   quoteMembershipPlan,
   releaseMembershipHold,
+  setMembershipBilling,
   stopRenewal,
 } from "../services/membership.service";
 import { listPartnerPlans, listVenuePlans } from "../services/membershipPlan.service";
 import { listAdminMemberships, listVenueMembers } from "../services/staffMemberships.service";
 import { parseBody } from "../utils/validate";
 import { requestKeySchema } from "../validators/booking";
-import { membershipInputSchema, membershipQuoteSchema, subscriptionConfirmSchema } from "../validators/membership";
+import {
+  membershipBillingSchema,
+  membershipInputSchema,
+  membershipQuoteSchema,
+  subscriptionConfirmSchema,
+} from "../validators/membership";
 
 const memberOf = (req: Request) => req.auth!.accountId;
 const refOf = (req: Request) => String(req.params.ref);
@@ -57,6 +63,11 @@ export const postMembershipConfirm = asyncHandler(async (req: Request, res: Resp
 
 export const postStopRenewal = asyncHandler(async (req: Request, res: Response) => {
   sendSuccessResponse(res, { membership: await stopRenewal(memberOf(req), refOf(req)) }, "Renewal stopped");
+});
+
+export const putMembershipBilling = asyncHandler(async (req: Request, res: Response) => {
+  const { billing } = parseBody(membershipBillingSchema, req.body);
+  sendSuccessResponse(res, { membership: await setMembershipBilling(memberOf(req), refOf(req), billing) }, "Invoice details saved");
 });
 
 export const getMembershipAvailability = asyncHandler(async (req: Request, res: Response) => {

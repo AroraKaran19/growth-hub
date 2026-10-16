@@ -11,16 +11,7 @@ import { Chip, Field, QUIET, RAISED, Section, inputClass } from "./fields";
 import MembershipPlansCard from "./MembershipPlansCard";
 import PhotosSection from "./PhotosSection";
 import type { DraftErrors, VenueDraft } from "./venueDraft";
-
-const DAYS = [
-  { value: 0, short: "S", name: "Sunday" },
-  { value: 1, short: "M", name: "Monday" },
-  { value: 2, short: "T", name: "Tuesday" },
-  { value: 3, short: "W", name: "Wednesday" },
-  { value: 4, short: "T", name: "Thursday" },
-  { value: 5, short: "F", name: "Friday" },
-  { value: 6, short: "S", name: "Saturday" },
-];
+import WeeklyHoursEditor from "./WeeklyHoursEditor";
 
 const MAX_RULES = 20;
 
@@ -52,18 +43,10 @@ const VenueForm = ({ mode, draft, errors, onChange, onSubmit, isSaving, status, 
     onSubmit();
   };
 
-  const toggleIn = (key: "amenities" | "workspaceTypes", value: string) =>
+  const toggleIn = (key: "amenities", value: string) =>
     onChange(
       key,
       draft[key].includes(value) ? draft[key].filter((item) => item !== value) : [...draft[key], value],
-    );
-
-  const toggleDay = (day: number) =>
-    onChange(
-      "openDays",
-      draft.openDays.includes(day)
-        ? draft.openDays.filter((item) => item !== day)
-        : [...draft.openDays, day].sort((a, b) => a - b),
     );
 
   const setRule = (index: number, value: string) =>
@@ -102,9 +85,10 @@ const VenueForm = ({ mode, draft, errors, onChange, onSubmit, isSaving, status, 
 
         <Section title="Details">
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-            <Field id="venue-name" label="Name" error={errors.name}>
+            <Field id="venue-name" label="Name" error={errors.name} required>
               <input
                 id="venue-name"
+                aria-required="true"
                 value={draft.name}
                 onChange={(event) => onChange("name", event.target.value)}
                 placeholder="The venue's name"
@@ -112,11 +96,12 @@ const VenueForm = ({ mode, draft, errors, onChange, onSubmit, isSaving, status, 
               />
             </Field>
             {mode === "create" && (
-              <Field id="venue-slug" label="Web address" error={errors.slug}>
+              <Field id="venue-slug" label="Web address" error={errors.slug} required>
                 <div className="flex items-center gap-2">
                   <span className="shrink-0 text-sm text-tertiary/50">/workspaces/</span>
                   <input
                     id="venue-slug"
+                    aria-required="true"
                     value={draft.slug}
                     onChange={(event) =>
                       onChange("slug", event.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))
@@ -128,18 +113,20 @@ const VenueForm = ({ mode, draft, errors, onChange, onSubmit, isSaving, status, 
                 <p className="mt-1.5 text-xs text-tertiary/50">This can&apos;t be changed later.</p>
               </Field>
             )}
-            <Field id="venue-locality" label="Locality" error={errors.locality}>
+            <Field id="venue-locality" label="Locality" error={errors.locality} required>
               <input
                 id="venue-locality"
+                aria-required="true"
                 value={draft.locality}
                 onChange={(event) => onChange("locality", event.target.value)}
                 placeholder="Neighbourhood, such as Koramangala"
                 className={inputClass(Boolean(errors.locality))}
               />
             </Field>
-            <Field id="venue-city" label="City" error={errors.city}>
+            <Field id="venue-city" label="City" error={errors.city} required>
               <input
                 id="venue-city"
+                aria-required="true"
                 value={draft.city}
                 onChange={(event) => onChange("city", event.target.value)}
                 className={inputClass(Boolean(errors.city))}
@@ -173,18 +160,20 @@ const VenueForm = ({ mode, draft, errors, onChange, onSubmit, isSaving, status, 
           </div>
 
           <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2">
-            <Field id="venue-rating" label="Rating (0 to 5)" error={errors.rating}>
+            <Field id="venue-rating" label="Rating (0 to 5)" error={errors.rating} required>
               <input
                 id="venue-rating"
+                aria-required="true"
                 inputMode="decimal"
                 value={draft.rating}
                 onChange={(event) => onChange("rating", decimals(event.target.value))}
                 className={inputClass(Boolean(errors.rating))}
               />
             </Field>
-            <Field id="venue-distance" label="Distance from centre (km)" error={errors.distanceKm}>
+            <Field id="venue-distance" label="Distance from centre (km)" error={errors.distanceKm} required>
               <input
                 id="venue-distance"
+                aria-required="true"
                 inputMode="decimal"
                 value={draft.distanceKm}
                 onChange={(event) => onChange("distanceKm", decimals(event.target.value))}
@@ -206,69 +195,18 @@ const VenueForm = ({ mode, draft, errors, onChange, onSubmit, isSaving, status, 
             />
           </Field>
 
-          <fieldset className="mt-5">
-            <legend className="text-sm font-medium text-tertiary">Open days</legend>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {DAYS.map((item) => {
-                const isOn = draft.openDays.includes(item.value);
-                return (
-                  <button
-                    key={item.value}
-                    type="button"
-                    aria-pressed={isOn}
-                    aria-label={item.name}
-                    onClick={() => toggleDay(item.value)}
-                    className={cn(
-                      "flex size-10 items-center justify-center rounded-full border text-sm font-medium transition-all",
-                      isOn
-                        ? "cta-gradient border-transparent text-secondary shadow-sm"
-                        : "border-tertiary/15 text-tertiary/60 hover:border-tertiary/35",
-                    )}
-                  >
-                    {item.short}
-                  </button>
-                );
-              })}
-            </div>
-            {errors.openDays && <p className="mt-1.5 text-sm text-primary">{errors.openDays}</p>}
-          </fieldset>
+          <div className="mt-5">
+            <WeeklyHoursEditor rows={draft.hours} errors={errors} onChange={(rows) => onChange("hours", rows)} />
+          </div>
 
-          <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2">
-            <Field id="venue-opens" label="Opens at" error={errors.opensAt}>
-              <input
-                id="venue-opens"
-                type="time"
-                value={draft.opensAt}
-                onChange={(event) => onChange("opensAt", event.target.value)}
-                className={inputClass(Boolean(errors.opensAt))}
-              />
-            </Field>
-            <Field id="venue-closes" label="Closes at" error={errors.closesAt}>
-              <input
-                id="venue-closes"
-                type="time"
-                value={draft.closesAt}
-                onChange={(event) => onChange("closesAt", event.target.value)}
-                className={inputClass(Boolean(errors.closesAt))}
-              />
-            </Field>
-            <Field id="venue-days-label" label="Days label" error={errors.openDaysLabel} optional>
-              <input
-                id="venue-days-label"
-                maxLength={40}
-                value={draft.openDaysLabel}
-                onChange={(event) => onChange("openDaysLabel", event.target.value)}
-                placeholder="Shown on the venue page, such as Open Daily"
-                className={inputClass(Boolean(errors.openDaysLabel))}
-              />
-            </Field>
+          <div className="mt-5">
             <Field id="venue-hours-note" label="Hours note" error={errors.hoursNote} optional>
               <input
                 id="venue-hours-note"
                 maxLength={300}
                 value={draft.hoursNote}
                 onChange={(event) => onChange("hoursNote", event.target.value)}
-                placeholder="Holidays, weekend access and similar"
+                placeholder="Public holidays, late access for members and similar"
                 className={inputClass(Boolean(errors.hoursNote))}
               />
             </Field>
@@ -280,25 +218,32 @@ const VenueForm = ({ mode, draft, errors, onChange, onSubmit, isSaving, status, 
           image={draft.image}
           gallery={draft.gallery}
           coverError={errors.image}
+          galleryError={errors.gallery}
           onCover={(url) => onChange("image", url)}
           onGallery={(urls) => onChange("gallery", urls)}
         />
 
         <Section title="Spaces and amenities">
-          <fieldset>
-            <legend className="text-sm font-medium text-tertiary">Workspace types</legend>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {WORKSPACE_TYPE_OPTIONS.map((option) => (
-                <Chip
-                  key={option.value}
-                  label={labels.workspaceType(option.value, option.label)}
-                  isOn={draft.workspaceTypes.includes(option.value)}
-                  onToggle={() => toggleIn("workspaceTypes", option.value)}
-                />
-              ))}
-            </div>
-            {errors.workspaceTypes && <p className="mt-1.5 text-sm text-primary">{errors.workspaceTypes}</p>}
-          </fieldset>
+          <div>
+            <p className="text-sm font-medium text-tertiary">Workspace types</p>
+            {draft.workspaceTypes.length > 0 ? (
+              <ul className="mt-2 flex flex-wrap gap-2">
+                {WORKSPACE_TYPE_OPTIONS.filter((option) => draft.workspaceTypes.includes(option.value)).map((option) => (
+                  <li
+                    key={option.value}
+                    className="rounded-full bg-tertiary/6 px-3.5 py-1.5 text-sm font-medium text-tertiary"
+                  >
+                    {labels.workspaceType(option.value, option.label)}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            <p className="mt-2 text-xs text-tertiary/55">
+              {draft.workspaceTypes.length > 0
+                ? "Set from the seat map and what the venue sells. Assign a different map or change prices and plans to update them."
+                : "Filled in from the seat map once one is assigned and something is on sale."}
+            </p>
+          </div>
 
           <fieldset className="mt-5">
             <legend className="text-sm font-medium text-tertiary">Amenities</legend>
@@ -363,7 +308,7 @@ const VenueForm = ({ mode, draft, errors, onChange, onSubmit, isSaving, status, 
           )}
         </Section>
 
-        <Section title="Pass prices" hint="Set each price yourself, as the final price members pay. Leave a box empty if the venue doesn't sell that pass.">
+        <Section id="prices" title="Pass prices" hint="Set each price yourself, as the final price members pay. Leave a box empty if the venue doesn't sell that pass.">
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
             <Field id="venue-hourly" label="Hourly (₹)" error={errors.startingPrice}>
               <input
@@ -408,9 +353,10 @@ const VenueForm = ({ mode, draft, errors, onChange, onSubmit, isSaving, status, 
           />
           {draft.hasOffer && (
             <div className="mt-5 grid grid-cols-1 gap-5">
-              <Field id="venue-offer-label" label="Label" error={errors.offerLabel}>
+              <Field id="venue-offer-label" label="Label" error={errors.offerLabel} required>
                 <input
                   id="venue-offer-label"
+                  aria-required="true"
                   maxLength={40}
                   value={draft.offerLabel}
                   onChange={(event) => onChange("offerLabel", event.target.value)}
@@ -418,9 +364,10 @@ const VenueForm = ({ mode, draft, errors, onChange, onSubmit, isSaving, status, 
                   className={inputClass(Boolean(errors.offerLabel))}
                 />
               </Field>
-              <Field id="venue-offer-details" label="Details" error={errors.offerDetails}>
+              <Field id="venue-offer-details" label="Details" error={errors.offerDetails} required>
                 <textarea
                   id="venue-offer-details"
+                  aria-required="true"
                   rows={3}
                   maxLength={300}
                   value={draft.offerDetails}

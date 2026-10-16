@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Puzzle } from "lucide-react";
+import RequiredMark from "@/app/components/ui/form/RequiredMark";
 import { usePartnerVenue } from "@/hooks/useVenues";
 import { readApiError } from "@/libs/api/errors";
 import { toastDone, toastFailed } from "@/libs/toast";
@@ -32,10 +33,11 @@ type EditorProps = {
   choices: AddonChoice[];
   onSave: (addons: AddonPriceInput[]) => Promise<unknown>;
   onRefresh: () => void;
+  inCard?: boolean;
 };
 
 /** Prices for each add-on Growth Hub offers; used by the venue and by admins on its behalf. */
-export const AddonsEditor = ({ choices, onSave, onRefresh }: EditorProps) => {
+export const AddonsEditor = ({ choices, onSave, onRefresh, inCard = false }: EditorProps) => {
   // Only edited rows are held, so a refreshed list never shows stale values.
   const [edits, setEdits] = useState<Record<string, Edit>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -155,6 +157,7 @@ export const AddonsEditor = ({ choices, onSave, onRefresh }: EditorProps) => {
                     className="mb-1.5 block text-xs font-medium text-tertiary/60"
                   >
                     Your price
+                    {row.enabled && <RequiredMark />}
                   </label>
                   <div
                     className={cn(
@@ -179,6 +182,7 @@ export const AddonsEditor = ({ choices, onSave, onRefresh }: EditorProps) => {
                           price: event.target.value.replace(/\D/g, ""),
                         })
                       }
+                      aria-required={row.enabled || undefined}
                       aria-invalid={Boolean(error)}
                       aria-describedby={error ? `${inputId}-error` : undefined}
                       className="w-full min-w-0 bg-transparent px-2 py-2.5 text-sm text-tertiary outline-none placeholder:text-tertiary/35"
@@ -207,7 +211,14 @@ export const AddonsEditor = ({ choices, onSave, onRefresh }: EditorProps) => {
         })}
       </ul>
 
-      <div className="sticky bottom-0 z-20 -mx-4 mt-6 border-t border-tertiary/10 bg-secondary/95 px-4 py-4 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+      <div
+        className={cn(
+          "sticky bottom-0 z-20 mt-6 border-t border-tertiary/10 bg-secondary/95 py-4 backdrop-blur",
+          inCard
+            ? "-mx-5 -mb-5 rounded-b-2xl px-5 sm:-mx-6 sm:-mb-6 sm:px-6"
+            : "-mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8",
+        )}
+      >
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p aria-live="polite" className="text-sm text-tertiary/60">
             {hasChanges ? "You have unsaved changes." : "Prices are in whole rupees, as members pay them."}

@@ -1,4 +1,4 @@
-export const WORKSPACE_TYPES = ["hot-desk", "dedicated-desk", "private-cabin", "meeting-room"] as const;
+export const WORKSPACE_TYPES = ["hot-desk", "dedicated-desk", "private-cabin", "office", "meeting-room"] as const;
 export type WorkspaceType = (typeof WORKSPACE_TYPES)[number];
 
 export const SEAT_TYPES = ["desk", "private-cabin", "office", "meeting-room"] as const;

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import RequiredMark from "@/app/components/ui/form/RequiredMark";
 import SelectField from "@/app/components/ui/form/SelectField";
 import { cancelAsAdmin } from "@/libs/api/cancellations";
 import { readApiError } from "@/libs/api/errors";
@@ -56,11 +57,13 @@ const AdminCancelForm = ({ kind, recordRef, paid, hasOpenRequest, onDone }: Admi
           value={reason}
           onChange={(value) => setReason(value as CancellationReason)}
           options={REASONS.map((value) => ({ value, label: REASON_LABELS[value] }))}
+          required
         />
       )}
       <div>
         <label htmlFor={`${kind}-refund`} className="text-sm font-medium text-tertiary">
           Refund the venue will pay
+          <RequiredMark />
         </label>
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <div className="relative">
@@ -68,6 +71,7 @@ const AdminCancelForm = ({ kind, recordRef, paid, hasOpenRequest, onDone }: Admi
             <input
               id={`${kind}-refund`}
               inputMode="decimal"
+              aria-required="true"
               value={amount}
               onChange={(event) => {
                 setAmount(event.target.value);

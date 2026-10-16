@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
+import CompanyInvoiceFields from "@/app/components/shared/CompanyInvoiceFields";
 import { StaffBookingNote, useIsStaff } from "@/app/components/shared/CustomerOnly";
 import {
   buildDays,
@@ -11,17 +12,27 @@ import {
   lastPassDay,
   withinPassHorizon,
   buildTimeSlots,
+  sellsToday,
 } from "@/data/bookingOptions";
 import { useSlotAvailability } from "@/hooks/useAvailability";
 import { useVenueMembership } from "@/hooks/useMemberships";
 import { usePlanQuote } from "@/hooks/useVenuePlans";
+import { useSession } from "@/stores/session";
 import { isMembershipType, type PassType } from "@/types/booking";
 import type { VenuePlan } from "@/types/membership";
 import type { PlanLength } from "@/types/membershipPlan";
 import type { SeatType } from "@/types/seat";
 import type { VenueDetail } from "@/types/venue";
+import {
+  validateCompanyInvoice,
+  withSavedDetails,
+  type CompanyInvoiceDraft,
+  type CompanyInvoiceErrors,
+} from "@/utils/companyInvoice";
 import { KEY_FROM_LENGTH, LENGTH_FROM_KEY, PLAN_LENGTH_UNITS, daysLabel } from "@/utils/plans";
+import { todayIso } from "@/utils/date";
 import { toMinutes } from "@/utils/time";
+import { hoursOn, openDaysOf, sharedHours } from "@/utils/venueHours";
 import AccessCard from "./components/AccessCard";
 import BookingStepper from "./components/BookingStepper";
 import BookingFooter from "./components/BookingFooter";
@@ -34,7 +45,7 @@ import { membershipRequestFrom } from "./checkoutState";
 import { needsStartTime } from "./membershipBooking";
 import { quoteBooking, rateSummary } from "./pricing";
 import { clearSeatsIfTypeChanged } from "./seatRules";
-import { choosePlan, durationMinutesFor, fitSelectionToPlan } from "./selectionRules";
+import { choosePlan, durationMinutesFor, fitSelectionToPlan, saleMinutesFor } from "./selectionRules";
 import { useBookingSelection } from "./useBookingSelection";
 import { planFooter } from "./planFooter";
 
@@ -65,24 +76,28 @@ const BookingPage = ({ venue, planId }: BookingPageProps) => {
   } = useBookingSelection(venue);
 
   const duration = durationMinutesFor(selection);
-  const { opensAt, closesAt, openDays } = venue;
+  const { hours } = venue;
+  const openDays = useMemo(() => openDaysOf(hours), [hours]);
   const { slots: live } = useSlotAvailability(venue.slug, plan ? "" : selection.date, duration);
   const needed = selection.spaceType === "desk" ? selection.seats : 1;
   const slots = useMemo(() => {
     if (plan) {
-      // Plan rooms are checked across every covered day on the seats step, not here.
-      return plan.slotHours ? buildTimeSlots(selection.date, { opensAt, closesAt }, plan.slotHours * 60) : [];
+      // Starts fit the hours every covered day shares; rooms are checked on the seats step.
+      return plan.slotHours ? buildTimeSlots(selection.date, sharedHours(hours, plan.days), plan.slotHours * 60) : [];
     }
     if (duration === null) return [];
     const byStart = new Map(live?.starts.map((start) => [start.startMin, start.free]) ?? []);
     // A start with no free seat of the chosen kind can't be booked.
-    return buildTimeSlots(selection.date, { opensAt, closesAt }, duration).map((slot) => {
+    return buildTimeSlots(selection.date, hoursOn(hours, selection.date), duration).map((slot) => {
       const free = byStart.get(toMinutes(slot.id) ?? -1)?.[selection.spaceType];
       return free !== undefined && free < needed ? { ...slot, available: false } : slot;
     });
-  }, [plan, selection.date, selection.spaceType, opensAt, closesAt, duration, live, needed]);
+  }, [plan, selection.date, selection.spaceType, hours, duration, live, needed]);
 
   const membership = useVenueMembership(venue.slug);
+  const { account } = useSession();
+  const [invoiceErrors, setInvoiceErrors] = useState<CompanyInvoiceErrors>({});
+  const invoiceRef = useRef<HTMLDivElement>(null);
 
   // A plan picked on the venue page arrives once in the address, then leaves it.
   const appliedPlan = useRef(false);
@@ -97,10 +112,14 @@ const BookingPage = ({ venue, planId }: BookingPageProps) => {
   // Dates depend on "today", so they wait for the client. A calendar pick
   // beyond the usual month grows the strip far enough to include it.
   const dayRule = plan?.days ?? openDays;
+  const saleMinutes = saleMinutesFor(selection, plan);
   const days = useMemo(() => {
     if (!isHydrated) return [];
-    return selection.date ? buildDaysThrough(selection.date, dayRule) : buildDays(30, dayRule);
-  }, [isHydrated, selection.date, dayRule]);
+    const skipToday = !sellsToday(hoursOn(hours, todayIso()), saleMinutes);
+    return selection.date
+      ? buildDaysThrough(selection.date, dayRule, skipToday)
+      : buildDays(30, dayRule, skipToday);
+  }, [isHydrated, selection.date, dayRule, hours, saleMinutes]);
   const lastDay = useMemo(() => (isHydrated && !plan ? lastPassDay() : undefined), [isHydrated, plan]);
 
   const changeOption: typeof update = (key, value) => {
@@ -145,6 +164,23 @@ const BookingPage = ({ venue, planId }: BookingPageProps) => {
     ? planFooter(plan, selection, planQuote)
     : { amount: passQuote.total, summary: rateSummary(passQuote), label: undefined };
   const canProceed = isConfigured && isScheduled && (!plan || (Boolean(planQuote) && !problem));
+
+  const changeInvoice = (next: CompanyInvoiceDraft) => {
+    // Turning it on fills in the saved company, leaving anything typed alone.
+    const filled = next.forCompany && !selection.invoice.forCompany ? withSavedDetails(next, account?.billing) : next;
+    update("invoice", filled);
+    if (Object.keys(invoiceErrors).length > 0) setInvoiceErrors(validateCompanyInvoice(filled));
+  };
+
+  const proceed = () => {
+    const found = validateCompanyInvoice(selection.invoice);
+    setInvoiceErrors(found);
+    if (Object.keys(found).length > 0) {
+      invoiceRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    router.push(`/workspaces/${venue.slug}/book/seats`);
+  };
 
   return (
     <div className="bg-surface pt-28 lg:pt-32">
@@ -209,6 +245,7 @@ const BookingPage = ({ venue, planId }: BookingPageProps) => {
               {(plan || isConfigured) && (
                 <DateStrip
                   title={plan ? "Start Date" : "Select Date"}
+                  required
                   days={days}
                   openDays={dayRule}
                   lastDay={lastDay}
@@ -231,6 +268,7 @@ const BookingPage = ({ venue, planId }: BookingPageProps) => {
                       slots={slots}
                       value={selection.time}
                       onChange={(value) => update("time", value)}
+                      required
                     />
                   )}
                   <PlanSummaryCard
@@ -250,10 +288,21 @@ const BookingPage = ({ venue, planId }: BookingPageProps) => {
                     slots={slots}
                     value={selection.time}
                     onChange={(value) => update("time", value)}
+                    required
                   />
                 ) : (
-                  <AccessCard venue={venue} />
+                  <AccessCard venue={venue} date={selection.date} />
                 ))
+              )}
+              {(plan || isConfigured) && (
+                <div ref={invoiceRef} className="rounded-2xl border border-tertiary/10 bg-secondary p-5 shadow-sm lg:p-6">
+                  <CompanyInvoiceFields
+                    draft={selection.invoice}
+                    errors={invoiceErrors}
+                    onChange={changeInvoice}
+                    canSave={Boolean(account)}
+                  />
+                </div>
               )}
             </>
           )}
@@ -267,7 +316,7 @@ const BookingPage = ({ venue, planId }: BookingPageProps) => {
           label={footer.label}
           actionLabel="Proceed"
           disabled={!isHydrated || !venue.published || !canProceed}
-          onAction={() => router.push(`/workspaces/${venue.slug}/book/seats`)}
+          onAction={proceed}
         />
       )}
     </div>

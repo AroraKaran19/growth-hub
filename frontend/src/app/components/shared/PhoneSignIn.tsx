@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import OtpInput, { emptyCode } from "@/app/components/ui/form/OtpInput";
+import RequiredMark from "@/app/components/ui/form/RequiredMark";
 import SelectField from "@/app/components/ui/form/SelectField";
 import { COUNTRY_CODE_OPTIONS } from "@/data/profileOptions";
 import { MSG91_CAPTCHA_ID, useMsg91Widget } from "@/hooks/useMsg91Widget";
@@ -230,6 +231,7 @@ const PhoneSignIn = ({
           <form onSubmit={handleSendCode} noValidate className="mt-6">
             <label htmlFor="signin-mobile" className={FIELD_LABEL}>
               Mobile number
+              <RequiredMark />
             </label>
             <div className="flex gap-2">
               <SelectField
@@ -259,6 +261,7 @@ const PhoneSignIn = ({
                   setMobile(nationalDigits(event.target.value, countryCode));
                   setError(null);
                 }}
+                aria-required="true"
                 aria-invalid={Boolean(error)}
                 aria-describedby={error ? "signin-error" : undefined}
                 className={cn(INPUT, "min-w-0")}
@@ -353,6 +356,7 @@ const PhoneSignIn = ({
             <div>
               <label htmlFor="onboarding-name" className={FIELD_LABEL}>
                 Full name
+                <RequiredMark />
               </label>
               <input
                 id="onboarding-name"
@@ -365,6 +369,7 @@ const PhoneSignIn = ({
                   setName(event.target.value);
                   setError(null);
                 }}
+                aria-required="true"
                 aria-invalid={Boolean(error)}
                 className={INPUT}
               />
@@ -372,6 +377,7 @@ const PhoneSignIn = ({
             <div>
               <label htmlFor="onboarding-email" className={FIELD_LABEL}>
                 Email
+                <RequiredMark />
               </label>
               <input
                 id="onboarding-email"
@@ -384,6 +390,7 @@ const PhoneSignIn = ({
                   setEmail(event.target.value);
                   setError(null);
                 }}
+                aria-required="true"
                 aria-describedby="onboarding-email-hint"
                 className={INPUT}
               />

@@ -7,10 +7,10 @@ import type {
   AddonUnit,
   AdminVenue,
   AdminVenueRow,
-  CatalogueOverview,
-  OperationsOverview,
+  OutageDuration,
   SeatMapDetail,
   SeatMapSummary,
+  VenueStatsResponse,
 } from "@/types/catalogue";
 
 type Body = Record<string, unknown>;
@@ -41,6 +41,13 @@ export const useAdminVenues = () => {
   return { venues: venues ?? [], error, isLoading, refresh: async () => void (await mutate()) };
 };
 
+export const useVenueStats = () => {
+  const { data: stats, error, isLoading } = useSWR("admin/venue-stats", () =>
+    data<VenueStatsResponse>(adminApi.get("/admin/venue-stats")),
+  );
+  return { stats, error, isLoading };
+};
+
 export const useAdminVenue = (slug: string | null) => {
   const { data: venue, error, isLoading, mutate } = useSWR(slug ? venueKey(slug) : null, async ([, key]) =>
     (await data<{ venue: AdminVenue }>(adminApi.get(`/admin/venues/${key}`))).venue,
@@ -57,7 +64,8 @@ export const useAdminVenue = (slug: string | null) => {
     save: (patch: Versioned) => act(adminApi.patch(base, patch)),
     assignMap: (seatMapId: string) => act(adminApi.put(`${base}/seat-map`, { seatMapId })),
     unassignMap: () => act(adminApi.delete(`${base}/seat-map`)),
-    setOutOfService: (seatIds: string[]) => act(adminApi.put(`${base}/out-of-service`, { seatIds })),
+    takeSeatOut: (seatId: string, duration: OutageDuration) => act(adminApi.post(`${base}/outages`, { seatId, duration })),
+    endOutage: (seatId: string) => act(adminApi.delete(`${base}/outages/${encodeURIComponent(seatId)}`)),
   };
 };
 
@@ -103,11 +111,4 @@ export const useAddonTypes = () => {
   };
 
   return { addonTypes: addonTypes ?? [], error, isLoading, create, update, reorder };
-};
-
-export const useCatalogueOverview = () => {
-  const { data: result, error, isLoading } = useSWR("admin/overview", () =>
-    data<{ catalogue: CatalogueOverview; operations: OperationsOverview }>(adminApi.get("/admin/overview")),
-  );
-  return { overview: result?.catalogue, operations: result?.operations, error, isLoading };
 };

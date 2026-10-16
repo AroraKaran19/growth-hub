@@ -4,6 +4,7 @@ import { isLiveMembership, type ApiMembership } from "@/types/membership";
 import type { Seat, SeatType } from "@/types/seat";
 import type { Venue } from "@/types/venue";
 import { timeRange } from "@/utils/time";
+import { hoursOn, rangeLabel } from "@/utils/venueHours";
 
 export const BOOKING_SPACE_LABELS: Record<SeatType, string> = {
   desk: "Open Desk",
@@ -32,6 +33,6 @@ export const bookingTimeFor = (venue: Venue, selection: BookingSelection) => {
     case "half-day":
       return timeRange(selection.time, HALF_DAY_HOURS * 60);
     default:
-      return venue.openHours;
+      return rangeLabel(hoursOn(venue.hours, selection.date)) ?? "";
   }
 };

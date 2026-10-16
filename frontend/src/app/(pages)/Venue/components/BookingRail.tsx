@@ -3,13 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import {
-  CalendarDays,
-  ChevronDown,
-  ChevronRight,
-  Crown,
-  MapPin,
-} from "lucide-react";
+import { ChevronDown, ChevronRight, Crown, MapPin } from "lucide-react";
 import { StaffBookingNote, useIsStaff } from "@/app/components/shared/CustomerOnly";
 import { useVenueMembership } from "@/hooks/useMemberships";
 import { useVenuePlans } from "@/hooks/useVenuePlans";
@@ -18,6 +12,7 @@ import { cn } from "@/utils";
 import { formatDay } from "@/utils/date";
 import { membershipTitle, windowLabel } from "@/utils/plans";
 import { startingFrom } from "@/utils/venues";
+import VenueHours from "./VenueHours";
 
 const INFO_ROW =
   "flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-tertiary/3";
@@ -26,7 +21,6 @@ const INFO_ICON =
 
 const BookingRail = ({ venue }: { venue: Venue }) => {
   const [isOfferOpen, setIsOfferOpen] = useState(false);
-  const [areHoursOpen, setAreHoursOpen] = useState(false);
   const membership = useVenueMembership(venue.slug);
   const isBookable = venue.published;
   const isStaff = useIsStaff();
@@ -192,40 +186,7 @@ const BookingRail = ({ venue }: { venue: Venue }) => {
 
         <div className="mx-4 border-t border-tertiary/8" />
 
-        <button
-          type="button"
-          onClick={() => setAreHoursOpen((open) => !open)}
-          aria-expanded={areHoursOpen}
-          disabled={!venue.hoursNote}
-          className={INFO_ROW}
-        >
-          <span className={INFO_ICON}>
-            <CalendarDays aria-hidden="true" className="size-4" />
-          </span>
-          <span className="min-w-0 grow">
-            <span className="block text-sm font-medium text-tertiary">
-              {venue.openDaysLabel}
-            </span>
-            <span className="block text-xs text-tertiary/55">
-              {venue.openHours}
-            </span>
-          </span>
-          {venue.hoursNote && (
-            <ChevronRight
-              aria-hidden="true"
-              className={cn(
-                "size-4 shrink-0 text-tertiary/40 transition-transform duration-200",
-                areHoursOpen && "rotate-90",
-              )}
-            />
-          )}
-        </button>
-
-        {areHoursOpen && venue.hoursNote && (
-          <p className="border-t border-tertiary/8 px-4 py-3 text-xs leading-relaxed text-tertiary/65">
-            {venue.hoursNote}
-          </p>
-        )}
+        <VenueHours venue={venue} />
       </div>
     </div>
   );

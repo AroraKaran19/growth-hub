@@ -2,6 +2,7 @@
 
 import useSWR from "swr";
 import { adminApi } from "@/libs/api/client";
+import { readApiError } from "@/libs/api/errors";
 
 export type PartnerAccountRow = {
   id: string;
@@ -13,7 +14,8 @@ export type PartnerAccountRow = {
   lastActiveAt: string | null;
 };
 
-export type VenueOption = { slug: string; name: string };
+/** hasAccount: the venue already has its one partner login. */
+export type VenueOption = { slug: string; name: string; hasAccount?: boolean };
 
 export type InvitePartnerInput = { name: string; email: string; venueSlug: string; temporaryPassword: string };
 
@@ -38,20 +40,29 @@ export const usePartnerAccounts = (venue: string) => {
   const { data, error, isLoading, mutate } = useSWR(["admin/partner-staff", venue], fetchAccounts, {
     keepPreviousData: true,
   });
+  // A venue filter narrows hasAccount to that venue, so availability comes from the full list.
+  const all = useSWR(["admin/partner-staff", ""], fetchAccounts);
 
-  const invite = async (input: InvitePartnerInput) => {
-    await adminApi.post("/admin/partner-staff", input);
-    await mutate();
+  const refresh = () => Promise.all([mutate(), venue ? all.mutate() : undefined]);
+
+  const send = async (request: () => Promise<unknown>) => {
+    try {
+      await request();
+    } catch (caught) {
+      if (readApiError(caught).code === "VENUE_HAS_ACCOUNT") void refresh();
+      throw caught;
+    }
+    await refresh();
   };
 
-  const update = async (id: string, change: PartnerChange) => {
-    await adminApi.patch(`/admin/partner-staff/${id}`, change);
-    await mutate();
-  };
+  const invite = (input: InvitePartnerInput) => send(() => adminApi.post("/admin/partner-staff", input));
+
+  const update = (id: string, change: PartnerChange) => send(() => adminApi.patch(`/admin/partner-staff/${id}`, change));
 
   return {
     accounts: data?.accounts ?? [],
-    venues: data?.venues ?? [],
+    venues: all.data?.venues ?? [],
+    venuesLoaded: Boolean(all.data),
     error,
     isLoading,
     invite,

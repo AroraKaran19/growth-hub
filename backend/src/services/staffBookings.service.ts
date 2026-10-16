@@ -32,7 +32,7 @@ export type StaffBookingView = {
   invoiceNumber: string | null;
   rescheduleCount: number;
   checkedInAt: string | null;
-  extras: { preference: string; companyName: string };
+  extras: { preference: string };
 };
 
 export const phoneOf = (member: MemberDoc) =>
@@ -63,7 +63,7 @@ export const toStaffBookingViews = async (bookings: BookingDoc[], now: Date): Pr
       invoiceNumber: booking.invoiceNumber,
       rescheduleCount: booking.rescheduleCount,
       checkedInAt: booking.checkedInAt ? new Date(booking.checkedInAt).toISOString() : null,
-      extras: booking.extras,
+      extras: { preference: booking.extras?.preference ?? "none" },
     };
   });
 };

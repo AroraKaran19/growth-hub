@@ -14,6 +14,30 @@ export type HomeContent = {
   community: Heading & { photos: SiteImage[] };
   testimonials: Heading;
   cta: { title: string; text: string; primary: SiteLink; secondary: SiteLink };
+  /** The photo beside each sign-in form; a blank staff src keeps the dark panel. */
+  signin: { member: SiteImage; partner: SiteImage; admin: SiteImage };
+  seo: SeoSettings;
+  /** Blank fields keep the page's built-in title and description. */
+  seoPages: Record<SeoPage, { title: string; description: string }>;
+};
+
+export const SEO_PAGES = ["home", "workspaces", "locations", "memberships", "pricing", "about", "contact", "support", "faqs"] as const;
+
+export type SeoPage = (typeof SEO_PAGES)[number];
+
+export type SeoSettings = {
+  siteName: string;
+  /** The live https address; blank falls back to SITE_URL. */
+  siteUrl: string;
+  defaultTitle: string;
+  description: string;
+  keywords: string[];
+  shareImage: SiteImage;
+  favicon: SiteImage;
+  appleIcon: SiteImage;
+  twitterHandle: string;
+  googleVerification: string;
+  hideFromSearch: boolean;
 };
 
 export type HomeSectionKey = keyof HomeContent;

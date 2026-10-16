@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { MEMBERSHIP_LENGTHS } from "../constants/catalogue";
 import { isIsoDate } from "../utils/indiaTime";
+import { purchaseBillingSchema } from "./billing";
 import { objectIdSchema } from "./common";
 
 const MAX_PEOPLE = 20;
@@ -23,7 +24,7 @@ const fields = z.object({
   /** Time-slot rooms only: the daily start, in minutes from midnight. */
   startMin: z.number().int().min(0).max(DAY_MINUTES).optional(),
   holders: z.array(holderSchema).max(MAX_PEOPLE).default([]),
-  companyName: z.string().trim().max(120).default(""),
+  billing: purchaseBillingSchema,
 });
 
 type Fields = z.infer<typeof fields>;
@@ -51,6 +52,8 @@ export const membershipQuoteSchema = fields
   .extend({ seatIds: z.array(seatIdSchema).max(MAX_PEOPLE).default([]) })
   .superRefine(holdersFitSeats)
   .transform(namedOnly);
+
+export const membershipBillingSchema = z.object({ billing: purchaseBillingSchema });
 
 export const subscriptionConfirmSchema = z.object({
   razorpay_payment_id: z.string().trim().min(1).max(100),

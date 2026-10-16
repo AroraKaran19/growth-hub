@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { cn } from "@/utils";
+import RequiredMark from "./RequiredMark";
 
 type PasswordInputProps = {
   id: string;
@@ -14,6 +15,7 @@ type PasswordInputProps = {
   invalid?: boolean;
   hint?: string;
   autoFocus?: boolean;
+  required?: boolean;
 };
 
 const PasswordInput = ({
@@ -26,6 +28,7 @@ const PasswordInput = ({
   invalid = false,
   hint,
   autoFocus,
+  required = false,
 }: PasswordInputProps) => {
   const [isVisible, setIsVisible] = useState(false);
 
@@ -33,6 +36,7 @@ const PasswordInput = ({
     <div>
       <label htmlFor={id} className="mb-1.5 block text-sm font-medium text-tertiary">
         {label}
+        {required && <RequiredMark />}
       </label>
       <div className="relative">
         <input
@@ -43,6 +47,7 @@ const PasswordInput = ({
           onChange={(event) => onChange(event.target.value)}
           placeholder={placeholder}
           aria-invalid={invalid}
+          aria-required={required || undefined}
           autoFocus={autoFocus}
           className={cn(
             "w-full rounded-lg border bg-secondary py-2.5 pl-3.5 pr-11 text-sm text-tertiary outline-none transition-colors placeholder:text-tertiary/40 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20",

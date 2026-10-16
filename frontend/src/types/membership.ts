@@ -1,3 +1,5 @@
+import type { CompanyBillingInput } from "@/utils/companyInvoice";
+import type { MemberBilling } from "./auth";
 import type { RequestSummary, VenueRemovalNotice } from "./cancellation";
 import type { MembershipLengthKey } from "./catalogue";
 import type { PlanLength, PlanPrices, PlanSpace, RoomMode } from "./membershipPlan";
@@ -76,6 +78,8 @@ export type ApiMembership = {
   plan: MembershipPlanSnapshot | null;
   window: DailyWindow | null;
   holders: SeatHolder[];
+  /** Where renewal invoices go; null when the member is invoiced. */
+  billing: MemberBilling | null;
   length: MembershipLengthKey;
   seats: { id: string; label: string; type: SeatType }[];
   people: number;
@@ -108,6 +112,7 @@ export type MembershipRequest = {
   /** Time-slot room plans only. */
   startMin?: number;
   holders: SeatHolder[];
+  billing?: CompanyBillingInput | null;
 };
 
 export type StaffSeat = { id: string; label: string; holder: string | null };

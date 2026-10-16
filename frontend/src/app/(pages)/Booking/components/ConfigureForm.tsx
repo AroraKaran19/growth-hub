@@ -1,7 +1,8 @@
 "use client";
 
-import { Minus, PackagePlus, Plus, ReceiptText } from "lucide-react";
+import { Minus, PackagePlus, Plus } from "lucide-react";
 import PlanCard from "@/app/components/ui/PlanCard";
+import RequiredMark from "@/app/components/ui/form/RequiredMark";
 import {
   MAX_HOURS,
   MAX_SEATS,
@@ -124,9 +125,10 @@ const PlanDetails = ({
         </p>
       </div>
 
-      <fieldset>
+      <fieldset aria-required="true">
         <legend className="text-sm font-medium text-tertiary">
           Plan length
+          <RequiredMark />
           <span className="ml-1.5 font-normal text-tertiary/45">
             ({isDesk ? "price per seat" : "price per room"})
           </span>
@@ -173,18 +175,12 @@ const PlanDetails = ({
         onAdjust={onAdjustSeats}
       />
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {hasAddons && (
-          <p className="flex items-start gap-2.5 rounded-xl bg-surface px-3.5 py-3 text-xs leading-relaxed text-tertiary/65">
-            <PackagePlus aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" />
-            Add-ons are not part of the plan price. Buy them for the days you need from My Memberships.
-          </p>
-        )}
-        <p className="flex items-start gap-2.5 rounded-xl bg-surface px-3.5 py-3 text-xs leading-relaxed text-tertiary/65">
-          <ReceiptText aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" />
-          Invoices for a company? Add its billing details at payment.
+      {hasAddons && (
+        <p className="flex items-start gap-2.5 rounded-xl bg-surface px-3.5 py-3 text-xs leading-relaxed text-tertiary/65 sm:max-w-md">
+          <PackagePlus aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" />
+          Add-ons are not part of the plan price. Buy them for the days you need from My Memberships.
         </p>
-      </div>
+      )}
     </div>
   );
 };
@@ -294,6 +290,7 @@ const ConfigureForm = ({
               options={spaceOptions}
               value={selection.spaceType}
               onChange={(value) => onChange("spaceType", value as SeatType)}
+              required
             />
 
             <div className="flex flex-wrap gap-x-12 gap-y-6">
@@ -335,24 +332,6 @@ const ConfigureForm = ({
                 onChange={toggleAddOn}
               />
             )}
-
-            <label className="block max-w-sm">
-              <span className="mb-2 block text-sm font-medium text-tertiary">
-                Company name
-                <span className="ml-1.5 font-normal text-tertiary/45">
-                  (optional)
-                </span>
-              </span>
-              <input
-                type="text"
-                name="companyName"
-                autoComplete="organization"
-                value={selection.companyName}
-                onChange={(event) => onChange("companyName", event.target.value)}
-                placeholder="For your invoice"
-                className="w-full rounded-lg border border-tertiary/15 bg-secondary px-3.5 py-2.5 text-sm text-tertiary outline-none transition-colors placeholder:text-tertiary/40 hover:border-tertiary/30 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20"
-              />
-            </label>
           </div>
         )
       )}

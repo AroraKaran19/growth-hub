@@ -1,6 +1,7 @@
 import type { RequestSummary } from "@/types/cancellation";
 import type { AddonUnit, VenueAddonOffer } from "@/types/catalogue";
 import { formatMonthDay } from "@/utils/date";
+import { isOpenOn, type DayHours } from "@/utils/venueHours";
 
 /** Matches the server's limit on days per order. */
 export const MAX_ADDON_DAYS = 31;
@@ -15,11 +16,11 @@ const utcOf = (iso: string) => {
 const isoOfUtc = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 
 /** Open days from today through the last paid day, as the server allows them. */
-export const addonDays = (openDays: number[], today: string, paidThrough: string | null, max = MAX_ADDON_DAYS) => {
+export const addonDays = (hours: DayHours[], today: string, paidThrough: string | null, max = MAX_ADDON_DAYS) => {
   if (!paidThrough || paidThrough < today) return [];
   const days: string[] = [];
   for (let ms = utcOf(today); ms <= utcOf(paidThrough) && days.length < max; ms += DAY_MS) {
-    if (!openDays.length || openDays.includes(new Date(ms).getUTCDay())) days.push(isoOfUtc(ms));
+    if (isOpenOn(hours, isoOfUtc(ms))) days.push(isoOfUtc(ms));
   }
   return days;
 };

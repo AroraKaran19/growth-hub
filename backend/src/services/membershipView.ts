@@ -1,5 +1,5 @@
 import { env } from "../config/env";
-import type { BookedSeat, DailyWindow, MembershipDoc, SeatHolder } from "../models";
+import { billingView, type BillingDetails, type BookedSeat, type DailyWindow, type MembershipDoc, type SeatHolder } from "../models";
 import { addDays, indiaNow } from "../utils/indiaTime";
 import { signCode } from "../utils/qr";
 
@@ -21,6 +21,8 @@ export type MembershipView = {
   plan: PlanSnapshotView | null;
   window: DailyWindow | null;
   holders: SeatHolder[];
+  /** Where renewal invoices go; null invoices the member. */
+  billing: BillingDetails | null;
   length: string;
   seats: BookedSeat[];
   people: number;
@@ -79,6 +81,7 @@ export const toMembershipView = (membership: MembershipDoc, now = new Date()): M
     plan: planSnapshotView(membership),
     window: windowView(membership),
     holders: holdersView(membership),
+    billing: billingView(membership.billing),
     length: membership.length,
     seats: membership.seats,
     people: membership.people,

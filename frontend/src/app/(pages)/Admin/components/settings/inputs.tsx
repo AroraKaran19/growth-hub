@@ -1,4 +1,31 @@
-import { Field, inputClass } from "../venue/fields";
+import type { ReactNode } from "react";
+import RequiredMark from "@/app/components/ui/form/RequiredMark";
+import { LABEL, inputClass } from "../venue/fields";
+
+type LabelledFieldProps = {
+  id: string;
+  label: string;
+  required?: boolean;
+  optional?: boolean;
+  error?: string;
+  children: ReactNode;
+};
+
+export const LabelledField = ({ id, label, required, optional, error, children }: LabelledFieldProps) => (
+  <div>
+    <label htmlFor={id} className={LABEL}>
+      {label}
+      {required && <RequiredMark />}
+      {optional && <span className="ml-1.5 font-normal text-tertiary/45">(optional)</span>}
+    </label>
+    {children}
+    {error && (
+      <p id={`${id}-error`} className="mt-1.5 text-sm text-primary">
+        {error}
+      </p>
+    )}
+  </div>
+);
 
 type TextProps = {
   id: string;
@@ -8,24 +35,26 @@ type TextProps = {
   max: number;
   error?: string;
   placeholder?: string;
+  required?: boolean;
 };
 
-export const TextInput = ({ id, label, value, onChange, max, error, placeholder }: TextProps) => (
-  <Field id={id} label={label} error={error}>
+export const TextInput = ({ id, label, value, onChange, max, error, placeholder, required }: TextProps) => (
+  <LabelledField id={id} label={label} required={required} error={error}>
     <input
       id={id}
       value={value}
       maxLength={max}
       placeholder={placeholder}
       onChange={(event) => onChange(event.target.value)}
+      aria-required={required || undefined}
       aria-describedby={error ? `${id}-error` : undefined}
       className={inputClass(Boolean(error))}
     />
-  </Field>
+  </LabelledField>
 );
 
-export const TextArea = ({ id, label, value, onChange, max, error, placeholder, rows = 3 }: TextProps & { rows?: number }) => (
-  <Field id={id} label={label} error={error}>
+export const TextArea = ({ id, label, value, onChange, max, error, placeholder, required, rows = 3 }: TextProps & { rows?: number }) => (
+  <LabelledField id={id} label={label} required={required} error={error}>
     <textarea
       id={id}
       value={value}
@@ -33,11 +62,12 @@ export const TextArea = ({ id, label, value, onChange, max, error, placeholder, 
       maxLength={max}
       placeholder={placeholder}
       onChange={(event) => onChange(event.target.value)}
+      aria-required={required || undefined}
       aria-describedby={error ? `${id}-error` : undefined}
       className={inputClass(Boolean(error), "resize-y leading-relaxed")}
     />
     <p className="mt-1 text-right text-xs text-tertiary/40">
       {value.length}/{max}
     </p>
-  </Field>
+  </LabelledField>
 );

@@ -3,12 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import { X } from "lucide-react";
-import { buildDays, buildDaysThrough, lastPassDay } from "@/data/bookingOptions";
+import { buildDays, buildDaysThrough, lastPassDay, sellsToday } from "@/data/bookingOptions";
 import { useVenue } from "@/hooks/useVenues";
 import { fetchRescheduleOptions } from "@/libs/api/bookings";
 import { readApiError } from "@/libs/api/errors";
 import type { MemberBooking } from "@/types/memberBooking";
-import { formatMonthDay } from "@/utils/date";
+import { formatMonthDay, todayIso } from "@/utils/date";
+import { hoursOn, openDaysOf } from "@/utils/venueHours";
 import DateStrip from "../../Booking/components/DateStrip";
 import TimeSlotGrid from "../../Booking/components/TimeSlotGrid";
 
@@ -27,13 +28,14 @@ const RescheduleModal = ({ booking, onClose, onConfirm }: RescheduleModalProps) 
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const { venue } = useVenue(booking.venueSlug);
-  const openDays = venue?.openDays;
+  const openDays = useMemo(() => (venue ? openDaysOf(venue.hours) : undefined), [venue]);
+  const lengthMinutes = booking.lengthMinutes ?? null;
 
   // Only ever mounted after a click, so "today" is already the browser's.
-  const days = useMemo(
-    () => (date ? buildDaysThrough(date, openDays) : buildDays(30, openDays)),
-    [date, openDays],
-  );
+  const days = useMemo(() => {
+    const skipToday = venue ? !sellsToday(hoursOn(venue.hours, todayIso()), lengthMinutes) : false;
+    return date ? buildDaysThrough(date, openDays, skipToday) : buildDays(30, openDays, skipToday);
+  }, [date, openDays, venue, lengthMinutes]);
 
   // The server knows which starts the booking's own seats are free for.
   const { data: options, error: loadError } = useSWR(date ? ["reschedule", booking.bookingId, date] : null, ([, ref, day]) =>
@@ -101,7 +103,7 @@ const RescheduleModal = ({ booking, onClose, onConfirm }: RescheduleModalProps) 
         </div>
 
         <div className="flex min-h-0 flex-col gap-4 overflow-y-auto p-4 sm:p-6">
-          <DateStrip days={days} openDays={openDays} lastDay={lastPassDay()} value={date} onChange={pickDate} />
+          <DateStrip days={days} openDays={openDays} lastDay={lastPassDay()} value={date} onChange={pickDate} required />
           {!date ? null : loadError ? (
             <p role="alert" className="rounded-2xl border border-primary/25 bg-primary/5 px-5 py-4 text-sm text-primary">
               {readApiError(loadError).message}
@@ -109,7 +111,7 @@ const RescheduleModal = ({ booking, onClose, onConfirm }: RescheduleModalProps) 
           ) : !options ? (
             <div aria-hidden="true" className="h-48 animate-pulse rounded-2xl border border-tertiary/10 bg-secondary" />
           ) : (
-            <TimeSlotGrid slots={slots} value={start} onChange={setStart} />
+            <TimeSlotGrid slots={slots} value={start} onChange={setStart} required />
           )}
           {error && (
             <p role="alert" className="text-sm text-primary">

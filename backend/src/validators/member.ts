@@ -4,9 +4,8 @@ import { GENDERS, INDUSTRIES, PROFILE_FIELDS, WORK_TYPES } from "../constants/pr
 import type { MemberBilling } from "../models/member.schema";
 import { normalizeEmail } from "../utils/email";
 import { gstinStateCode, isValidGstin } from "../utils/gstin";
+import { address, gstin, text } from "./billing";
 
-const MAX_TEXT = 120;
-const MAX_ADDRESS = 300;
 const EARLIEST_BIRTH_YEAR = 1900;
 
 const blankToNull = (value: unknown) => (typeof value === "string" && value.trim() === "" ? null : value);
@@ -33,28 +32,10 @@ const dateOfBirth = z
   .refine(isRealDay, "Enter a real date.")
   .refine((value) => !isRealDay(value) || value <= todayInIndia(), "The date can't be in the future.");
 
-const text = z.string().trim().max(MAX_TEXT, `Keep it under ${MAX_TEXT} characters.`);
-
 const billingEmail = z
   .string()
   .transform((value) => normalizeEmail(value) ?? "")
   .refine((value) => value !== "", "Enter a valid email address.");
-
-const gstin = z
-  .string()
-  .transform((value) => value.replace(/\s+/g, "").toUpperCase())
-  .refine(isValidGstin, "Enter a valid 15-character GSTIN.");
-
-const address = z
-  .string()
-  .transform((value) =>
-    value
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .join("\n"),
-  )
-  .refine((value) => value.length <= MAX_ADDRESS, `Keep it under ${MAX_ADDRESS} characters.`);
 
 // Sent whole: a field left out is cleared, so the GSTIN and state are always checked together.
 const billingFields = z

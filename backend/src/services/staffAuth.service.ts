@@ -2,6 +2,7 @@ import bcrypt from "bcrypt";
 import crypto from "crypto";
 import { env } from "../config/env";
 import { PASSWORD_RULES, RESET_LIMITS, SIGN_IN_LIMITS } from "../constants/auth";
+import { PASSWORD_RESET_TEMPLATE_ID } from "../constants/notifications";
 import { AppError } from "../middlewares/error.middleware";
 import { Admin, PartnerStaff, type AdminDoc, type OtpPurpose, type PartnerStaffDoc } from "../models";
 import { adminSummary, partnerSummary, type AdminAccount, type PartnerAccount } from "./account.service";
@@ -52,6 +53,9 @@ const summaryOf = (accountType: StaffAccountType, staff: StaffDoc): PartnerAccou
   accountType === "admin" ? adminSummary(staff as AdminDoc) : partnerSummary(staff as PartnerStaffDoc);
 
 /** Checks the password under the attempt limit; the answer never says whether the email exists. */
+export const verifyStaffPassword = (accountType: StaffAccountType, email: string, password: string) =>
+  verify(accountType, email, password);
+
 const verify = async (accountType: StaffAccountType, email: string, password: string) => {
   await reserveSignIn(SIGN_IN[accountType], email, SIGN_IN_LIMITS);
   const staff = await findStaff(accountType, { email });
@@ -113,19 +117,13 @@ export const changePassword = async (
 const deliverResetLink = (accountType: StaffAccountType, staff: StaffDoc, token: string) => {
   const { email: settings, msg91AuthKey, isProduction, frontendUrl } = env();
   const link = `${frontendUrl.replace(/\/+$/, "")}/${accountType}/reset-password#token=${token}`;
-  if (!settings?.passwordResetTemplateId || !msg91AuthKey) {
+  if (!isProduction) console.log(`[dev] password reset link for ${staff.email}: ${link}`);
+  if (!settings || !msg91AuthKey) {
     if (isProduction) console.error("Password reset email is not configured.");
-    else console.log(`[dev] password reset link for ${staff.email}: ${link}`);
     return;
   }
   sendTemplateEmail(
-    {
-      authKey: msg91AuthKey,
-      domain: settings.domain,
-      from: settings.from,
-      fromName: settings.fromName,
-      templateId: settings.passwordResetTemplateId,
-    },
+    { authKey: msg91AuthKey, ...settings, templateId: PASSWORD_RESET_TEMPLATE_ID },
     staff.email,
     { name: staff.name, reset_link: link, expiry_minutes: String(RESET_MINUTES) },
   ).catch((error: unknown) => {

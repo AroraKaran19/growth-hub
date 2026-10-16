@@ -15,9 +15,11 @@ import {
   getLabels,
   getSeatMapDetail,
   getSeatMaps,
+  getVenueStats,
   patchAdminVenue,
   postAdminVenue,
-  putOutOfService,
+  postOutage,
+  deleteOutage,
   putLabel,
   putVenueSeatMap,
 } from "../controllers/catalogue.controller";
@@ -75,11 +77,16 @@ adminVenueRoutes.get("/:slug", requirePermission(VENUES, "workspaces.availabilit
 adminVenueRoutes.patch("/:slug", requirePermission(VENUES, "workspaces.pricing"), patchAdminVenue);
 adminVenueRoutes.put("/:slug/seat-map", requirePermission(VENUES), putVenueSeatMap);
 adminVenueRoutes.delete("/:slug/seat-map", requirePermission(VENUES), deleteVenueSeatMap);
-adminVenueRoutes.put("/:slug/out-of-service", requirePermission(VENUES, "workspaces.availability"), putOutOfService);
+adminVenueRoutes.post("/:slug/outages", requirePermission(VENUES, "workspaces.availability"), postOutage);
+adminVenueRoutes.delete("/:slug/outages/:seatId", requirePermission(VENUES, "workspaces.availability"), deleteOutage);
 adminVenueRoutes.get("/:slug/addons", requirePermission(VENUES), getVenueAddonChoices);
 adminVenueRoutes.put("/:slug/addons", requirePermission(VENUES), putVenueAddonChoices);
 adminVenueRoutes.get("/:slug/deletion-impact", requireSuperAdmin, getDeletionImpact);
 adminVenueRoutes.delete("/:slug", requireSuperAdmin, deleteAdminVenue);
+
+// Its own path, since any slug could shadow a "/admin/venues/stats" route.
+export const adminVenueStatsRoutes = guarded(VENUES);
+adminVenueStatsRoutes.get("/", getVenueStats);
 
 export const adminLabelRoutes = guarded("workspaces.types");
 adminLabelRoutes.get("/", getLabels);

@@ -1,14 +1,15 @@
 import crypto from "crypto";
 
-export type RefKind = "booking" | "membership" | "addon-order";
+export type RefKind = "booking" | "membership" | "addon-order" | "support";
 
-const PREFIX: Record<RefKind, string> = { booking: "GH-", membership: "GH-M-", "addon-order": "GH-A-" };
+const PREFIX: Record<RefKind, string> = { booking: "GH-", membership: "GH-M-", "addon-order": "GH-A-", support: "GH-S-" };
 
 // The 12-digit forms are references issued before the GH- format.
 const PATTERN: Record<RefKind, RegExp> = {
   booking: /^(GH-\d{7}|\d{12})$/,
   membership: /^(GH-M-\d{7}|m-\d{12})$/,
   "addon-order": /^(GH-A-\d{7}|a-\d{12})$/,
+  support: /^GH-S-\d{7}$/,
 };
 
 const ATTEMPTS = 8;

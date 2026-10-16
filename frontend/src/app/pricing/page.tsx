@@ -1,11 +1,8 @@
 import type { Metadata } from "next";
+import { pageMetadata } from "@/libs/seo";
 import PricingPage from "../(pages)/Pricing/PricingPage";
 
-export const metadata: Metadata = {
-  title: "Pricing",
-  description:
-    "Hourly, half-day and full-day passes and membership plans at Growth Hub partner venues.",
-};
+export const generateMetadata = (): Promise<Metadata> => pageMetadata("pricing");
 
 export const revalidate = 300;
 

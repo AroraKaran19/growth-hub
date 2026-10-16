@@ -81,6 +81,7 @@ const ResetPasswordDialog = ({ name, email, portal, onSave, onClose }: ResetPass
               setError(undefined);
             }}
             error={error}
+            required
           />
           <p className="text-sm text-tertiary/60">They&apos;re signed out now and choose their own password the next time they sign in.</p>
         </div>

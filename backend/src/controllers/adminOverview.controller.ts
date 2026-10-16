@@ -1,8 +1,7 @@
 import type { Request, Response } from "express";
 import { asyncHandler, sendSuccessResponse } from "../middlewares/error.middleware";
-import { catalogueOverview, operationsOverview } from "../services/adminOverview.service";
+import { adminOverview } from "../services/adminOverview.service";
 
-export const getOverview = asyncHandler(async (_req: Request, res: Response) => {
-  const [catalogue, operations] = await Promise.all([catalogueOverview(), operationsOverview()]);
-  sendSuccessResponse(res, { catalogue, operations }, "Overview");
+export const getOverview = asyncHandler(async (req: Request, res: Response) => {
+  sendSuccessResponse(res, { overview: await adminOverview(req.auth!.account) }, "Overview");
 });

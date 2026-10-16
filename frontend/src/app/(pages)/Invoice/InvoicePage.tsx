@@ -25,9 +25,9 @@ const InvoicePage = ({ bookingId }: { bookingId: string }) => {
   const { booking: fromApi, isLoading } = useBooking(bookingId);
   const { session, account } = useSession();
   const { invoices } = useMyInvoices();
-  const billing = account?.billing;
+  const billing = fromApi?.billing;
   const state = gstStateName(billing?.state);
-  // Until the issued copy loads, the current details stand in for it.
+  // Until the issued copy loads, the booking's own company stands in for it.
   const current: InvoiceBilledTo = {
     name: billing?.companyName || session?.name || "",
     company: "",

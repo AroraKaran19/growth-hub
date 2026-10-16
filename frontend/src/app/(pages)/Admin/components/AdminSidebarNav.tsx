@@ -62,7 +62,7 @@ const NavGroup = ({ group, isActive }: { group: AdminNavGroup; isActive: (href: 
 
 /** Desktop sidebar: plain links, plus groups that open to show their pages. */
 const AdminSidebarNav = ({ entries, isActive }: { entries: AdminNavEntry[]; isActive: (href: string) => boolean }) => (
-  <nav aria-label="Admin" className="mt-8 min-h-0 overflow-y-auto">
+  <nav aria-label="Admin" className="scrollbar-thin mt-8 min-h-0 overflow-y-auto">
     <ul className="flex flex-col gap-1">
       {entries.map((entry) =>
         isNavGroup(entry) ? (

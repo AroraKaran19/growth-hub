@@ -1,5 +1,5 @@
 import { AppError } from "../middlewares/error.middleware";
-import { Booking, Membership, MembershipCharge, type BookingDoc, type MembershipDoc } from "../models";
+import { Booking, Membership, MembershipCharge, billingView, type BookingDoc, type MembershipDoc } from "../models";
 import { isRef } from "../utils/refs";
 import type { AdminRescheduleInput } from "../validators/booking";
 import { rescheduleAsAdmin } from "./booking.service";
@@ -36,6 +36,7 @@ const bookingDetail = async (booking: BookingDoc) => {
     ...row,
     seatIds: booking.seats.map((seat) => seat.id),
     paid: booking.payment?.amount ?? 0,
+    billing: billingView(booking.billing),
     hasOpenRequest: Boolean(booking.openRequestId),
     requests: await requestHistory("booking", booking._id),
   };
@@ -50,6 +51,7 @@ const membershipDetail = async (membership: MembershipDoc) => {
   return {
     ...row,
     paid: charges?.total ?? 0,
+    billing: billingView(membership.billing),
     hasOpenRequest: Boolean(membership.openRequestId),
     requests: await requestHistory("membership", membership._id),
   };

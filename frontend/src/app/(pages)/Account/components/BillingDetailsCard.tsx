@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { Building2, Info, Pencil, Plus } from "lucide-react";
-import SelectField from "@/app/components/ui/form/SelectField";
+import { useState, type FormEvent, type ReactNode } from "react";
+import { Building2, Pencil, Plus } from "lucide-react";
+import RequiredMark from "@/app/components/ui/form/RequiredMark";
 import { GST_REGISTERED, ISSUER_NAME } from "@/config/invoice";
-import { GST_STATE_OPTIONS, gstStateName } from "@/data/gstStates";
+import { gstStateName } from "@/data/gstStates";
 import { memberApi } from "@/libs/api/client";
 import { readApiError } from "@/libs/api/errors";
 import { toastDone, toastFailed } from "@/libs/toast";
@@ -26,9 +26,8 @@ import {
 const FIELD_BOX =
   "w-full rounded-lg border border-tertiary/20 bg-secondary px-3.5 py-2.5 text-sm text-tertiary outline-none transition-colors placeholder:text-tertiary/40 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20";
 const FIELD_LABEL = "mb-1.5 block text-sm font-medium text-tertiary";
-const FIELD_HINT = "mt-1.5 text-xs text-tertiary/55";
-
-const STATE_OPTIONS = [{ label: "Not added", value: "" }, ...GST_STATE_OPTIONS];
+const SECONDARY_BUTTON =
+  "inline-flex items-center gap-2 rounded-lg border border-tertiary/15 bg-secondary px-3.5 py-2 text-sm font-medium text-tertiary shadow-sm transition-all hover:-translate-y-0.5 hover:border-tertiary/30 hover:shadow-md";
 
 const FieldError = ({ id, message }: { id: string; message?: string }) =>
   message ? (
@@ -37,55 +36,34 @@ const FieldError = ({ id, message }: { id: string; message?: string }) =>
     </p>
   ) : null;
 
-const BilledToPreview = ({ account }: { account: MemberAccount }) => {
-  const billing = toBillingDraft(account);
-  const state = gstStateName(billing.state);
-  const email = account.profile?.billingEmail ?? account.email;
-
-  return (
-    <div className="relative overflow-hidden rounded-xl border border-t-[3px] border-tertiary/10 border-t-primary bg-secondary p-5 shadow-lg shadow-tertiary/8">
-      <p className="text-xs font-semibold text-tertiary/50">Billed to</p>
-      <p className="mt-2 text-base font-bold text-tertiary">
-        {billing.companyName || account.name || "Your name"}
-      </p>
-      {billing.gstin && (
-        <p className="mt-1 text-sm text-tertiary/75">
-          GSTIN <span className="font-mono tracking-wide text-tertiary">{billing.gstin}</span>
-        </p>
-      )}
-      {billing.address && (
-        <p className="mt-1 whitespace-pre-line text-sm text-tertiary/65">{billing.address}</p>
-      )}
-      {state && (
-        <p className="text-sm text-tertiary/65">
-          {state} ({billing.state})
-        </p>
-      )}
-      {email && <p className="mt-1 text-sm text-tertiary/65">{email}</p>}
-    </div>
-  );
-};
+const Detail = ({ label, children, wide }: { label: string; children: ReactNode; wide?: boolean }) => (
+  <div className={wide ? "sm:col-span-2" : undefined}>
+    <dt className="text-xs text-tertiary/55">{label}</dt>
+    <dd className="mt-1 text-sm font-medium text-tertiary">{children}</dd>
+  </div>
+);
 
 type BillingDetailsCardProps = {
   account: MemberAccount;
-  onSaved?: (account: MemberAccount) => void;
   className?: string;
 };
 
-/** Optional company details copied onto each invoice when it is issued. */
-const BillingDetailsCard = ({ account, onSaved, className }: BillingDetailsCardProps) => {
+/** The company saved for this account; it prefills the company invoice form at checkout. */
+const BillingDetailsCard = ({ account, className }: BillingDetailsCardProps) => {
   const setAccount = useAuthStore("member", (state) => state.setAccount);
   const [draft, setDraft] = useState<BillingDraft | null>(null);
   const [errors, setErrors] = useState<BillingErrors>({});
   const [isSaving, setIsSaving] = useState(false);
 
   const isEditing = draft !== null;
-  const saved = hasBilling(account);
+  const isSaved = hasBilling(account);
+  const savedDraft = toBillingDraft(account);
   const typedGstin = draft ? tidyGstin(draft.gstin) : "";
   const gstinState = isValidGstin(typedGstin) ? gstStateName(gstinStateCode(typedGstin)) : "";
+  const invoiceEmail = account.profile?.billingEmail ?? account.email;
 
   const startEditing = () => {
-    setDraft(toBillingDraft(account));
+    setDraft(savedDraft);
     setErrors({});
   };
 
@@ -99,20 +77,18 @@ const BillingDetailsCard = ({ account, onSaved, className }: BillingDetailsCardP
       if (!current) return current;
       const updated = { ...current, [key]: next };
       const gstin = tidyGstin(updated.gstin);
-      // A GSTIN names its state, so fill it in rather than risk a mismatch.
-      if (key === "gstin" && isValidGstin(gstin)) updated.state = gstinStateCode(gstin);
+      // A GSTIN names its state, so it is filled in rather than picked.
+      if (key === "gstin") updated.state = isValidGstin(gstin) ? gstinStateCode(gstin) : "";
       return updated;
     });
-    setErrors((current) => ({ ...current, [key]: undefined, ...(key === "gstin" && { state: undefined }) }));
+    setErrors((current) => ({ ...current, [key]: undefined }));
   };
 
   const send = async (billing: BillingDraft | null, done: string) => {
     setIsSaving(true);
     try {
       const { data } = await memberApi.patch("/members/me", { billing });
-      const next = data.data.account as MemberAccount;
-      setAccount(next);
-      onSaved?.(next);
+      setAccount(data.data.account as MemberAccount);
       stopEditing();
       toastDone(done);
     } catch (caught) {
@@ -125,91 +101,70 @@ const BillingDetailsCard = ({ account, onSaved, className }: BillingDetailsCardP
     }
   };
 
-  const save = () => {
+  const save = (event: FormEvent) => {
+    event.preventDefault();
     if (!draft) return;
     const found = validateBilling(draft);
+    if (!draft.companyName.trim()) found.companyName = "Enter the company name.";
+    if (!tidyGstin(draft.gstin)) found.gstin = "Enter the company's GSTIN.";
     setErrors(found);
-    if (Object.keys(found).length > 0) {
-      toastFailed("Check the highlighted fields.");
-      return;
-    }
-    if (isSameBilling(draft, account)) {
-      stopEditing();
-      return;
-    }
-    void send(toBillingBody(draft), "Billing details saved.");
+    if (Object.keys(found).length > 0) return;
+    if (isSameBilling(draft, account)) return stopEditing();
+    void send(toBillingBody(draft), "Company details saved.");
   };
-
-  const describedBy = (key: keyof BillingDraft, hint?: boolean) =>
-    errors[key] ? `billing-${key}-error` : hint ? `billing-${key}-hint` : undefined;
 
   return (
     <section
       aria-labelledby="billing-details-title"
-      className={cn(
-        "overflow-hidden rounded-2xl border border-tertiary/10 bg-secondary shadow-xl shadow-tertiary/5",
-        className,
-      )}
+      className={cn("rounded-2xl border border-tertiary/10 bg-secondary shadow-md shadow-tertiary/5", className)}
     >
-      <div className={cn("relative overflow-hidden bg-tertiary px-5 py-5 text-secondary lg:px-6", !isEditing && "lg:pb-14")}>
-        <div aria-hidden="true" className="cta-banner absolute -right-12 -top-16 size-44 rounded-full opacity-30 blur-3xl" />
-        <div className="relative flex flex-wrap items-start justify-between gap-4">
-          <div className="flex items-start gap-3.5">
-            <span className="bg-icon-tile flex size-11 shrink-0 items-center justify-center rounded-xl text-secondary shadow-lg shadow-primary/30">
-              <Building2 aria-hidden="true" className="size-5" />
-            </span>
-            <div>
-              <h2 id="billing-details-title" className="text-lg font-bold">
-                Billing Details
-              </h2>
-              <p className="mt-0.5 max-w-md text-sm text-secondary/70">
-                Optional. Add your company and GSTIN to have invoices issued in its name.
-              </p>
-            </div>
+      <header className="flex flex-wrap items-center justify-between gap-4 border-b border-tertiary/8 px-5 py-4 sm:px-6">
+        <div className="flex items-center gap-3">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/8 text-primary">
+            <Building2 aria-hidden="true" className="size-5" />
+          </span>
+          <div>
+            <h2 id="billing-details-title" className="text-base font-bold text-tertiary">
+              Saved company
+            </h2>
+            <p className="text-sm text-tertiary/60">Fills in the company form when you ask for a GST invoice.</p>
           </div>
-          {!isEditing && (
-            <button
-              type="button"
-              onClick={startEditing}
-              className="inline-flex items-center gap-2 rounded-lg bg-secondary/10 px-3.5 py-2 text-sm font-medium text-secondary ring-1 ring-secondary/20 transition-colors hover:bg-secondary/15"
-            >
-              {saved ? <Pencil aria-hidden="true" className="size-3.5" /> : <Plus aria-hidden="true" className="size-4" />}
-              {saved ? "Edit" : "Add details"}
-            </button>
-          )}
         </div>
-      </div>
+        {!isEditing && isSaved && (
+          <button type="button" onClick={startEditing} className={SECONDARY_BUTTON}>
+            <Pencil aria-hidden="true" className="size-3.5" />
+            Edit
+          </button>
+        )}
+      </header>
 
       {draft ? (
-        <div className="p-5 lg:p-6">
+        <form onSubmit={save} noValidate className="px-5 py-5 sm:px-6">
           <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
-            <div className="sm:col-span-2">
+            <div>
               <label htmlFor="billing-companyName" className={FIELD_LABEL}>
-                Company Name
+                Company name
+                <RequiredMark />
               </label>
               <input
                 id="billing-companyName"
                 type="text"
                 autoComplete="organization"
                 value={draft.companyName}
-                placeholder="Company name as registered"
+                placeholder="As registered for GST"
+                aria-required="true"
                 aria-invalid={Boolean(errors.companyName)}
-                aria-describedby={describedBy("companyName", true)}
+                aria-describedby={errors.companyName ? "billing-companyName-error" : undefined}
                 onChange={(event) => change("companyName", event.target.value)}
                 className={cn(FIELD_BOX, errors.companyName && "border-primary")}
               />
-              {errors.companyName ? (
-                <FieldError id="billing-companyName-error" message={errors.companyName} />
-              ) : (
-                <p id="billing-companyName-hint" className={FIELD_HINT}>
-                  Leave it blank to have invoices in your own name.
-                </p>
-              )}
+              <FieldError id="billing-companyName-error" message={errors.companyName} />
             </div>
 
             <div>
               <label htmlFor="billing-gstin" className={FIELD_LABEL}>
                 GSTIN
+                <RequiredMark />
               </label>
               <div className="relative">
                 <input
@@ -220,8 +175,9 @@ const BillingDetailsCard = ({ account, onSaved, className }: BillingDetailsCardP
                   maxLength={18}
                   value={draft.gstin}
                   placeholder="15-character GSTIN"
+                  aria-required="true"
                   aria-invalid={Boolean(errors.gstin)}
-                  aria-describedby={describedBy("gstin", true)}
+                  aria-describedby={errors.gstin ? "billing-gstin-error" : undefined}
                   onChange={(event) => change("gstin", event.target.value.toUpperCase())}
                   className={cn(FIELD_BOX, "font-mono tracking-wide", gstinState && "pr-28", errors.gstin && "border-primary")}
                 />
@@ -231,38 +187,22 @@ const BillingDetailsCard = ({ account, onSaved, className }: BillingDetailsCardP
                   </span>
                 )}
               </div>
-              {errors.gstin ? (
-                <FieldError id="billing-gstin-error" message={errors.gstin} />
-              ) : (
-                <p id="billing-gstin-hint" className={FIELD_HINT}>
-                  The state fills in from your GSTIN.
-                </p>
-              )}
-            </div>
-
-            <div>
-              <SelectField
-                label="State"
-                value={draft.state}
-                options={STATE_OPTIONS}
-                placeholder="Select state"
-                onChange={(next) => change("state", next)}
-              />
-              <FieldError id="billing-state-error" message={errors.state} />
+              <FieldError id="billing-gstin-error" message={errors.gstin ?? errors.state} />
             </div>
 
             <div className="sm:col-span-2">
               <label htmlFor="billing-address" className={FIELD_LABEL}>
-                Billing Address
+                Billing address
+                <span className="ml-1.5 font-normal text-tertiary/45">(optional)</span>
               </label>
               <textarea
                 id="billing-address"
-                rows={3}
+                rows={2}
                 autoComplete="street-address"
                 value={draft.address}
                 placeholder="Building, street, city and PIN code"
                 aria-invalid={Boolean(errors.address)}
-                aria-describedby={describedBy("address")}
+                aria-describedby={errors.address ? "billing-address-error" : undefined}
                 onChange={(event) => change("address", event.target.value)}
                 className={cn(FIELD_BOX, "resize-none", errors.address && "border-primary")}
               />
@@ -270,15 +210,15 @@ const BillingDetailsCard = ({ account, onSaved, className }: BillingDetailsCardP
             </div>
           </div>
 
-          <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-tertiary/10 pt-5">
-            {saved ? (
+          <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+            {isSaved ? (
               <button
                 type="button"
-                onClick={() => void send(null, "Billing details removed.")}
+                onClick={() => void send(null, "Saved company removed.")}
                 disabled={isSaving}
                 className="text-sm font-medium text-tertiary/55 transition-colors hover:text-primary disabled:opacity-50"
               >
-                Remove billing details
+                Remove saved company
               </button>
             ) : (
               <span />
@@ -293,37 +233,51 @@ const BillingDetailsCard = ({ account, onSaved, className }: BillingDetailsCardP
                 Cancel
               </button>
               <button
-                type="button"
-                onClick={save}
+                type="submit"
                 disabled={isSaving}
-                className="cta-gradient rounded-lg px-5 py-2.5 text-sm font-medium text-secondary shadow-lg shadow-primary/20 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                className="cta-gradient rounded-lg px-5 py-2.5 text-sm font-medium text-secondary shadow-sm transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {isSaving ? "Saving..." : "Save billing details"}
+                {isSaving ? "Saving..." : "Save company"}
               </button>
             </div>
           </div>
-        </div>
+        </form>
+      ) : isSaved ? (
+        <dl className="grid grid-cols-1 gap-x-8 gap-y-4 px-5 py-5 sm:grid-cols-2 sm:px-6">
+          <Detail label="Company name">{savedDraft.companyName || "Not added"}</Detail>
+          <Detail label="GSTIN">
+            <span className="font-mono tracking-wide">{savedDraft.gstin || "Not added"}</span>
+          </Detail>
+          <Detail label="State">
+            {savedDraft.state ? `${gstStateName(savedDraft.state)} (${savedDraft.state})` : "Not added"}
+          </Detail>
+          {invoiceEmail && <Detail label="Invoices emailed to">{invoiceEmail}</Detail>}
+          {savedDraft.address && (
+            <Detail label="Billing address" wide>
+              <span className="whitespace-pre-line font-normal">{savedDraft.address}</span>
+            </Detail>
+          )}
+        </dl>
       ) : (
-        <div className="grid grid-cols-1 gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,18rem)] lg:gap-8 lg:p-6">
-          <div className="lg:-mt-10">
-            <BilledToPreview account={account} />
-          </div>
-          <div className="flex flex-col gap-3 text-sm text-tertiary/65">
-            <p className="flex gap-2.5">
-              <Info aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" />
-              <span>
-                Each invoice keeps the details it was issued with. Changes here apply to invoices from now on.
-              </span>
-            </p>
-            {!GST_REGISTERED && (
-              <p className="rounded-lg bg-surface px-3.5 py-2.5 text-xs leading-relaxed text-tertiary/60">
-                {ISSUER_NAME} is not registered under GST yet, so invoices carry no GST and can&apos;t be used to
-                claim input tax credit.
-              </p>
-            )}
-          </div>
+        <div className="flex flex-wrap items-center justify-between gap-4 px-5 py-5 sm:px-6">
+          <p className="text-sm text-tertiary/65">
+            No company saved. Invoices go to <span className="font-medium text-tertiary">{account.name ?? "you"}</span>.
+          </p>
+          <button
+            type="button"
+            onClick={startEditing}
+            className="cta-gradient inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-secondary shadow-sm transition-opacity hover:opacity-90"
+          >
+            <Plus aria-hidden="true" className="size-4" />
+            Add company
+          </button>
         </div>
       )}
+
+      <p className="rounded-b-2xl border-t border-tertiary/8 bg-surface px-5 py-3 text-xs leading-relaxed text-tertiary/55 sm:px-6">
+        Invoices already issued keep the details they were issued with.
+        {!GST_REGISTERED && ` ${ISSUER_NAME} isn't registered under GST yet, so invoices carry no GST for now.`}
+      </p>
     </section>
   );
 };

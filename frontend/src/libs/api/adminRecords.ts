@@ -1,13 +1,20 @@
 "use client";
 
 import type { StaffBooking } from "@/types/apiBooking";
+import type { MemberBilling } from "@/types/auth";
 import type { CancellationRequest } from "@/types/cancellation";
 import type { StaffMembership } from "@/types/membership";
 import { adminApi } from "./client";
 
 type Envelope<T> = { data: { data: T } };
 
-type RecordExtras = { paid: number; hasOpenRequest: boolean; requests: CancellationRequest[] };
+type RecordExtras = {
+  paid: number;
+  /** The company invoiced; null when the member is. */
+  billing: MemberBilling | null;
+  hasOpenRequest: boolean;
+  requests: CancellationRequest[];
+};
 export type AdminBookingDetail = StaffBooking & RecordExtras & { seatIds: string[] };
 export type AdminMembershipDetail = StaffMembership & RecordExtras;
 

@@ -7,7 +7,7 @@ const AdminWorkspaceTypesPage = () => (
   <>
     <PageHeader
       title="Workspace types"
-      description="The four types are fixed. Change how each is named, described and pictured; it updates everywhere the type appears."
+      description="Venues get these types from their seat map and what they sell. Change how each is named, described and pictured; it updates everywhere the type appears."
     />
     <div className="mt-6">
       <WorkspaceTypesEditor />

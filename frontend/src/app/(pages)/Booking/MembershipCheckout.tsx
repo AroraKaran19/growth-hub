@@ -8,6 +8,7 @@ import { StaffBookingNote, useIsStaff } from "@/app/components/shared/CustomerOn
 import PhoneSignIn from "@/app/components/shared/PhoneSignIn";
 import { useRazorpay, type RazorpaySubscriptionSuccess } from "@/hooks/useRazorpay";
 import { usePlanQuote } from "@/hooks/useVenuePlans";
+import { rememberCompanyDetails } from "@/libs/api/billing";
 import { readApiError } from "@/libs/api/errors";
 import {
   confirmMembership,
@@ -21,6 +22,7 @@ import { isMembershipType } from "@/types/booking";
 import type { ApiMembership, ApiMembershipCheckout } from "@/types/membership";
 import type { VenueDetail } from "@/types/venue";
 import { cn } from "@/utils";
+import { billingInputFrom, invoiceToLabel } from "@/utils/companyInvoice";
 import { formatDay } from "@/utils/date";
 import {
   KEY_FROM_LENGTH,
@@ -31,7 +33,7 @@ import {
   locksLabel,
   windowLabel,
 } from "@/utils/plans";
-import BillingDetailsCard from "../Account/components/BillingDetailsCard";
+import { hoursOnDays } from "@/utils/venueHours";
 import {
   checkoutStepFor,
   countdownLabel,
@@ -59,9 +61,9 @@ const CARD = "rounded-2xl border border-tertiary/10 bg-secondary p-5 shadow-sm l
 const MembershipCheckout = ({ venue }: { venue: VenueDetail }) => {
   const router = useRouter();
   const isStaff = useIsStaff();
-  const { selection, setSelection, clear, isHydrated, plan, isConfigured, isScheduled, isSeatingComplete } =
+  const { selection, setSelection, clear, isHydrated, plan, isConfigured, isScheduled, isSeatingComplete, isInvoiceReady } =
     useBookingSelection(venue);
-  const { session, account, isReady: isSessionReady } = useSession();
+  const { session, isReady: isSessionReady } = useSession();
   const razorpay = useRazorpay();
 
   const [membership, setMembership] = useState<ApiMembership | null>(null);
@@ -79,7 +81,13 @@ const MembershipCheckout = ({ venue }: { venue: VenueDetail }) => {
   const request = useMemo(() => membershipRequestFrom(selection, plan, { withSeats: true }), [selection, plan]);
   const { quote } = usePlanQuote(membership ? null : request);
   const canPay =
-    venue.published && Boolean(venue.seatMap) && isConfigured && isScheduled && isSeatingComplete && Boolean(request);
+    venue.published &&
+    Boolean(venue.seatMap) &&
+    isConfigured &&
+    isScheduled &&
+    isSeatingComplete &&
+    isInvoiceReady &&
+    Boolean(request);
   const seats = venue.seatMap?.seats ?? [];
   const labelFor = (id: string) => seatLabelsFor([id], seats)[0];
 
@@ -87,9 +95,9 @@ const MembershipCheckout = ({ venue }: { venue: VenueDetail }) => {
     if (confirmed || isStaff) return;
     if (!isHydrated || canPay) return;
     // A dropped date or time is fixed on the options step; the seats page would only send them back here.
-    const step = checkoutStepFor({ isConfigured, isScheduled, isSeatingComplete }) ?? "seats";
+    const step = checkoutStepFor({ isConfigured, isScheduled, isSeatingComplete, isInvoiceReady }) ?? "seats";
     router.replace(`/workspaces/${venue.slug}/book${step === "book" ? "" : "/seats"}`);
-  }, [isHydrated, canPay, confirmed, isStaff, router, venue.slug, isConfigured, isScheduled, isSeatingComplete]);
+  }, [isHydrated, canPay, confirmed, isStaff, router, venue.slug, isConfigured, isScheduled, isSeatingComplete, isInvoiceReady]);
 
   const settle = (done: ApiMembership) => {
     held.current.settled = true;
@@ -102,8 +110,9 @@ const MembershipCheckout = ({ venue }: { venue: VenueDetail }) => {
     started.current = true;
     attemptKey.current ??= crypto.randomUUID();
     try {
-      const result = await createMembership(request, attemptKey.current);
+      const result = await createMembership({ ...request, billing: billingInputFrom(selection.invoice) }, attemptKey.current);
       held.current.ref = result.membership.ref;
+      void rememberCompanyDetails(selection.invoice);
       if (result.membership.status === "active") {
         settle(result.membership);
         return;
@@ -253,10 +262,14 @@ const MembershipCheckout = ({ venue }: { venue: VenueDetail }) => {
     { label: "Covered days", value: daysLabel(plan?.days) },
     {
       label: plan && isTimeSlotPlan(plan) ? "Daily window" : "Access",
-      value: dailyWindow ? windowLabel(dailyWindow) : venue.openHours,
+      value: dailyWindow ? windowLabel(dailyWindow) : hoursOnDays(venue.hours, plan?.days),
     },
     { label: "Starts", value: selection.date ? formatDay(selection.date) : "Not set" },
     { label: "Paid through", value: paidThrough ? formatDay(paidThrough) : "Working it out" },
+    {
+      label: "Invoice to",
+      value: invoiceToLabel(membership ? membership.billing : billingInputFrom(selection.invoice)) ?? "You, in your own name",
+    },
   ];
 
   const canClickPay =
@@ -313,8 +326,6 @@ const MembershipCheckout = ({ venue }: { venue: VenueDetail }) => {
                   ))}
                 </dl>
               </div>
-
-              {account && <BillingDetailsCard account={account} />}
             </div>
 
             <div className={cn(CARD, "flex h-fit flex-col gap-4 lg:sticky lg:top-28")}>
@@ -378,8 +389,7 @@ const MembershipCheckout = ({ venue }: { venue: VenueDetail }) => {
 
               {session && (
                 <p className="rounded-lg bg-tertiary/4 px-3 py-2 text-xs text-tertiary/55">
-                  Signed in as {session.name}. Invoices are issued in your name, or your company&apos;s if you add
-                  billing details. Payments are processed securely by Razorpay.
+                  Signed in as {session.name}. Payments are processed securely by Razorpay.
                 </p>
               )}
 

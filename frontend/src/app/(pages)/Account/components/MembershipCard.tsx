@@ -3,14 +3,15 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
-import { ArrowRight, CircleAlert, CircleX, Hourglass, PackagePlus, QrCode } from "lucide-react";
+import { ArrowRight, Building2, CircleAlert, CircleX, Hourglass, PackagePlus, QrCode } from "lucide-react";
 import DirectionsLink from "@/app/components/ui/DirectionsLink";
 import { useVenue } from "@/hooks/useVenues";
 import { readApiError } from "@/libs/api/errors";
 import type { ApiAddonOrder } from "@/types/addonOrder";
-import type { VenueAddonOffer } from "@/types/catalogue";
+import type { DayHours, VenueAddonOffer } from "@/types/catalogue";
 import { MEMBERSHIP_STATUS_LABELS, type ApiMembership, type MembershipStatus } from "@/types/membership";
 import { cn } from "@/utils";
+import { invoiceToLabel } from "@/utils/companyInvoice";
 import { formatDay, todayIso } from "@/utils/date";
 import {
   PLAN_LENGTH_LABELS,
@@ -21,6 +22,7 @@ import {
   spaceLabel,
   windowLabel,
 } from "@/utils/plans";
+import { hoursOnDays, openDaysOf } from "@/utils/venueHours";
 import { canBuyAddons } from "../addonOrderRules";
 import { canAskToCancel, requestNotice } from "../cancelRequest";
 import { paidCycleStart } from "../membershipCycle";
@@ -43,11 +45,12 @@ type MembershipCardProps = {
   membership: ApiMembership;
   onShowPass: (membership: ApiMembership) => void;
   onStopRenewal: (membership: ApiMembership) => void;
+  onEditInvoice: (membership: ApiMembership) => void;
   onRequestCancel: (membership: ApiMembership) => void;
   onWithdrawRequest: (membership: ApiMembership) => Promise<void>;
   /** This plan's add-on orders that still have a day ahead. */
   addonOrders: ApiAddonOrder[];
-  onBuyAddons: (membership: ApiMembership, offers: VenueAddonOffer[], openDays: number[]) => void;
+  onBuyAddons: (membership: ApiMembership, offers: VenueAddonOffer[], hours: DayHours[]) => void;
   onRequestAddonCancel: (order: ApiAddonOrder) => void;
   onWithdrawAddonRequest: (order: ApiAddonOrder) => Promise<void>;
 };
@@ -56,6 +59,7 @@ const MembershipCard = ({
   membership,
   onShowPass,
   onStopRenewal,
+  onEditInvoice,
   onRequestCancel,
   onWithdrawRequest,
   addonOrders,
@@ -200,7 +204,7 @@ const MembershipCard = ({
             {membership.plan
               ? daysLabel(membership.plan.days)
               : venue
-                ? venue.openDaysLabel.replace(/^open\s+/i, "").replace("*", "")
+                ? daysLabel(openDaysOf(venue.hours))
                 : "Every open day"}
           </dd>
         </div>
@@ -208,11 +212,28 @@ const MembershipCard = ({
           <div>
             <dt className={DETAIL_LABEL}>{membership.window ? "Your window" : "Access"}</dt>
             <dd className={DETAIL_VALUE}>
-              {membership.window ? windowLabel(membership.window) : venue?.openHours}
+              {membership.window ? windowLabel(membership.window) : venue && hoursOnDays(venue.hours, membership.plan?.days)}
             </dd>
           </div>
         )}
       </dl>
+
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-surface px-4 py-3">
+        <p className="flex min-w-0 items-center gap-2.5 text-sm">
+          <Building2 aria-hidden="true" className="size-4 shrink-0 text-primary" />
+          <span className="text-tertiary/55">Invoices to</span>
+          <span className="truncate font-medium text-tertiary">{invoiceToLabel(membership.billing) ?? "You, in your own name"}</span>
+        </p>
+        {membership.renewsOn && (
+          <button
+            type="button"
+            onClick={() => onEditInvoice(membership)}
+            className="text-sm font-medium text-primary transition-opacity hover:opacity-75"
+          >
+            Change
+          </button>
+        )}
+      </div>
 
       {membership.holders.length > 0 && (
         <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -257,7 +278,7 @@ const MembershipCard = ({
         {canAddExtras && venue && (
           <button
             type="button"
-            onClick={() => onBuyAddons(membership, offers, venue.openDays)}
+            onClick={() => onBuyAddons(membership, offers, venue.hours)}
             className="inline-flex items-center gap-2 rounded-lg border border-tertiary/15 bg-secondary px-4 py-2.5 text-sm font-medium text-tertiary shadow-sm transition-all hover:-translate-y-0.5 hover:border-tertiary/30 hover:shadow-md"
           >
             <PackagePlus aria-hidden="true" className="size-4 text-primary" />

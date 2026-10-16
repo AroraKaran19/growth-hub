@@ -4,12 +4,14 @@ import {
   BarChart3,
   Building2,
   CalendarCheck,
+  ChartLine,
   ClipboardList,
   Crown,
   IndianRupee,
   Landmark,
   LayoutDashboard,
   LayoutGrid,
+  LifeBuoy,
   Map as MapIcon,
   MessageSquareQuote,
   Puzzle,
@@ -49,6 +51,7 @@ export const isNavGroup = (entry: AdminNavEntry): entry is AdminNavGroup => "pag
 
 export const ADMIN_NAV: AdminNavEntry[] = [
   { label: "Overview", href: "/admin", icon: LayoutDashboard, permission: "overview" },
+  { label: "Analytics", href: "/admin/analytics", icon: ChartLine, permission: "analytics" },
   {
     label: "Workspaces",
     icon: Warehouse,
@@ -63,6 +66,7 @@ export const ADMIN_NAV: AdminNavEntry[] = [
     ],
   },
   { label: "Bookings", href: "/admin/bookings", icon: CalendarCheck, permission: "bookings" },
+  { label: "Support requests", href: "/admin/support", icon: LifeBuoy, permission: "support" },
   {
     label: "Memberships",
     icon: Crown,
@@ -144,4 +148,13 @@ export const isPathAllowed = (account: AdminAccount, pathname: string) => {
   if (OWN_PAGES.includes(pathname)) return true;
   const section = sectionForPath(pathname);
   return section ? canAccessSection(account, section.permission) : account.role === "super-admin";
+};
+
+/** The first page in sidebar order this admin can open; "/admin" shows the no-access notice. */
+export const adminLandingPath = (account: AdminAccount) => visibleSections(account)[0]?.href ?? "/admin";
+
+/** Where to send an admin who asked for a page: there if allowed, else their landing page. */
+export const adminDestination = (account: AdminAccount, requested: string) => {
+  const pathname = requested.split(/[?#]/)[0];
+  return isPathAllowed(account, pathname) ? requested : adminLandingPath(account);
 };

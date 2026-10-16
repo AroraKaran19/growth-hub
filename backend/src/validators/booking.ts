@@ -2,6 +2,7 @@ import { z } from "zod";
 import { SEAT_TYPES } from "../constants/catalogue";
 import { PASS_TYPES } from "../services/pricing";
 import { isIsoDate } from "../utils/indiaTime";
+import { purchaseBillingSchema } from "./billing";
 import { slugSchema } from "./common";
 
 export const PREFERENCES = ["none", "window", "quiet", "cafeteria"] as const;
@@ -28,7 +29,7 @@ export const bookingInputSchema = z.object({
   seatIds: z.array(z.string().trim().min(1).max(40)).min(1, "Pick your seats.").max(MAX_PEOPLE),
   addonKeys: z.array(z.string().trim().min(1).max(63)).max(20).default([]),
   preference: z.enum(PREFERENCES).default("none"),
-  companyName: z.string().trim().max(120).default(""),
+  billing: purchaseBillingSchema,
 });
 
 export const quoteInputSchema = bookingInputSchema.extend({

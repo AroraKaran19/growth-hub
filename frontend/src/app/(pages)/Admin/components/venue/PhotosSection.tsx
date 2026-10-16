@@ -3,11 +3,13 @@
 import { useRef, useState } from "react";
 import Image from "next/image";
 import { ChevronLeft, ChevronRight, ImagePlus, LoaderCircle, X } from "lucide-react";
+import RequiredMark from "@/app/components/ui/form/RequiredMark";
 import { IMAGE_TYPES, UploadError, uploadImage } from "@/libs/api/uploads";
 import { readApiError } from "@/libs/api/errors";
 import { cn } from "@/utils";
 import { QUIET, Section } from "./fields";
 import { uploadEach, uploadNotice } from "./galleryUpload";
+import { MIN_GALLERY_PHOTOS } from "./venueDraft";
 
 const MAX_GALLERY = 12;
 
@@ -17,6 +19,7 @@ type PhotosSectionProps = {
   image: string;
   gallery: string[];
   coverError?: string;
+  galleryError?: string;
   onCover: (url: string) => void;
   onGallery: (urls: string[]) => void;
 };
@@ -24,7 +27,7 @@ type PhotosSectionProps = {
 const messageFor = (error: unknown) =>
   error instanceof UploadError ? error.message : readApiError(error).message;
 
-const PhotosSection = ({ ownerId, image, gallery, coverError, onCover, onGallery }: PhotosSectionProps) => {
+const PhotosSection = ({ ownerId, image, gallery, coverError, galleryError, onCover, onGallery }: PhotosSectionProps) => {
   const coverInput = useRef<HTMLInputElement>(null);
   const galleryInput = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState<"cover" | "gallery" | null>(null);
@@ -125,9 +128,10 @@ const PhotosSection = ({ ownerId, image, gallery, coverError, onCover, onGallery
         <div>
           <div className="flex items-center justify-between gap-3">
             <p className="text-sm font-medium text-tertiary">
-              Gallery{" "}
+              Gallery
+              <RequiredMark />{" "}
               <span className="font-normal text-tertiary/45">
-                ({gallery.length} of {MAX_GALLERY})
+                ({gallery.length} of {MAX_GALLERY}, at least {MIN_GALLERY_PHOTOS})
               </span>
             </p>
             <button
@@ -158,8 +162,13 @@ const PhotosSection = ({ ownerId, image, gallery, coverError, onCover, onGallery
           </div>
 
           {gallery.length === 0 ? (
-            <p className="mt-2 rounded-xl border border-dashed border-tertiary/15 p-6 text-center text-sm text-tertiary/50">
-              No gallery photos yet.
+            <p
+              className={cn(
+                "mt-2 rounded-xl border border-dashed p-6 text-center text-sm",
+                galleryError ? "border-primary/40 bg-primary/3 text-primary" : "border-tertiary/15 text-tertiary/50",
+              )}
+            >
+              No gallery photos yet. Add at least {MIN_GALLERY_PHOTOS}.
             </p>
           ) : (
             <ul className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
@@ -203,6 +212,11 @@ const PhotosSection = ({ ownerId, image, gallery, coverError, onCover, onGallery
                 </li>
               ))}
             </ul>
+          )}
+          {galleryError && (
+            <p role="alert" className="mt-1.5 text-sm text-primary">
+              {galleryError}
+            </p>
           )}
         </div>
       </div>

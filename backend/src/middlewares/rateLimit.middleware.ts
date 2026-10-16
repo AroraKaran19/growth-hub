@@ -57,3 +57,14 @@ export const panelRateLimit = createRateLimit({
   max: 300,
   keyOf: (req) => req.auth?.accountId ?? null,
 });
+
+const HOUR_MS = 60 * 60_000;
+
+export const guestSupportRateLimit = createRateLimit({ windowMs: HOUR_MS, max: 5 });
+
+// Each ticket lets one 5 MB file into the bucket, so customers get a modest allowance.
+export const memberUploadRateLimit = createRateLimit({
+  windowMs: HOUR_MS,
+  max: 30,
+  keyOf: (req) => req.auth?.accountId ?? null,
+});

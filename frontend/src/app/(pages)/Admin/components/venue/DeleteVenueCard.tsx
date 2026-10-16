@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import { Trash2, TriangleAlert, X } from "lucide-react";
+import RequiredMark from "@/app/components/ui/form/RequiredMark";
 import { readApiError } from "@/libs/api/errors";
 import { deleteVenue, fetchDeletionImpact } from "@/libs/api/venueRemoval";
 import { cn } from "@/utils";
@@ -114,10 +115,12 @@ const DeleteVenueModal = ({ slug, name, onClose }: { slug: string; name: string;
 
           <div>
             <label htmlFor="delete-reason" className="mb-1.5 block text-sm font-medium text-tertiary">
-              Reason <span className="font-normal text-tertiary/50">(members see this)</span>
+              Reason
+              <RequiredMark /> <span className="font-normal text-tertiary/50">(members see this)</span>
             </label>
             <textarea
               id="delete-reason"
+              aria-required="true"
               rows={2}
               value={reason}
               onChange={(event) => setReason(event.target.value)}
@@ -129,9 +132,11 @@ const DeleteVenueModal = ({ slug, name, onClose }: { slug: string; name: string;
           <div>
             <label htmlFor="delete-confirm" className="mb-1.5 block text-sm font-medium text-tertiary">
               Type <span className="font-semibold">{name}</span> to confirm
+              <RequiredMark />
             </label>
             <input
               id="delete-confirm"
+              aria-required="true"
               autoComplete="off"
               value={confirmName}
               onChange={(event) => setConfirmName(event.target.value)}

@@ -2,11 +2,13 @@
 
 import { useState, type FormEvent } from "react";
 import { ClipboardList, Minus, Plus, X } from "lucide-react";
+import RequiredMark from "@/app/components/ui/form/RequiredMark";
 import { createPlan, updatePlan } from "@/libs/api/membershipPlansAdmin";
 import { readApiError } from "@/libs/api/errors";
 import { toastDone, toastFailed } from "@/libs/toast";
 import type { MembershipPlan, PlanInput, PlanLength, PlanSpace, PlanVenue, RoomMode } from "@/types/membershipPlan";
 import { cn } from "@/utils";
+import { hoursOnDay, longestSlotHours, openDaysOf, rangeLabel } from "@/utils/venueHours";
 import { TextArea, TextInput } from "../settings/inputs";
 import Toggle from "../Toggle";
 import { Field, LABEL, QUIET, RAISED, inputClass } from "../venue/fields";
@@ -25,25 +27,23 @@ const blank = (venue: PlanVenue): Draft => ({
   space: "desk",
   roomMode: null,
   slotHours: null,
-  days: [...venue.openDays].sort(),
+  days: openDaysOf(venue.hours),
   prices: { weekly: "", monthly: "", quarterly: "", halfYearly: "" },
   maxSeats: 1,
   visible: true,
 });
 
-const fromPlan = (plan: MembershipPlan): Draft => ({
+// Days the venue has since closed drop out, since a plan can only cover open days.
+const fromPlan = (plan: MembershipPlan, venue: PlanVenue): Draft => ({
   ...plan,
+  days: plan.days.filter((day) => openDaysOf(venue.hours).includes(day)),
   includes: plan.includes.length ? plan.includes : [""],
   prices: Object.fromEntries(LENGTHS.map(({ value }) => [value, plan.prices[value]?.toString() ?? ""])) as Record<PlanLength, string>,
 });
 
-const openHours = (venue: PlanVenue) => {
-  const minutes = (time: string) => {
-    const [hours, mins] = time.split(":").map(Number);
-    return hours * 60 + mins;
-  };
-  return venue.opensAt && venue.closesAt ? Math.floor((minutes(venue.closesAt) - minutes(venue.opensAt)) / 60) : 0;
-};
+/** The longest slot the chosen days allow, or every open day while none is chosen. */
+const maxSlotFor = (venue: PlanVenue, days: number[]) =>
+  Math.min(MAX_SLOT_HOURS, longestSlotHours(venue.hours, days.length ? days : openDaysOf(venue.hours)));
 
 type StepperProps = { label: string; value: number; min: number; max: number; noun: string; onChange: (value: number) => void };
 
@@ -51,7 +51,10 @@ const STEP = "flex size-9 items-center justify-center rounded-full bg-secondary 
 
 const Stepper = ({ label, value, min, max, noun, onChange }: StepperProps) => (
   <fieldset>
-    <legend className={LABEL}>{label}</legend>
+    <legend className={LABEL}>
+      {label}
+      <RequiredMark />
+    </legend>
     <div className="flex w-fit items-center gap-3 rounded-full bg-tertiary/5 p-1">
       <button type="button" aria-label={`Fewer ${noun}`} disabled={value <= min} onClick={() => onChange(value - 1)} className={STEP}>
         <Minus aria-hidden="true" className="size-4" />
@@ -70,13 +73,15 @@ type PlanFormProps = {
   venue: PlanVenue;
   editing: MembershipPlan | null;
   onDone: () => Promise<unknown>;
+  onCancel: () => void;
 };
 
-const PlanForm = ({ venue, editing, onDone }: PlanFormProps) => {
-  const [draft, setDraft] = useState<Draft>(editing ? fromPlan(editing) : blank(venue));
+const PlanForm = ({ venue, editing, onDone, onCancel }: PlanFormProps) => {
+  const [draft, setDraft] = useState<Draft>(editing ? fromPlan(editing, venue) : blank(venue));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
-  const maxSlot = Math.min(MAX_SLOT_HOURS, openHours(venue));
+  const maxSlot = maxSlotFor(venue, draft.days);
+  const openDays = openDaysOf(venue.hours);
   const isRoom = draft.space === "meeting-room";
 
   const set = (change: Partial<Draft>) => {
@@ -89,8 +94,12 @@ const PlanForm = ({ venue, editing, onDone }: PlanFormProps) => {
 
   const pickRoomMode = (roomMode: RoomMode) => set({ roomMode, slotHours: roomMode === "time-slot" ? (draft.slotHours ?? Math.min(2, maxSlot || 1)) : null });
 
-  const toggleDay = (day: number) =>
-    set({ days: draft.days.includes(day) ? draft.days.filter((item) => item !== day) : [...draft.days, day].sort() });
+  const toggleDay = (day: number) => {
+    const days = draft.days.includes(day) ? draft.days.filter((item) => item !== day) : [...draft.days, day].sort();
+    // A shorter day can lower the longest slot, so the chosen length follows it down.
+    const slotHours = draft.slotHours ? Math.max(1, Math.min(draft.slotHours, maxSlotFor(venue, days))) : draft.slotHours;
+    set({ days, slotHours });
+  };
 
   const setInclude = (index: number, value: string) => set({ includes: draft.includes.map((line, at) => (at === index ? value : line)) });
 
@@ -136,8 +145,8 @@ const PlanForm = ({ venue, editing, onDone }: PlanFormProps) => {
   const fieldId = (name: string) => `plan-${name}`;
 
   return (
-    <form onSubmit={submit} noValidate className={cn(RAISED, "h-fit p-5 sm:p-6")}>
-      <div className="flex items-center gap-3">
+    <form onSubmit={submit} noValidate className={cn(RAISED, "p-5 sm:p-6")}>
+      <div className="flex items-center gap-3 pr-8">
         <span className="cta-gradient flex size-10 shrink-0 items-center justify-center rounded-xl text-secondary">
           <ClipboardList aria-hidden="true" className="size-5" />
         </span>
@@ -154,12 +163,15 @@ const PlanForm = ({ venue, editing, onDone }: PlanFormProps) => {
       )}
 
       <div className="mt-5 flex flex-col gap-5">
-        <TextInput id={fieldId("name")} label="Name" value={draft.name} max={60} error={errors.name} placeholder="Dedicated desk" onChange={(name) => set({ name })} />
+        <TextInput id={fieldId("name")} label="Name" required value={draft.name} max={60} error={errors.name} placeholder="Dedicated desk" onChange={(name) => set({ name })} />
         <TextArea id={fieldId("description")} label="Description (optional)" value={draft.description} max={240} rows={2} error={errors.description} onChange={(description) => set({ description })} />
 
         <fieldset>
-          <legend className={LABEL}>What it locks</legend>
-          <div className="grid grid-cols-2 gap-2">
+          <legend id={fieldId("space-label")} className={LABEL}>
+            What it locks
+            <RequiredMark />
+          </legend>
+          <div role="radiogroup" aria-labelledby={fieldId("space-label")} aria-required="true" className="grid grid-cols-2 gap-2">
             {SPACES.map((space) => {
               const selected = space.value === draft.space;
               const Icon = space.icon;
@@ -167,7 +179,8 @@ const PlanForm = ({ venue, editing, onDone }: PlanFormProps) => {
                 <button
                   key={space.value}
                   type="button"
-                  aria-pressed={selected}
+                  role="radio"
+                  aria-checked={selected}
                   onClick={() => pickSpace(space.value)}
                   className={cn(
                     "flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left text-sm transition-all",
@@ -185,8 +198,11 @@ const PlanForm = ({ venue, editing, onDone }: PlanFormProps) => {
         {isRoom && (
           <div className="flex flex-col gap-4 rounded-xl bg-tertiary/4 p-4">
             <fieldset>
-              <legend className={LABEL}>Room booking</legend>
-              <div role="radiogroup" className="grid grid-cols-2 gap-1 rounded-full bg-secondary p-1 shadow-sm">
+              <legend id={fieldId("room-mode-label")} className={LABEL}>
+                Room booking
+                <RequiredMark />
+              </legend>
+              <div role="radiogroup" aria-labelledby={fieldId("room-mode-label")} aria-required="true" className="grid grid-cols-2 gap-1 rounded-full bg-secondary p-1 shadow-sm">
                 {(["full-day", "time-slot"] as const).map((mode) => (
                   <button
                     key={mode}
@@ -205,7 +221,10 @@ const PlanForm = ({ venue, editing, onDone }: PlanFormProps) => {
             {draft.roomMode === "time-slot" && (
               <div>
                 <Stepper label="Slot length" value={draft.slotHours ?? 1} min={1} max={Math.max(1, maxSlot)} noun="hr" onChange={(slotHours) => set({ slotHours })} />
-                <p className="mt-1.5 text-xs text-tertiary/55">The buyer picks the start time; the same window is locked on every covered day. Rooms allow up to {MAX_SLOT_HOURS} hours.</p>
+                <p className="mt-1.5 text-xs text-tertiary/55">
+                  The buyer picks the start time; the same window is locked on every covered day, so it must fit the hours those days share
+                  {maxSlot > 0 ? ` (up to ${maxSlot} hr here)` : ""}. Rooms allow up to {MAX_SLOT_HOURS} hours.
+                </p>
                 {errors.slotHours && <p className="mt-1.5 text-sm text-primary">{errors.slotHours}</p>}
               </div>
             )}
@@ -220,10 +239,14 @@ const PlanForm = ({ venue, editing, onDone }: PlanFormProps) => {
         )}
 
         <fieldset>
-          <legend className={LABEL}>Days it covers</legend>
+          <legend className={LABEL}>
+            Days it covers
+            <RequiredMark />
+            <span className="ml-1.5 font-normal text-tertiary/45">(at least one day)</span>
+          </legend>
           <div className="flex flex-wrap gap-1.5">
             {WEEKDAYS.map((label, day) => {
-              const isOpen = venue.openDays.includes(day);
+              const isOpen = openDays.includes(day);
               const isOn = draft.days.includes(day);
               return (
                 <button
@@ -231,7 +254,7 @@ const PlanForm = ({ venue, editing, onDone }: PlanFormProps) => {
                   type="button"
                   aria-pressed={isOn}
                   disabled={!isOpen}
-                  title={isOpen ? undefined : "The venue is closed"}
+                  title={isOpen ? `Open ${rangeLabel(hoursOnDay(venue.hours, day))}` : "The venue is closed"}
                   onClick={() => toggleDay(day)}
                   className={cn(
                     "min-w-12 rounded-full border px-3 py-1.5 text-sm transition-all disabled:cursor-not-allowed disabled:opacity-35",
@@ -247,7 +270,11 @@ const PlanForm = ({ venue, editing, onDone }: PlanFormProps) => {
         </fieldset>
 
         <fieldset>
-          <legend className={LABEL}>Price per {draft.space === "desk" ? "seat" : SPACE_LABEL[draft.space].toLowerCase()}, in rupees</legend>
+          <legend className={LABEL}>
+            Price per {draft.space === "desk" ? "seat" : SPACE_LABEL[draft.space].toLowerCase()}, in rupees
+            <RequiredMark />
+            <span className="ml-1.5 font-normal text-tertiary/45">(at least one length)</span>
+          </legend>
           <div className="grid grid-cols-2 gap-3">
             {LENGTHS.map((length) => {
               const key = `prices.${length.value}`;
@@ -317,7 +344,7 @@ const PlanForm = ({ venue, editing, onDone }: PlanFormProps) => {
           {isSaving ? "Saving..." : editing ? "Save plan" : "Add plan"}
         </button>
         {editing && (
-          <button type="button" onClick={() => void onDone()} className={cn(QUIET, "text-tertiary/60")}>
+          <button type="button" onClick={onCancel} className={cn(QUIET, "text-tertiary/60")}>
             Cancel
           </button>
         )}

@@ -15,6 +15,8 @@ import { toastDone, toastFailed } from "@/libs/toast";
 import type { AdminVenue } from "@/types/catalogue";
 import { cn } from "@/utils";
 import { PartnerSkeleton as Skeleton } from "../Partner/components/PartnerUi";
+import { canAccessSection } from "@/config/adminPermissions";
+import BankDetailsCard from "./components/payouts/BankDetailsCard";
 import { QUIET, Section } from "./components/venue/fields";
 import DeleteVenueCard from "./components/venue/DeleteVenueCard";
 import SeatMapCard from "./components/venue/SeatMapCard";
@@ -48,7 +50,7 @@ const AddonsCard = ({ venue }: { venue: AdminVenue }) => {
       ) : !choices ? (
         <div className="h-24 animate-pulse rounded-xl bg-tertiary/5" />
       ) : (
-        <AddonsEditor choices={choices} onSave={save} onRefresh={() => void mutate()} />
+        <AddonsEditor choices={choices} onSave={save} onRefresh={() => void mutate()} inCard />
       )}
     </Section>
   );
@@ -60,6 +62,8 @@ type EditorProps = {
 };
 
 const VenueEditor = ({ venue, actions }: EditorProps) => {
+  const { account } = useAdminSession();
+  const canManagePayouts = Boolean(account && canAccessSection(account, "payouts"));
   const [draft, setDraft] = useState<VenueDraft>(() => toDraft(venue));
   // The version the draft was loaded at, so someone else's save is never overwritten.
   const [baseVersion, setBaseVersion] = useState(venue.version);
@@ -148,6 +152,15 @@ const VenueEditor = ({ venue, actions }: EditorProps) => {
             onVersion={(version) => setBaseVersion((current) => nextBaseVersion(current, version))}
           />
           <AddonsCard venue={venue} />
+          {canManagePayouts && (
+            <Section
+              id="bank-details"
+              title="Bank details"
+              hint="Where this venue's payouts are sent. Statements can't be paid until this is filled in."
+            >
+              <BankDetailsCard venueSlug={venue.slug} />
+            </Section>
+          )}
         </>
       }
     />

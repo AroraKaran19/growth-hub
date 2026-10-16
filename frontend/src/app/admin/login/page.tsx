@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { withDefaults } from "@/config/homeDefaults";
+import { getHomeOverrides } from "@/libs/api/site";
 import AdminLoginPage from "../../(pages)/Admin/AdminLoginPage";
 
 export const metadata: Metadata = {
@@ -6,6 +8,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default function AdminLogin() {
-  return <AdminLoginPage />;
+export default async function AdminLogin() {
+  const { signin } = withDefaults(await getHomeOverrides());
+  return <AdminLoginPage image={signin.admin} />;
 }

@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import useSWR from "swr";
 import { CircleCheck, Mail, Phone } from "lucide-react";
+import RequiredMark from "@/app/components/ui/form/RequiredMark";
 import { readApiError } from "@/libs/api/errors";
 import { fetchRefunds, markRefunded, type RefundDue } from "@/libs/api/venueRemoval";
 import { cn } from "@/utils";
@@ -71,18 +72,25 @@ const RefundCard = ({ refund, onDone }: { refund: RefundDue; onDone: () => Promi
         <form onSubmit={submit} noValidate className="mt-4 flex flex-wrap items-end gap-2 border-t border-tertiary/8 pt-4">
           <label className="w-32">
             <span className="mb-1 block text-xs font-medium text-tertiary/70">
-              Refund (₹){refund.suggested === null && <span className="text-tertiary/45"> you decide</span>}
+              Refund (₹)
+              <RequiredMark />
+              {refund.suggested === null && <span className="text-tertiary/45"> you decide</span>}
             </span>
             <input
               inputMode="decimal"
+              aria-required="true"
               value={amount}
               onChange={(event) => setAmount(event.target.value.replace(/[^\d.]/g, ""))}
               className="w-full rounded-lg border border-tertiary/15 bg-secondary px-3 py-2 text-sm text-tertiary outline-none focus-visible:border-primary"
             />
           </label>
           <label className="min-w-48 grow">
-            <span className="mb-1 block text-xs font-medium text-tertiary/70">How it was refunded</span>
+            <span className="mb-1 block text-xs font-medium text-tertiary/70">
+              How it was refunded
+              <RequiredMark />
+            </span>
             <input
+              aria-required="true"
               value={note}
               onChange={(event) => setNote(event.target.value)}
               placeholder="Razorpay refund id or bank reference"

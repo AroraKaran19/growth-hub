@@ -58,6 +58,28 @@
   );
 }
 
+/* Standard properties would switch off the webkit styling, so they are Firefox-only. */
+@utility scrollbar-thin {
+  &::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    border-radius: 9999px;
+    background: color-mix(in srgb, currentColor 22%, transparent);
+  }
+  &::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, currentColor 40%, transparent);
+  }
+  @supports not selector(::-webkit-scrollbar) {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, currentColor 22%, transparent) transparent;
+  }
+}
+
 button {
   cursor: pointer;
 }

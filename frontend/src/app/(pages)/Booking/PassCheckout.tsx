@@ -7,12 +7,14 @@ import { ChevronLeft, CircleCheck, LoaderCircle, Timer } from "lucide-react";
 import PhoneSignIn from "@/app/components/shared/PhoneSignIn";
 import { useRazorpay, type RazorpaySuccess } from "@/hooks/useRazorpay";
 import { confirmBooking, createBooking, extendHold, releaseHoldOnLeave } from "@/libs/api/bookings";
+import { rememberCompanyDetails } from "@/libs/api/billing";
 import { applyBookingCoupon, removeBookingCoupon } from "@/libs/api/coupons";
 import { readApiError } from "@/libs/api/errors";
 import { useSession } from "@/stores/session";
 import type { ApiBooking, ApiCheckout } from "@/types/apiBooking";
 import type { VenueDetail } from "@/types/venue";
 import { cn } from "@/utils";
+import { billingInputFrom, invoiceToLabel } from "@/utils/companyInvoice";
 import { formatDay } from "@/utils/date";
 import {
   checkoutStepFor,
@@ -39,7 +41,7 @@ const CARD = "rounded-2xl border border-tertiary/10 bg-secondary p-5 shadow-sm l
 
 const PassCheckout = ({ venue }: { venue: VenueDetail }) => {
   const router = useRouter();
-  const { selection, setSelection, clear, isHydrated, isConfigured, isScheduled, isSeatingComplete } =
+  const { selection, setSelection, clear, isHydrated, isConfigured, isScheduled, isSeatingComplete, isInvoiceReady } =
     useBookingSelection(venue);
   const { session, isReady: isSessionReady } = useSession();
   const razorpay = useRazorpay();
@@ -60,15 +62,16 @@ const PassCheckout = ({ venue }: { venue: VenueDetail }) => {
 
   const estimate = quoteBooking(venue, selection, venue.addons);
   const isEstimateFree = estimate.total === 0;
-  const canPay = venue.published && Boolean(venue.seatMap) && isConfigured && isScheduled && isSeatingComplete;
+  const canPay =
+    venue.published && Boolean(venue.seatMap) && isConfigured && isScheduled && isSeatingComplete && isInvoiceReady;
 
   useEffect(() => {
     if (confirmed) return;
     if (!isHydrated || canPay) return;
     // A dropped date or time is fixed on the options step; the seats page would only send them back here.
-    const step = checkoutStepFor({ isConfigured, isScheduled, isSeatingComplete }) ?? "seats";
+    const step = checkoutStepFor({ isConfigured, isScheduled, isSeatingComplete, isInvoiceReady }) ?? "seats";
     router.replace(`/workspaces/${venue.slug}/book${step === "book" ? "" : "/seats"}`);
-  }, [isHydrated, canPay, confirmed, router, venue.slug, isConfigured, isScheduled, isSeatingComplete]);
+  }, [isHydrated, canPay, confirmed, router, venue.slug, isConfigured, isScheduled, isSeatingComplete, isInvoiceReady]);
 
   const settle = (done: ApiBooking) => {
     held.current.settled = true;
@@ -84,6 +87,7 @@ const PassCheckout = ({ venue }: { venue: VenueDetail }) => {
     try {
       const result = await createBooking(requestFrom(selection, venue.slug), attemptKey.current);
       held.current.ref = result.booking.ref;
+      void rememberCompanyDetails(selection.invoice);
       if (result.booking.status === "upcoming") {
         settle(result.booking);
         return;
@@ -229,6 +233,10 @@ const PassCheckout = ({ venue }: { venue: VenueDetail }) => {
     { label: "Seats", value: seatText },
     { label: "Date", value: selection.date ? formatDay(selection.date) : "Not set" },
     { label: "Time", value: booking?.timeLabel ?? (bookingTimeFor(venue, selection) || "Not set") },
+    {
+      label: "Invoice to",
+      value: invoiceToLabel(booking ? booking.billing : billingInputFrom(selection.invoice)) ?? "You, in your own name",
+    },
   ];
 
   const canClickPay =
@@ -263,7 +271,7 @@ const PassCheckout = ({ venue }: { venue: VenueDetail }) => {
                     className="flex items-start justify-between gap-4 border-b border-tertiary/8 pb-3 last:border-0 last:pb-0"
                   >
                     <dt className="text-sm text-tertiary/60">{row.label}</dt>
-                    <dd className="text-right text-sm font-medium text-tertiary">{row.value}</dd>
+                    <dd className="min-w-0 wrap-break-word text-right text-sm font-medium text-tertiary">{row.value}</dd>
                   </div>
                 ))}
               </dl>

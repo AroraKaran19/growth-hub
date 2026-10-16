@@ -3,12 +3,13 @@
 import { useEffect, useEffectEvent, useState } from "react";
 import { HandCoins, Store, X } from "lucide-react";
 import { AddonTiles, DayChips, toggled } from "@/app/components/shared/AddonPickers";
+import RequiredMark from "@/app/components/ui/form/RequiredMark";
 import { addonDays, addonOrderLines, datesLabel } from "@/app/(pages)/Account/addonOrderRules";
 import { rupees } from "@/app/(pages)/Booking/checkoutState";
 import { readApiError } from "@/libs/api/errors";
 import type { DeskSale, TodayAddon } from "@/libs/api/partnerDesk";
 import type { ApiAddonOrder, DeskAddonTarget } from "@/types/addonOrder";
-import type { VenueAddonOffer } from "@/types/catalogue";
+import type { DayHours, VenueAddonOffer } from "@/types/catalogue";
 import { cn } from "@/utils";
 
 export type DeskAddonSubject =
@@ -18,7 +19,8 @@ export type DeskAddonSubject =
 type DeskAddonModalProps = {
   subject: DeskAddonSubject;
   offers: VenueAddonOffer[];
-  openDays: number[];
+  /** The venue's weekly hours; a member's add-ons sell on its open days only. */
+  hours: DayHours[];
   today: string;
   /** What this pass or member already has today. */
   existing: TodayAddon[];
@@ -30,9 +32,9 @@ type DeskAddonModalProps = {
 };
 
 /** Records add-ons the venue has already been paid for; Growth Hub takes no payment here. */
-const DeskAddonModal = ({ subject, offers, openDays, today, existing, voidable, onRecord, onVoid, onClose }: DeskAddonModalProps) => {
+const DeskAddonModal = ({ subject, offers, hours, today, existing, voidable, onRecord, onVoid, onClose }: DeskAddonModalProps) => {
   const isMember = subject.kind === "member";
-  const [days] = useState(() => (subject.kind === "member" ? addonDays(openDays, today, subject.paidThrough) : [today]));
+  const [days] = useState(() => (subject.kind === "member" ? addonDays(hours, today, subject.paidThrough) : [today]));
   const [dates, setDates] = useState<string[]>(() => days.slice(0, 1));
   const [keys, setKeys] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -143,8 +145,11 @@ const DeskAddonModal = ({ subject, offers, openDays, today, existing, voidable, 
           )}
 
           {isMember && (
-            <fieldset>
-              <legend className="text-sm font-medium text-tertiary">Which days?</legend>
+            <fieldset aria-required="true">
+              <legend className="text-sm font-medium text-tertiary">
+                Which days?
+                <RequiredMark />
+              </legend>
               {days.length ? (
                 <DayChips days={days} picked={dates} onToggle={(iso) => setDates(toggled(dates, iso))} />
               ) : (
@@ -155,8 +160,11 @@ const DeskAddonModal = ({ subject, offers, openDays, today, existing, voidable, 
             </fieldset>
           )}
 
-          <fieldset>
-            <legend className="text-sm font-medium text-tertiary">What did they buy?</legend>
+          <fieldset aria-required="true">
+            <legend className="text-sm font-medium text-tertiary">
+              What did they buy?
+              <RequiredMark />
+            </legend>
             {offers.length ? (
               <AddonTiles offers={offers} picked={keys} onToggle={(key) => setKeys(toggled(keys, key))} />
             ) : (

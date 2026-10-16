@@ -4,10 +4,12 @@ import {
   PRICE_UNITS,
   ROOM_TYPES,
   SEAT_TYPES,
-  WORKSPACE_TYPES,
 } from "../constants/catalogue";
 import { FEATURE_ICONS } from "../constants/featureIcons";
-import { toLocalityId } from "../services/catalogueRules";
+import { MIN_GALLERY_PHOTOS, toLocalityId } from "../services/catalogueRules";
+import { OUTAGE_MAX_HOURS } from "../services/outages";
+import { hoursErrors, sortHours } from "../services/venueHours";
+import { isIsoDate } from "../utils/indiaTime";
 import { emailSchema, nameSchema, objectIdSchema, passwordSchema, slugSchema } from "./common";
 
 const GOOGLE_HOSTS = new Set(["google.com", "www.google.com", "maps.google.com", "maps.app.goo.gl", "goo.gl"]);
@@ -94,7 +96,10 @@ const venueFields = z.object({
     .refine((value) => toLocalityId(value).length >= 2, "Write the locality in English letters or numbers."),
   city: z.string().trim().min(2, "Enter a city.").max(60),
   image: z.union([imageSchema, z.literal("")]),
-  gallery: z.array(imageSchema).max(12, "Up to 12 photos."),
+  gallery: z
+    .array(imageSchema)
+    .min(MIN_GALLERY_PHOTOS, `Add at least ${MIN_GALLERY_PHOTOS} gallery photos.`)
+    .max(12, "Up to 12 photos."),
   rating: z.number().min(0).max(5),
   startingPrice: rupees.nullable(),
   priceUnit: z.enum(PRICE_UNITS),
@@ -103,13 +108,14 @@ const venueFields = z.object({
   distanceKm: z.number().min(0).max(1000),
   description: z.string().trim().max(300),
   longDescription: z.string().trim().max(3000),
-  openDays: z
-    .array(z.number().int().min(0).max(6))
-    .max(7)
-    .transform((days) => [...new Set(days)].sort((a, b) => a - b)),
-  opensAt: z.union([time, z.literal("")]),
-  closesAt: z.union([time, z.literal("")]),
-  openDaysLabel: z.string().trim().max(40),
+  hours: z
+    .array(z.object({ day: z.number().int().min(0).max(6), opensAt: time, closesAt: time }).strict())
+    .max(7, "One range per day.")
+    .superRefine((hours, ctx) => {
+      // Keyed by weekday, so a form can mark the right row.
+      for (const [day, message] of hoursErrors(hours)) ctx.addIssue({ code: "custom", message, path: [String(day)] });
+    })
+    .transform(sortHours),
   hoursNote: z.string().trim().max(300),
   googleMapsUrl: z.union([
     z.string().trim().refine(isGoogleMapsUrl, "Use a Google Maps link."),
@@ -122,7 +128,6 @@ const venueFields = z.object({
       details: z.string().trim().min(10, "At least 10 characters.").max(300),
     })
     .nullable(),
-  workspaceTypes: z.array(z.enum(WORKSPACE_TYPES)).min(1, "Pick at least one workspace type."),
   amenities: z.array(z.string().regex(/^[a-z0-9][a-z0-9-]{0,48}$/, "Pick amenities from the list.")).max(60),
 });
 
@@ -132,7 +137,7 @@ export const createVenueSchema = venueFields
     name: true,
     locality: true,
     city: true,
-    workspaceTypes: true,
+    gallery: true,
   })
   // /admin/venues/new is the create page, so that address can never be a venue.
   .extend({ slug: slugSchema.refine((slug) => slug !== "new", "That address is reserved.") })
@@ -155,12 +160,25 @@ export const venuePricesSchema = venueFields
 
 export const assignSeatMapSchema = z.object({ seatMapId: objectIdSchema });
 
-export const outOfServiceSchema = z.object({
-  seatIds: z
-    .array(z.string().min(1).max(16))
-    .max(500)
-    .transform((ids) => [...new Set(ids)]),
-});
+export const takeSeatOutSchema = z
+  .object({
+    seatId: z.string().trim().min(1).max(16),
+    duration: z.discriminatedUnion(
+      "kind",
+      [
+        z.object({
+          kind: z.literal("hours"),
+          hours: z.number().int().min(1, "Pick at least an hour.").max(OUTAGE_MAX_HOURS, `Pick up to ${OUTAGE_MAX_HOURS} hours.`),
+        }),
+        z.object({ kind: z.literal("days"), until: z.string().refine(isIsoDate, "Pick a day.") }),
+        z.object({ kind: z.literal("open") }),
+      ],
+      "Pick how long it stays out.",
+    ),
+  })
+  .strict();
+
+export type TakeSeatOutInput = z.infer<typeof takeSeatOutSchema>;
 
 export const createAddonTypeSchema = z
   .object({

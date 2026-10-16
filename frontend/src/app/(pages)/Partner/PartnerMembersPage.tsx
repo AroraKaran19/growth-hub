@@ -205,7 +205,7 @@ const PartnerMembersPage = () => {
         <DeskAddonModal
           subject={addonsFor}
           offers={desk.venue.addons}
-          openDays={desk.venue.openDays}
+          hours={desk.venue.hours}
           today={desk.today}
           existing={desk.addonsByTarget[addonsFor.ref] ?? []}
           voidable={desk.salesByTarget[addonsFor.ref] ?? []}

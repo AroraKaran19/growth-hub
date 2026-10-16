@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="color-scheme" content="light" />
+  <meta name="supported-color-schemes" content="light" />
+  <title>Cancellation request {{ref}} at {{venue}}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    body, table, td, a { font-family: 'Plus Jakarta Sans', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+    @media only screen and (max-width: 600px) {
+      .card-pad { padding-left: 24px !important; padding-right: 24px !important; }
+    }
+  </style>
+  <!--[if mso]>
+  <style>body, table, td, a { font-family: Arial, Helvetica, sans-serif !important; }</style>
+  <![endif]-->
+</head>
+<body style="margin:0; padding:0; background-color:#f4efee; -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%;">
+  <div style="display:none; max-height:0; overflow:hidden; opacity:0; mso-hide:all;">
+    {{member}} has asked to cancel {{ref}} at {{venue}}. Please approve or decline the request soon.
+  </div>
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f4efee" style="background-color:#f4efee;">
+    <tr>
+      <td align="center" style="padding:40px 16px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;">
+
+          <tr>
+            <td align="center" bgcolor="#8d1b24" style="padding:32px 32px 28px 32px; border-radius:16px 16px 0 0; background-color:#8d1b24; background-image:linear-gradient(115deg, #6b1020 0%, #a8202a 55%, #bf7a52 100%);">
+              <img src="https://growthhubconnect.in/email/logo-white.png" width="150" alt="Growth Hub" style="display:block; width:150px; max-width:150px; height:auto; border:0; outline:none; text-decoration:none; color:#ffffff; font-size:22px; font-weight:800; line-height:28px;" />
+            </td>
+          </tr>
+
+          <tr>
+            <td class="card-pad" bgcolor="#ffffff" style="padding:40px 40px 8px 40px; background-color:#ffffff;">
+              <div style="font-size:12px; font-weight:700; line-height:16px; color:#ec2024; letter-spacing:2px; text-transform:uppercase;">Cancellation request</div>
+              <div style="padding-top:10px; font-size:24px; font-weight:800; line-height:32px; color:#111111;">A customer wants to cancel</div>
+              <div style="padding-top:12px; font-size:15px; line-height:24px; color:#4a4a4a;">
+                Hello {{name}},<br />
+                {{member}} has asked to cancel a booking or membership at {{venue}}. Please review the request and approve or decline it soon, as the customer is waiting for an answer.
+              </div>
+            </td>
+          </tr>
+
+          <tr>
+            <td class="card-pad" bgcolor="#ffffff" style="padding:16px 40px 0 40px; background-color:#ffffff;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td bgcolor="#f7f7f7" style="padding:8px 20px; background-color:#f7f7f7; border-radius:10px;">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        <td valign="top" style="padding:8px 16px 8px 0; font-size:13px; line-height:20px; color:#8a8080;">Customer</td>
+                        <td align="right" valign="top" style="padding:8px 0; font-size:14px; font-weight:600; line-height:20px; color:#111111; word-break:break-word;">{{member}}</td>
+                      </tr>
+                      <tr>
+                        <td valign="top" style="padding:8px 16px 8px 0; font-size:13px; line-height:20px; color:#8a8080;">Reference</td>
+                        <td align="right" valign="top" style="padding:8px 0; font-size:14px; font-weight:600; line-height:20px; color:#111111; word-break:break-word;">{{ref}}</td>
+                      </tr>
+                      <tr>
+                        <td valign="top" style="padding:8px 16px 8px 0; font-size:13px; line-height:20px; color:#8a8080;">Starts</td>
+                        <td align="right" valign="top" style="padding:8px 0; font-size:14px; font-weight:600; line-height:20px; color:#111111; word-break:break-word;">{{starts}}</td>
+                      </tr>
+                      <tr>
+                        <td valign="top" style="padding:8px 16px 8px 0; font-size:13px; line-height:20px; color:#8a8080;">Reason</td>
+                        <td align="right" valign="top" style="padding:8px 0; font-size:14px; font-weight:600; line-height:20px; color:#111111; word-break:break-word;">{{reason}}</td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td class="card-pad" bgcolor="#ffffff" style="padding:16px 40px 0 40px; background-color:#ffffff;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td bgcolor="#f7f7f7" style="padding:16px 20px; background-color:#f7f7f7; border-left:4px solid #ec2024; border-radius:0 10px 10px 0;">
+                    <div style="font-size:14px; font-weight:700; line-height:20px; color:#111111;">In the customer's words</div>
+                    <div style="padding-top:4px; font-size:13px; line-height:20px; color:#555555; white-space:pre-line;">{{details}}</div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td class="card-pad" align="center" bgcolor="#ffffff" style="padding:28px 40px 40px 40px; background-color:#ffffff;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td align="center" bgcolor="#ec2024" style="border-radius:10px; background-color:#ec2024; background-image:linear-gradient(115deg, #a8202a 0%, #ec2024 100%);">
+                    <a href="{{link}}" target="_blank" style="display:inline-block; padding:14px 32px; font-size:15px; font-weight:700; line-height:20px; color:#ffffff; text-decoration:none; border-radius:10px;">Review request</a>
+                  </td>
+                </tr>
+              </table>
+              <div style="padding-top:16px; font-size:12px; line-height:18px; color:#8a8080; word-break:break-all;">
+                Button not working? Paste this link into your browser:<br />
+                <a href="{{link}}" style="color:#a8202a; text-decoration:underline;">{{link}}</a>
+              </div>
+            </td>
+          </tr>
+
+          <tr>
+            <td class="card-pad" align="center" bgcolor="#1a1a1a" style="padding:24px 40px; background-color:#1a1a1a; border-radius:0 0 16px 16px;">
+              <div style="font-size:13px; line-height:20px; color:#d9d9d9;">
+                Need help? Write to
+                <a href="mailto:hello@growthhubconnect.in" style="color:#ff6868; font-weight:600; text-decoration:none;">hello@growthhubconnect.in</a>
+              </div>
+            </td>
+          </tr>
+
+          <tr>
+            <td align="center" style="padding:24px 16px 0 16px; font-size:12px; line-height:18px; color:#8a8080;">
+              You received this email because you are on the staff of {{venue}} on Growth Hub.<br />
+              &copy; Growth Hub, a coworking marketplace in Bangalore.
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

@@ -7,7 +7,7 @@ import { GROWTH_HUB_VENUE, readTemplatePlan } from "./seed/growthHub";
 
 dotenv.config();
 
-// Adds only the GrowthHub venue with the template floor plan; nothing is deleted.
+// Adds only the Growth Hub venue with the template floor plan; nothing is deleted.
 const main = async () => {
   if (!process.env.MONGODB_URI) throw new Error("MONGODB_URI is not set");
   const apply = hasFlag(process.argv.slice(2), "yes");

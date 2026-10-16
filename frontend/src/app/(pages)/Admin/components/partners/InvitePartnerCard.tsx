@@ -2,13 +2,14 @@
 
 import { useState, type FormEvent } from "react";
 import { Store } from "lucide-react";
-import type { InvitePartnerInput } from "@/hooks/usePartnerAccounts";
+import RequiredMark from "@/app/components/ui/form/RequiredMark";
+import SelectField from "@/app/components/ui/form/SelectField";
+import type { InvitePartnerInput, VenueOption } from "@/hooks/usePartnerAccounts";
 import { readApiError } from "@/libs/api/errors";
 import { toastFailed, toastInvited } from "@/libs/toast";
 import { cn } from "@/utils";
 import { passwordProblem } from "@/utils/password";
 import TemporaryPasswordField from "../TemporaryPasswordField";
-import VenuePicker from "../VenuePicker";
 
 const INPUT =
   "w-full rounded-lg border bg-secondary px-3.5 py-2.5 text-sm text-tertiary outline-none transition-colors placeholder:text-tertiary/40 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20";
@@ -17,10 +18,20 @@ const LABEL = "mb-1.5 block text-sm font-medium text-tertiary";
 type Errors = Partial<Record<"name" | "email" | "venueSlug" | "temporaryPassword", string>>;
 
 type InvitePartnerCardProps = {
+  venues: VenueOption[];
   onInvite: (input: InvitePartnerInput) => Promise<void>;
 };
 
-const InvitePartnerCard = ({ onInvite }: InvitePartnerCardProps) => {
+// Free venues first; each venue has only one partner login.
+const venueOptions = (venues: VenueOption[]) =>
+  [...venues.filter((venue) => !venue.hasAccount), ...venues.filter((venue) => venue.hasAccount)].map((venue) => ({
+    value: venue.slug,
+    label: venue.name,
+    disabled: venue.hasAccount,
+    note: venue.hasAccount ? "Has a login" : undefined,
+  }));
+
+const InvitePartnerCard = ({ venues, onInvite }: InvitePartnerCardProps) => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [venueSlug, setVenueSlug] = useState("");
@@ -53,6 +64,8 @@ const InvitePartnerCard = ({ onInvite }: InvitePartnerCardProps) => {
         setErrors({ email: "That email already has a Growth Hub account." });
       } else if (info.code === "VENUE_UNKNOWN") {
         setErrors({ venueSlug: "That venue no longer exists." });
+      } else if (info.code === "VENUE_HAS_ACCOUNT") {
+        setErrors({ venueSlug: info.message });
       } else if (Object.keys(info.fields).length > 0) {
         setErrors({
           name: info.fields.name,
@@ -91,9 +104,11 @@ const InvitePartnerCard = ({ onInvite }: InvitePartnerCardProps) => {
         <div>
           <label htmlFor="partner-name" className={LABEL}>
             Name
+            <RequiredMark />
           </label>
           <input
             id="partner-name"
+            aria-required="true"
             value={name}
             onChange={(event) => setName(event.target.value)}
             placeholder="Their full name"
@@ -104,9 +119,11 @@ const InvitePartnerCard = ({ onInvite }: InvitePartnerCardProps) => {
         <div>
           <label htmlFor="partner-email" className={LABEL}>
             Email
+            <RequiredMark />
           </label>
           <input
             id="partner-email"
+            aria-required="true"
             type="email"
             autoComplete="off"
             value={email}
@@ -117,7 +134,17 @@ const InvitePartnerCard = ({ onInvite }: InvitePartnerCardProps) => {
           {errors.email && <p className="mt-1.5 text-sm text-primary">{errors.email}</p>}
         </div>
         <div>
-          <VenuePicker label="Venue" value={venueSlug} onChange={(slug) => setVenueSlug(slug)} placeholder="Pick a venue" />
+          <SelectField
+            label="Venue"
+            value={venueSlug}
+            onChange={(slug) => {
+              setVenueSlug(slug);
+              setErrors((current) => ({ ...current, venueSlug: undefined }));
+            }}
+            options={venueOptions(venues)}
+            placeholder="Pick a venue without a login"
+            required
+          />
           {errors.venueSlug && <p className="mt-1.5 text-sm text-primary">{errors.venueSlug}</p>}
         </div>
         <TemporaryPasswordField
@@ -125,6 +152,7 @@ const InvitePartnerCard = ({ onInvite }: InvitePartnerCardProps) => {
           value={temporaryPassword}
           onChange={setTemporaryPassword}
           error={errors.temporaryPassword}
+          required
         />
       </div>
 

@@ -2,11 +2,13 @@ import { SLOT_MINUTES } from "../constants/booking";
 import { MEMBERSHIP_LENGTHS, SEAT_TYPES, type MembershipLength, type SeatType } from "../constants/catalogue";
 import { AppError } from "../middlewares/error.middleware";
 import { SeatDay, SeatMap, Venue, type SeatDayDoc, type SeatMapDoc, type VenueDoc } from "../models";
-import { indiaNow, isIsoDate, timeLabel, toMinutes, weekdayOf } from "../utils/indiaTime";
+import { indiaNow, isIsoDate, timeLabel } from "../utils/indiaTime";
 import { scheduleError } from "./bookingRules";
 import { dayRanges } from "./seatDays.service";
 import { coveredDates, reserveThrough } from "./membershipRules";
+import { coveredSpans, daySpan, isOutDuring, isOutDuringAny, lockedWindow, type Span } from "./outages";
 import { dailyWindowFor, loadPlanForSale } from "./planCheckout";
+import { windowOn } from "./venueHours";
 
 
 const badRequest = (message: string) => new AppError(message, 400, "VALIDATION_FAILED", { fields: { date: message } });
@@ -31,19 +33,18 @@ export const slotAvailability = async (slug: string, date: string, duration: num
   const { venue, map } = await loadVenue(slug);
 
   const now = new Date();
-  const opens = toMinutes(venue.opensAt);
-  const closes = toMinutes(venue.closesAt);
-  const closed = opens === null || closes === null || !venue.openDays.includes(weekdayOf(date));
-  if (closed) return { date, closed: true, starts: [] };
+  const open = windowOn(venue, date);
+  if (!open) return { date, closed: true, starts: [] };
 
   const ranges = await dayRanges(venue._id, date, now);
   const today = indiaNow(now);
   const starts: { startMin: number; label: string; past: boolean; free: Record<SeatType, number> }[] = [];
-  for (let start = opens; start + duration <= closes; start += SLOT_MINUTES) {
+  for (let start = open.start; start + duration <= open.end; start += SLOT_MINUTES) {
     const end = start + duration;
     const isPast = scheduleError(venue, date, { start, end }, today) === "IN_PAST";
+    const span = daySpan(date, { start, end });
     const isFree = (seatId: string) =>
-      !venue.outOfServiceSeatIds.includes(seatId) &&
+      !isOutDuring(venue.outages, seatId, span.start, span.end) &&
       (ranges.get(seatId) ?? []).every((range) => range.end <= start || range.start >= end);
     starts.push({
       startMin: start,
@@ -61,14 +62,22 @@ export const windowAvailability = async (slug: string, date: string, start: numb
   if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end > 24 * 60 || end <= start) {
     throw badRequest("Pick a time.");
   }
-  const { venue } = await loadVenue(slug);
+  const { venue, map } = await loadVenue(slug);
   const ranges = await dayRanges(venue._id, date, new Date());
   const takenSeatIds = [...ranges]
     .filter(([, list]) => list.some((range) => range.start < end && range.end > start))
     .map(([seatId]) => seatId)
     .sort();
-  return { date, start, end, takenSeatIds, outOfServiceSeatIds: [...venue.outOfServiceSeatIds].sort() };
+  const span = daySpan(date, { start, end });
+  return { date, start, end, takenSeatIds, outOfServiceSeatIds: outSeatIds(venue, map, [span]) };
 };
+
+/** Map seats out of service at some moment of any of these spans. */
+const outSeatIds = (venue: VenueDoc, map: SeatMapDoc, spans: Span[]) =>
+  map.seats
+    .map((seat) => seat.id)
+    .filter((seatId) => isOutDuringAny(venue.outages, seatId, spans))
+    .sort();
 
 export type PlanAvailabilityQuery = { planId: string; startDate: string; length: string; startMin?: number };
 
@@ -80,7 +89,7 @@ export const membershipAvailability = async (slug: string, query: PlanAvailabili
   if (!isIsoDate(query.startDate)) throw badRequest("Pick a start date.");
   if (!(MEMBERSHIP_LENGTHS as readonly string[]).includes(query.length)) throw badRequest("Pick a plan length.");
   const { plan, venue, map, days } = await loadPlanForSale(query.planId, slug);
-  const window = dailyWindowFor(venue, plan, query.startMin);
+  const window = dailyWindowFor(venue, plan, query.startMin, days);
 
   const now = new Date();
   const { startDate } = query;
@@ -103,6 +112,6 @@ export const membershipAvailability = async (slug: string, query: PlanAvailabili
     through,
     window,
     takenSeatIds: [...new Set(taken.map((day) => day.seatId))].sort(),
-    outOfServiceSeatIds: [...venue.outOfServiceSeatIds].sort(),
+    outOfServiceSeatIds: outSeatIds(venue, map, coveredSpans(startDate, through, days, lockedWindow(venue, window))),
   };
 };

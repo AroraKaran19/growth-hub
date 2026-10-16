@@ -99,6 +99,7 @@ const ResetPasswordPage = ({ surface }: ResetPasswordPageProps) => {
                   hint="At least 10 characters. A short phrase works well."
                   invalid={Boolean(error)}
                   autoFocus
+                  required
                 />
                 <PasswordInput
                   id="reset-confirm-password"
@@ -110,6 +111,7 @@ const ResetPasswordPage = ({ surface }: ResetPasswordPageProps) => {
                   }}
                   autoComplete="new-password"
                   invalid={Boolean(error)}
+                  required
                 />
                 {error && (
                   <p role="alert" className="text-sm text-primary">

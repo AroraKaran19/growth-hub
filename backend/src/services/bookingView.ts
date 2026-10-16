@@ -1,5 +1,5 @@
 import { env } from "../config/env";
-import type { BookedAddon, BookedSeat, BookingDoc } from "../models";
+import { billingView, type BillingDetails, type BookedAddon, type BookedSeat, type BookingDoc } from "../models";
 import { timeLabel } from "../utils/indiaTime";
 import { signCode } from "../utils/qr";
 import { effectiveStatus } from "./bookingRules";
@@ -17,7 +17,8 @@ export type BookingView = {
   endMin: number;
   timeLabel: string;
   people: number;
-  extras: { preference: string; companyName: string };
+  extras: { preference: string };
+  billing: BillingDetails | null;
   addons: BookedAddon[];
   /** Paise. */
   price: PassPrice;
@@ -51,7 +52,8 @@ export const toBookingView = (booking: BookingDoc, now = new Date()): BookingVie
     endMin: booking.endMin,
     timeLabel: `${timeLabel(booking.startMin)} - ${timeLabel(booking.endMin)}`,
     people: booking.people,
-    extras: booking.extras,
+    extras: { preference: booking.extras?.preference ?? "none" },
+    billing: billingView(booking.billing),
     addons: booking.addons,
     price: booking.price,
     invoiceNumber: booking.invoiceNumber,

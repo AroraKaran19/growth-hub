@@ -2,6 +2,7 @@
 
 import { authStoreFor } from "@/stores/auth";
 import type { ApiMembership, ApiMembershipCheckout, MembershipRequest, PlanQuote, VenuePlan } from "@/types/membership";
+import type { CompanyBillingInput } from "@/utils/companyInvoice";
 import { memberApi, publicApi } from "./client";
 
 type Envelope<T> = { data: { data: T } };
@@ -18,6 +19,10 @@ export const createMembership = (body: MembershipRequest, requestKey: string) =>
   data<{ membership: ApiMembership; checkout: ApiMembershipCheckout | null }>(
     memberApi.post("/memberships", body, { headers: { "Idempotency-Key": requestKey } }),
   );
+
+/** Applies from the next renewal; null invoices the member in their own name. */
+export const setMembershipBilling = async (ref: string, billing: CompanyBillingInput | null) =>
+  (await data<{ membership: ApiMembership }>(memberApi.put(`/memberships/${ref}/billing`, { billing }))).membership;
 
 export const extendMembershipHold = async (ref: string) =>
   (await data<{ membership: ApiMembership }>(memberApi.post(`/memberships/${ref}/hold`))).membership;

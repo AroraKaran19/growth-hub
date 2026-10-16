@@ -4,3 +4,6 @@ export const GST_REGISTERED = false;
 export const GST_RATE = 0.18;
 
 export const ISSUER_NAME = "GrowthHub Connect";
+
+/** GST state of the venues invoiced; a company registered elsewhere can't claim this credit. */
+export const ISSUER_STATE_CODE = "29";

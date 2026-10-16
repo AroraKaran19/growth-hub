@@ -24,7 +24,7 @@ const main = async () => {
 
   const plan = readTemplatePlan();
   const result = await seedCatalogue({ venues: [GROWTH_HUB_VENUE], demoSeats: plan.seats, demoImage: plan.image });
-  console.log(`Created ${result.venuesCreated} hidden venue (GrowthHub) and ${result.mapsCreated} placeholder seat map. Set its prices, then publish it.`);
+  console.log(`Created ${result.venuesCreated} hidden venue (Growth Hub) and ${result.mapsCreated} placeholder seat map. Set its prices, then publish it.`);
   console.log("Next: npm run create-admin -- --email you@example.com --name \"Your name\" --super");
 };
 

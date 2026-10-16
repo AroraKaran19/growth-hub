@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { CircleCheck, CircleX, X } from "lucide-react";
+import RequiredMark from "@/app/components/ui/form/RequiredMark";
 import { readApiError } from "@/libs/api/errors";
 import { REASON_LABELS, type CancellationRequest, type Decision } from "@/types/cancellation";
 import { cn } from "@/utils";
@@ -95,6 +96,7 @@ const DecisionModal = ({ request, mode, onClose, onDecide }: DecisionModalProps)
             <div>
               <label htmlFor="refund-amount" className="text-sm font-medium text-tertiary">
                 Refund you will pay the member
+                <RequiredMark />
               </label>
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <div className="relative">
@@ -102,6 +104,7 @@ const DecisionModal = ({ request, mode, onClose, onDecide }: DecisionModalProps)
                   <input
                     id="refund-amount"
                     inputMode="decimal"
+                    aria-required="true"
                     value={amount}
                     onChange={(event) => {
                       setAmount(event.target.value);
@@ -139,9 +142,11 @@ const DecisionModal = ({ request, mode, onClose, onDecide }: DecisionModalProps)
           <div>
             <label htmlFor="decision-note" className="text-sm font-medium text-tertiary">
               {isApprove ? "Note for the member (optional)" : "Why you're declining"}
+              {!isApprove && <RequiredMark />}
             </label>
             <textarea
               id="decision-note"
+              aria-required={!isApprove || undefined}
               value={note}
               maxLength={MAX_NOTE}
               rows={3}

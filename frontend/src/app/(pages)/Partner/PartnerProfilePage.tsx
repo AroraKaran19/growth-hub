@@ -11,7 +11,6 @@ const PartnerProfilePage = () => {
     <StaffProfilePage
       surface="partner"
       roleLabel="Venue partner"
-      emailNote="Growth Hub changes it for you. Contact your account manager."
       access={
         <p className="inline-flex items-center gap-1.5 text-sm text-secondary/75">
           <MapPin aria-hidden="true" className="size-4 text-primary" />

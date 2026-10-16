@@ -42,7 +42,8 @@ export const toPatch = (draft: ProfileDraft, account: MemberAccount): Partial<Pr
 export const validateDraft = (draft: ProfileDraft, today: string): ProfileErrors => {
   const errors: ProfileErrors = {};
   if (!draft.name.trim()) errors.name = "Enter your name.";
-  if (draft.email.trim() && !EMAIL.test(draft.email.trim())) errors.email = BAD_EMAIL;
+  if (!draft.email.trim()) errors.email = "Enter your email address; invoices and booking emails go there.";
+  else if (!EMAIL.test(draft.email.trim())) errors.email = BAD_EMAIL;
   if (draft.billingEmail.trim() && !EMAIL.test(draft.billingEmail.trim())) errors.billingEmail = BAD_EMAIL;
   if (draft.dateOfBirth && today && draft.dateOfBirth > today) errors.dateOfBirth = "The date can't be in the future.";
   return errors;

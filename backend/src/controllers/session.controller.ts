@@ -1,12 +1,12 @@
 import type { Request, Response } from "express";
 import { z } from "zod";
 import { AppError, asyncHandler, sendSuccessResponse } from "../middlewares/error.middleware";
-import { Admin, PartnerStaff } from "../models";
 import { loadAccount } from "../services/account.service";
 import { endSession, rotateSession } from "../services/session.service";
+import { updateOwnStaffProfile } from "../services/staffProfile.service";
 import { isAccountType } from "../types/auth";
 import { parseBody } from "../utils/validate";
-import { nameSchema } from "../validators/common";
+import { emailSchema, nameSchema } from "../validators/common";
 
 export const refresh = asyncHandler(async (req: Request, res: Response) => {
   const { refreshToken, accountType } = req.body ?? {};
@@ -26,15 +26,15 @@ export const me = asyncHandler(async (req: Request, res: Response) => {
   sendSuccessResponse(res, { account: req.auth!.account }, "Current account");
 });
 
-const profileSchema = z.object({ name: nameSchema });
+const profileSchema = z
+  .object({ name: nameSchema.optional(), email: emailSchema.optional(), currentPassword: z.string().max(200).optional() })
+  .refine((body) => body.name !== undefined || body.email !== undefined, "Send a name or an email.");
 
-/** Staff can rename themselves; email, venue and access stay with whoever manages them. */
+/** Staff can rename themselves and, with their password, change their email; venue and access stay with admins. */
 export const patchMe = asyncHandler(async (req: Request, res: Response) => {
-  const { accountType, accountId } = req.auth!;
+  const { accountType, accountId, sessionId } = req.auth!;
   if (accountType === "member") throw new AppError("Use your account profile instead.", 403, "PERMISSION_DENIED");
-  const { name } = parseBody(profileSchema, req.body);
-  const model = accountType === "admin" ? Admin : PartnerStaff;
-  await (model as typeof Admin).updateOne({ _id: accountId }, { $set: { name } });
+  await updateOwnStaffProfile(accountType, accountId, sessionId, parseBody(profileSchema, req.body));
   const loaded = await loadAccount(accountType, accountId);
   if (!loaded) throw new AppError("Please sign in again.", 401, "SESSION_REVOKED");
   sendSuccessResponse(res, { account: loaded.summary }, "Profile saved");

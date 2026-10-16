@@ -26,7 +26,7 @@ export const isIsoDate = (value: unknown): value is string => {
   return toIso(utcMidnight(value)) === value;
 };
 
-/** 0 is Sunday, as in the venue's openDays. */
+/** 0 is Sunday, as in a venue's hours. */
 export const weekdayOf = (date: string) => new Date(utcMidnight(date)).getUTCDay();
 
 export const addDays = (date: string, days: number) => toIso(utcMidnight(date) + days * DAY_MS);

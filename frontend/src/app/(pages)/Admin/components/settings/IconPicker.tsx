@@ -1,12 +1,18 @@
 "use client";
 
+import RequiredMark from "@/app/components/ui/form/RequiredMark";
 import { FEATURE_ICON_NAMES, FeatureIcon } from "@/config/featureIcons";
 import { cn } from "@/utils";
 
+type IconPickerProps = { label: string; value: string; onChange: (name: string) => void; required?: boolean };
+
 /** Icons come from a fixed set, so every card keeps the same line style. */
-const IconPicker = ({ label, value, onChange }: { label: string; value: string; onChange: (name: string) => void }) => (
-  <fieldset>
-    <legend className="mb-1.5 text-sm font-medium text-tertiary">{label}</legend>
+const IconPicker = ({ label, value, onChange, required }: IconPickerProps) => (
+  <fieldset aria-required={required || undefined}>
+    <legend className="mb-1.5 text-sm font-medium text-tertiary">
+      {label}
+      {required && <RequiredMark />}
+    </legend>
     <div className="grid grid-cols-8 gap-1.5 sm:grid-cols-12">
       {FEATURE_ICON_NAMES.map((name) => {
         const isOn = name === value;

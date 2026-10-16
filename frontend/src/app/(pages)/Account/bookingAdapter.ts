@@ -35,6 +35,7 @@ export const toMemberBooking = (booking: ApiBooking): MemberBooking => ({
   endDate: booking.date,
   dateRange: formatMonthDay(booking.date),
   time: booking.timeLabel,
+  lengthMinutes: booking.passType === "full-day" ? null : booking.endMin - booking.startMin,
   type: BOOKING_SPACE_LABELS[booking.spaceType],
   seats: booking.seats.map((seat) => seat.label),
   total: toRupees(booking.price.payable),

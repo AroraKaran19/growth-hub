@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { Download, Plus, RotateCcw, Send, Trash2 } from "lucide-react";
+import RequiredMark from "@/app/components/ui/form/RequiredMark";
 import { useStatement } from "@/hooks/usePayouts";
 import {
   addAdjustment,
@@ -161,18 +162,26 @@ const StatementDrawer = ({ statementId, onClose, onChanged }: StatementDrawerPro
             <h3 className="text-sm font-semibold text-tertiary">Record the transfer</h3>
             <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
-                <label htmlFor="paid-utr" className="mb-1 block text-xs font-medium text-tertiary/70">UTR number</label>
+                <label htmlFor="paid-utr" className="mb-1 block text-xs font-medium text-tertiary/70">
+                  UTR number
+                  <RequiredMark />
+                </label>
                 <input
                   id="paid-utr"
+                  aria-required="true"
                   value={payment.utr}
                   onChange={(event) => setPayment((current) => ({ ...current, utr: event.target.value.toUpperCase() }))}
                   className={cn(INPUT, "font-mono")}
                 />
               </div>
               <div>
-                <label htmlFor="paid-on" className="mb-1 block text-xs font-medium text-tertiary/70">Paid on</label>
+                <label htmlFor="paid-on" className="mb-1 block text-xs font-medium text-tertiary/70">
+                  Paid on
+                  <RequiredMark />
+                </label>
                 <input
                   id="paid-on"
+                  aria-required="true"
                   type="date"
                   max={todayIso()}
                   value={payment.paidOn}
@@ -260,6 +269,7 @@ const StatementDrawer = ({ statementId, onClose, onChanged }: StatementDrawerPro
                 <span className="sr-only">Amount in rupees</span>
                 <input
                   inputMode="decimal"
+                  aria-required="true"
                   placeholder="₹ amount"
                   value={adjustment.amount}
                   onChange={(event) => setAdjustment((current) => ({ ...current, amount: event.target.value.replace(/[^\d.]/g, "") }))}
@@ -269,6 +279,7 @@ const StatementDrawer = ({ statementId, onClose, onChanged }: StatementDrawerPro
               <label className="min-w-40 grow">
                 <span className="sr-only">What it is for</span>
                 <input
+                  aria-required="true"
                   placeholder="What it is for"
                   value={adjustment.note}
                   onChange={(event) => setAdjustment((current) => ({ ...current, note: event.target.value }))}

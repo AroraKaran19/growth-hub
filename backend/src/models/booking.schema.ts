@@ -1,6 +1,7 @@
 import { Schema, model, type Types } from "mongoose";
 import { SEAT_TYPES, type AddonUnit, type SeatType } from "../constants/catalogue";
 import type { PassPrice, PassType } from "../services/pricing";
+import { billingDetailsSchema, type BillingDetails } from "./billing.schema";
 
 export const BOOKING_STATUSES = [
   "pending-payment",
@@ -40,7 +41,9 @@ export interface BookingDoc {
   startMin: number;
   endMin: number;
   people: number;
-  extras: { preference: string; companyName: string };
+  extras: { preference: string };
+  /** The company invoiced; null invoices the member. */
+  billing: BillingDetails | null;
   addons: BookedAddon[];
   price: PassPrice;
   /** The coupon behind price.discount, redeemed when the booking is paid. */
@@ -118,9 +121,10 @@ const bookingSchema = new Schema<BookingDoc>(
     endMin: { type: Number, required: true },
     people: { type: Number, required: true },
     extras: {
-      type: new Schema({ preference: String, companyName: String }, { _id: false }),
-      default: () => ({ preference: "none", companyName: "" }),
+      type: new Schema({ preference: String }, { _id: false }),
+      default: () => ({ preference: "none" }),
     },
+    billing: { type: billingDetailsSchema, default: null },
     addons: { type: [addonSchema], default: [] },
     price: { type: priceSchema, required: true },
     couponId: { type: Schema.Types.ObjectId, default: null },

@@ -18,7 +18,8 @@ export const formatValue = (value: number, kind: ColumnKind) =>
       ? `${value}%`
       : value.toLocaleString("en-IN");
 
-type Point = { label: string; value: number; kind: ColumnKind };
+/** note adds a second line to the tooltip, e.g. the day's booking count. */
+type Point = { label: string; value: number; kind: ColumnKind; note?: string };
 
 /** One series of bars with a hover tooltip; the title names the series, so no legend. */
 const BarChart = ({ series, title, total, className }: { series: Point[]; title: string; total?: string; className?: string }) => {
@@ -68,16 +69,20 @@ const BarChart = ({ series, title, total, className }: { series: Point[]; title:
           >
             <span className="text-secondary/70">{shortLabel(hovered.label)}</span>{" "}
             <span className="font-semibold">{formatValue(hovered.value, hovered.kind)}</span>
+            {hovered.note && <span className="block text-secondary/70">{hovered.note}</span>}
           </div>
         )}
       </div>
 
-      <div aria-hidden="true" className="mt-2 flex justify-between text-[11px] text-tertiary/50">
-        {series
-          .filter((_, index) => index % step === 0)
-          .map((point) => (
-            <span key={point.label}>{shortLabel(point.label)}</span>
-          ))}
+      {/* Same columns as the bars, so each date sits under the bar it names. */}
+      <div aria-hidden="true" className="mt-2 flex h-4 gap-0.5 text-[11px] text-tertiary/50">
+        {series.map((point, index) => (
+          <div key={point.label} className="relative flex-1">
+            {index % step === 0 && (
+              <span className="absolute left-1/2 top-0 -translate-x-1/2 whitespace-nowrap">{shortLabel(point.label)}</span>
+            )}
+          </div>
+        ))}
       </div>
 
       {/* sr-only on a table itself leaks its caption and height, so a div clips it. */}
@@ -88,7 +93,10 @@ const BarChart = ({ series, title, total, className }: { series: Point[]; title:
             {series.map((point) => (
               <tr key={point.label}>
                 <th scope="row">{shortLabel(point.label)}</th>
-                <td>{formatValue(point.value, point.kind)}</td>
+                <td>
+                  {formatValue(point.value, point.kind)}
+                  {point.note ? `, ${point.note}` : ""}
+                </td>
               </tr>
             ))}
           </tbody>

@@ -4,9 +4,11 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   ArrowLeft,
+  Building2,
   CalendarCheck,
   Crown,
   Gift,
+  LifeBuoy,
   LogOut,
   ReceiptText,
   UserRound,
@@ -20,6 +22,8 @@ const ACCOUNT_LINKS = [
   { label: "Coupons", href: "/account/coupons", icon: Gift },
   { label: "Memberships", href: "/account/memberships", icon: Crown },
   { label: "Invoices", href: "/account/invoices", icon: ReceiptText },
+  { label: "Billing", href: "/account/billing", icon: Building2 },
+  { label: "Support", href: "/account/support", icon: LifeBuoy },
 ];
 
 const AccountSidebar = () => {
@@ -27,8 +31,8 @@ const AccountSidebar = () => {
   const router = useRouter();
   const { signOut } = useSession();
 
-  // Booking details has its own "All bookings" link, so a second back is noise.
-  const showBack = !pathname.startsWith("/account/bookings/");
+  // Detail pages have their own "All ..." link, so a second back is noise.
+  const showBack = !pathname.startsWith("/account/bookings/") && !pathname.startsWith("/account/support/");
 
   const handleSignOut = async () => {
     await signOut();

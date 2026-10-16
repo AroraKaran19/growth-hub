@@ -1,17 +1,45 @@
 import { PASS_HORIZON_DAYS, SLOT_MINUTES } from "../constants/booking";
 import { ROOM_TYPES } from "../constants/catalogue";
-import { addDays, instantOf, type IndiaMoment, toMinutes, weekdayOf } from "../utils/indiaTime";
+import { addDays, instantOf, type IndiaMoment, toMinutes } from "../utils/indiaTime";
 import { HALF_DAY_MINUTES, type PassType } from "./pricing";
+import { hoursOn, windowOn, type DayHours } from "./venueHours";
 
-type Hours = { openDays: number[]; opensAt: string; closesAt: string };
+type OpenHours = Pick<DayHours, "opensAt" | "closesAt">;
+
+type WithHours = { hours?: DayHours[] | null };
 
 export type TimeWindow = { start: number; end: number };
 
-export const windowFor = (venue: Hours, passType: PassType, startMin: number, hours: number): TimeWindow | null => {
-  const opens = toMinutes(venue.opensAt);
-  const closes = toMinutes(venue.closesAt);
+// A whole day goes off sale an hour before closing, with the last one-hour slot.
+const WHOLE_DAY_CUTOFF_MINUTES = 60;
+
+/** Today sells while now is before this minute; length null is a whole day. Null when nothing fits. */
+export const lastSaleMinute = (hours: OpenHours | null, length: number | null): number | null => {
+  const opens = hours ? toMinutes(hours.opensAt) : null;
+  const closes = hours ? toMinutes(hours.closesAt) : null;
   if (opens === null || closes === null) return null;
-  if (passType === "full-day") return { start: opens, end: closes };
+  if (length === null) return closes - WHOLE_DAY_CUTOFF_MINUTES;
+  if (length <= 0 || closes - opens < length) return null;
+  return opens + Math.floor((closes - opens - length) / SLOT_MINUTES) * SLOT_MINUTES;
+};
+
+/** Pass the day's own hours; null (a closed day) never sells. */
+export const sellsToday = (hours: OpenHours | null, length: number | null, nowMinutes: number) => {
+  const last = lastSaleMinute(hours, length);
+  return last !== null && nowMinutes < last;
+};
+
+/** The minutes a pass takes on its date; a whole day covers that day's own hours. */
+export const windowFor = (
+  venue: WithHours,
+  date: string,
+  passType: PassType,
+  startMin: number,
+  hours: number,
+): TimeWindow | null => {
+  const open = windowOn(venue, date);
+  if (!open) return null;
+  if (passType === "full-day") return open;
   const length = passType === "hourly" ? hours * 60 : HALF_DAY_MINUTES;
   return { start: startMin, end: startMin + length };
 };
@@ -20,7 +48,7 @@ export type ScheduleCode = "VENUE_CLOSED" | "IN_PAST" | "TOO_FAR_AHEAD" | "OFF_S
 
 /** Whether a window on a date can still be sold, judged in India time. */
 export const scheduleError = (
-  venue: Hours,
+  venue: WithHours,
   date: string,
   window: TimeWindow,
   now: IndiaMoment,
@@ -28,16 +56,14 @@ export const scheduleError = (
 ): ScheduleCode | null => {
   if (date < now.date) return "IN_PAST";
   if (date > addDays(now.date, PASS_HORIZON_DAYS)) return "TOO_FAR_AHEAD";
-  const opens = toMinutes(venue.opensAt);
-  const closes = toMinutes(venue.closesAt);
-  if (opens === null || closes === null || !venue.openDays.includes(weekdayOf(date))) return "VENUE_CLOSED";
-  if (window.start < opens || window.end > closes || window.end <= window.start) return "VENUE_CLOSED";
+  const open = windowOn(venue, date);
+  if (!open) return "VENUE_CLOSED";
+  if (window.start < open.start || window.end > open.end || window.end <= window.start) return "VENUE_CLOSED";
   if (date === now.date) {
-    // A whole day stays on sale until closing; a timed pass must not have started.
-    const cutoff = passType === "full-day" ? window.end : window.start;
-    if (cutoff <= now.minutes) return "IN_PAST";
+    const isOver = passType === "full-day" ? !sellsToday(hoursOn(venue, date), null, now.minutes) : window.start <= now.minutes;
+    if (isOver) return "IN_PAST";
   }
-  if ((window.start - opens) % SLOT_MINUTES !== 0) return "OFF_SLOT";
+  if ((window.start - open.start) % SLOT_MINUTES !== 0) return "OFF_SLOT";
   return null;
 };
 

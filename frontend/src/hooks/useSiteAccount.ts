@@ -2,14 +2,17 @@
 
 import {
   BadgeCheck,
+  Building2,
   CalendarCheck,
   LayoutDashboard,
+  LifeBuoy,
   ReceiptText,
   Store,
   TicketPercent,
   UserRound,
   type LucideIcon,
 } from "lucide-react";
+import { adminLandingPath } from "@/config/adminPermissions";
 import { useAuthStore } from "@/stores/auth";
 
 export type SiteLink = { label: string; href: string; icon: LucideIcon };
@@ -28,7 +31,9 @@ const MEMBER_LINKS: SiteLink[] = [
   { label: "My bookings", href: "/account/bookings", icon: CalendarCheck },
   { label: "Memberships", href: "/account/memberships", icon: BadgeCheck },
   { label: "Invoices", href: "/account/invoices", icon: ReceiptText },
+  { label: "Billing", href: "/account/billing", icon: Building2 },
   { label: "Coupons", href: "/account/coupons", icon: TicketPercent },
+  { label: "Support", href: "/account/support", icon: LifeBuoy },
 ];
 
 const ADMIN_LINKS: SiteLink[] = [
@@ -63,7 +68,8 @@ export const useSiteAccount = (): { isReady: boolean; account: SiteAccount | nul
         name: admin.account.name,
         detail: admin.account.email,
         badge: admin.account.role === "super-admin" ? "Super admin" : "Admin",
-        links: ADMIN_LINKS,
+        // The panel opens on the first page this admin may see, not always Overview.
+        links: ADMIN_LINKS.map((link) => (link.href === "/admin" ? { ...link, href: adminLandingPath(admin.account!) } : link)),
         signOut: admin.signOut,
       },
     };

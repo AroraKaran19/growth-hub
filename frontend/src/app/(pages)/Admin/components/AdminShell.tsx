@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { CircleUserRound, ExternalLink, LogOut, ShieldQuestion } from "lucide-react";
 import Logo from "@/app/components/ui/Logo";
-import { isPathAllowed, sectionForPath, visibleNav, visibleSections } from "@/config/adminPermissions";
+import { adminLandingPath, isPathAllowed, sectionForPath, visibleNav, visibleSections } from "@/config/adminPermissions";
 import { useAuthBootstrap } from "@/hooks/useAuthBootstrap";
 import { useAdminSession } from "@/stores/admin";
 import { cn } from "@/utils";
@@ -21,7 +21,7 @@ const AdminShell = ({ children }: { children: ReactNode }) => {
 
   const links = account ? visibleSections(account) : [];
   const allowed = account ? isPathAllowed(account, pathname) : false;
-  const fallback = links[0]?.href;
+  const fallback = account && links.length ? adminLandingPath(account) : undefined;
 
   useEffect(() => {
     if (account && !allowed && fallback) router.replace(fallback);

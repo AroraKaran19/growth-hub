@@ -18,6 +18,7 @@ import { FAQ_CATEGORIES, type FaqCategoryId } from "@/data/faqs";
 import { CONTACT } from "@/data/footer";
 import { cn } from "@/utils";
 import { CONTAINER } from "@/utils/layout";
+import RaiseRequestSection from "./components/RaiseRequestSection";
 import SupportSearch from "./components/SupportSearch";
 
 const TOPIC_ICONS: Record<FaqCategoryId, LucideIcon> = {
@@ -128,6 +129,8 @@ const SupportPage = () => {
           </div>
         </div>
       </section>
+
+      <RaiseRequestSection />
 
       <section className="bg-tertiary py-16 lg:py-20">
         <div className={CONTAINER}>

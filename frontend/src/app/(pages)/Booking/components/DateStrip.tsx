@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays } from "lucide-react";
+import RequiredMark from "@/app/components/ui/form/RequiredMark";
 import { isOpenDay } from "@/data/bookingOptions";
 import type { DayOption } from "@/types/booking";
 import { cn } from "@/utils";
@@ -18,6 +19,7 @@ type DateStripProps = {
   /** Shown on days that can't be picked, such as days a plan does not cover. */
   closedLabel?: string;
   closedMessage?: string;
+  required?: boolean;
 };
 
 const DateStrip = ({
@@ -29,6 +31,7 @@ const DateStrip = ({
   lastDay,
   closedLabel = "Closed",
   closedMessage = "The venue is closed on that day. Please pick another date.",
+  required = false,
 }: DateStripProps) => {
   const calendarRef = useRef<HTMLInputElement>(null);
   const stripRef = useRef<HTMLDivElement>(null);
@@ -75,7 +78,10 @@ const DateStrip = ({
   return (
     <div className="rounded-2xl border border-tertiary/10 bg-secondary p-5 lg:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-base font-bold text-tertiary">{title}</h2>
+        <h2 className="text-base font-bold text-tertiary">
+          {title}
+          {required && <RequiredMark />}
+        </h2>
 
         <span className="relative inline-flex">
           <button

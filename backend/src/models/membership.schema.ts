@@ -1,5 +1,6 @@
 import { Schema, model, type Types } from "mongoose";
 import { MEMBERSHIP_LENGTHS, PLAN_SPACES, ROOM_MODES, type MembershipLength, type PlanSpace, type RoomMode } from "../constants/catalogue";
+import { billingDetailsSchema, type BillingDetails } from "./billing.schema";
 import type { BookedSeat } from "./booking.schema";
 
 export const MEMBERSHIP_STATUSES = [
@@ -46,6 +47,8 @@ export interface MembershipDoc {
   /** Set for time-slot rooms: the window locked on each covered day. */
   window?: DailyWindow | null;
   holders?: SeatHolder[];
+  /** The company each cycle's invoice goes to; null or absent invoices the member. */
+  billing?: BillingDetails | null;
   length: MembershipLength;
   seats: BookedSeat[];
   people: number;
@@ -103,6 +106,7 @@ const membershipSchema = new Schema<MembershipDoc>(
     },
     window: { type: new Schema({ start: Number, end: Number }, { _id: false }), default: null },
     holders: { type: [new Schema({ seatId: String, name: String }, { _id: false })], default: [] },
+    billing: { type: billingDetailsSchema, default: null },
     length: { type: String, enum: [...MEMBERSHIP_LENGTHS], required: true },
     seats: {
       type: [new Schema({ id: String, label: String, type: String }, { _id: false })],

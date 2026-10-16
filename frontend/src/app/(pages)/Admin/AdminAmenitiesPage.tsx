@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { ArrowDown, ArrowUp, PencilLine, Sparkles, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, PencilLine, Plus, Sparkles, Trash2 } from "lucide-react";
 import { FeatureIcon } from "@/config/featureIcons";
 import { useAdminAmenities } from "@/hooks/useAmenities";
 import { createAmenity, deleteAmenity, reorderAmenities, updateAmenity } from "@/libs/api/amenitiesAdmin";
@@ -10,6 +10,7 @@ import { toastDone, toastFailed } from "@/libs/toast";
 import type { Amenity, AmenityInput } from "@/types/amenity";
 import { cn } from "@/utils";
 import { PartnerPageHeader as PageHeader, PartnerSkeleton as Skeleton } from "../Partner/components/PartnerUi";
+import FormModal from "./components/FormModal";
 import IconPicker from "./components/settings/IconPicker";
 import { TextArea, TextInput } from "./components/settings/inputs";
 import Toggle from "./components/Toggle";
@@ -19,7 +20,9 @@ const EMPTY: AmenityInput = { name: "", icon: "Sparkles", description: "", visib
 
 const toInput = ({ name, icon, description, visible }: Amenity): AmenityInput => ({ name, icon, description, visible });
 
-const AmenityForm = ({ editing, onDone }: { editing: Amenity | null; onDone: () => Promise<unknown> }) => {
+type AmenityFormProps = { editing: Amenity | null; onDone: () => Promise<unknown>; onCancel: () => void };
+
+const AmenityForm = ({ editing, onDone, onCancel }: AmenityFormProps) => {
   const [draft, setDraft] = useState<AmenityInput>(editing ? toInput(editing) : EMPTY);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
@@ -48,8 +51,8 @@ const AmenityForm = ({ editing, onDone }: { editing: Amenity | null; onDone: () 
   };
 
   return (
-    <form onSubmit={submit} noValidate className={cn(RAISED, "h-fit p-5 sm:p-6")}>
-      <div className="flex items-center gap-3">
+    <form onSubmit={submit} noValidate className={cn(RAISED, "p-5 sm:p-6")}>
+      <div className="flex items-center gap-3 pr-8">
         <span className="cta-gradient flex size-10 shrink-0 items-center justify-center rounded-xl text-secondary">
           <FeatureIcon name={draft.icon} className="size-5" />
         </span>
@@ -59,9 +62,9 @@ const AmenityForm = ({ editing, onDone }: { editing: Amenity | null; onDone: () 
         </div>
       </div>
       <div className="mt-5 flex flex-col gap-4">
-        <TextInput id="amenity-name" label="Name" value={draft.name} max={40} error={errors.name} placeholder="Rooftop terrace" onChange={(name) => setDraft({ ...draft, name })} />
+        <TextInput id="amenity-name" label="Name" required value={draft.name} max={40} error={errors.name} placeholder="Rooftop terrace" onChange={(name) => setDraft({ ...draft, name })} />
         <TextArea id="amenity-description" label="Description (optional)" value={draft.description} max={160} rows={2} error={errors.description} onChange={(description) => setDraft({ ...draft, description })} />
-        <IconPicker label="Icon" value={draft.icon} onChange={(icon) => setDraft({ ...draft, icon })} />
+        <IconPicker label="Icon" required value={draft.icon} onChange={(icon) => setDraft({ ...draft, icon })} />
         <Toggle label="Show on the site" checked={draft.visible} onChange={(visible) => setDraft({ ...draft, visible })} />
       </div>
       <div className="mt-5 flex items-center gap-4">
@@ -69,7 +72,7 @@ const AmenityForm = ({ editing, onDone }: { editing: Amenity | null; onDone: () 
           {isSaving ? "Saving..." : editing ? "Save changes" : "Add amenity"}
         </button>
         {editing && (
-          <button type="button" onClick={() => void onDone()} className={cn(QUIET, "text-tertiary/60")}>
+          <button type="button" onClick={onCancel} className={cn(QUIET, "text-tertiary/60")}>
             Cancel
           </button>
         )}
@@ -80,7 +83,7 @@ const AmenityForm = ({ editing, onDone }: { editing: Amenity | null; onDone: () 
 
 const AdminAmenitiesPage = () => {
   const { amenities, error, isLoading, mutate } = useAdminAmenities();
-  const [editing, setEditing] = useState<Amenity | null>(null);
+  const [form, setForm] = useState<{ editing: Amenity | null } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -114,45 +117,73 @@ const AdminAmenitiesPage = () => {
       <PageHeader
         title="Amenities"
         description="The list venues pick from. Hidden amenities disappear from the site but stay on venues that already have them."
+        actions={
+          <button
+            type="button"
+            onClick={() => setForm({ editing: null })}
+            className="cta-gradient inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-secondary shadow-md shadow-primary/20 transition-all hover:-translate-y-0.5 hover:opacity-95"
+          >
+            <Plus aria-hidden="true" className="size-4" />
+            Add amenity
+          </button>
+        }
       />
 
-      <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-[440px_minmax(0,1fr)]">
-        <AmenityForm
-          key={editing?.id ?? "new"}
-          editing={editing}
-          onDone={async () => {
-            setEditing(null);
-            await mutate();
-          }}
-        />
+      <section aria-labelledby="amenities-heading" className="mt-6">
+        <div className="flex items-baseline justify-between gap-3">
+          <h2 id="amenities-heading" className="text-base font-bold text-tertiary">
+            All amenities
+          </h2>
+          {!error && <p className="text-sm text-tertiary/55">{shown} shown, {amenities.length - shown} hidden</p>}
+        </div>
 
-        <section aria-labelledby="amenities-heading">
-          <div className="flex items-baseline justify-between gap-3">
-            <h2 id="amenities-heading" className="text-base font-bold text-tertiary">
-              All amenities
-            </h2>
-            {!error && <p className="text-sm text-tertiary/55">{shown} shown, {amenities.length - shown} hidden</p>}
+        {error ? (
+          <p role="alert" className="mt-3 text-sm text-primary">We couldn&apos;t load amenities. Refresh to try again.</p>
+        ) : amenities.length === 0 ? (
+          <div className="mt-3 rounded-2xl border border-dashed border-tertiary/15 p-10 text-center">
+            <Sparkles aria-hidden="true" className="mx-auto size-8 text-tertiary/25" />
+            <p className="mt-3 text-sm text-tertiary/60">No amenities yet.</p>
+            <button type="button" onClick={() => setForm({ editing: null })} className={cn(QUIET, "mt-2 text-primary")}>
+              Add the first one
+            </button>
           </div>
+        ) : (
+          <ol className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3">
+            {amenities.map((item, index) => (
+              <li
+                key={item.id}
+                className={cn(
+                  "flex flex-col rounded-2xl border border-tertiary/8 bg-secondary p-5 shadow-md shadow-tertiary/5 transition-all hover:-translate-y-0.5 hover:shadow-lg",
+                  !item.visible && "opacity-60",
+                )}
+              >
+                <div className="flex grow items-start gap-4">
+                  <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-tertiary text-secondary">
+                    <FeatureIcon name={item.icon} className="size-5" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-tertiary">{item.name}</p>
+                    {item.description && <p className="mt-0.5 line-clamp-2 text-sm text-tertiary/55">{item.description}</p>}
+                  </div>
+                </div>
 
-          {error ? (
-            <p role="alert" className="mt-3 text-sm text-primary">We couldn&apos;t load amenities. Refresh to try again.</p>
-          ) : amenities.length === 0 ? (
-            <div className="mt-3 rounded-2xl border border-dashed border-tertiary/15 p-10 text-center">
-              <Sparkles aria-hidden="true" className="mx-auto size-8 text-tertiary/25" />
-              <p className="mt-3 text-sm text-tertiary/60">No amenities yet. Add the first one.</p>
-            </div>
-          ) : (
-            <ol className="mt-3 flex flex-col gap-2.5">
-              {amenities.map((item, index) => (
-                <li key={item.id} className={cn("rounded-2xl border border-tertiary/8 bg-secondary p-4 shadow-md shadow-tertiary/5 transition-shadow hover:shadow-lg", !item.visible && "opacity-60")}>
-                  <div className="flex flex-wrap items-center gap-4">
-                    <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-tertiary text-secondary">
-                      <FeatureIcon name={item.icon} className="size-5" />
-                    </span>
-                    <div className="min-w-0 grow basis-48">
-                      <p className="text-sm font-semibold text-tertiary">{item.name}</p>
-                      {item.description && <p className="line-clamp-1 text-sm text-tertiary/55">{item.description}</p>}
-                    </div>
+                {confirmDelete === item.id ? (
+                  <div role="alert" className="mt-4 flex flex-wrap items-center gap-4 rounded-xl bg-primary/5 p-3 text-sm text-tertiary">
+                    Delete {item.name} for good?
+                    <button
+                      type="button"
+                      disabled={busyId === item.id}
+                      onClick={() => void run(item.id, () => deleteAmenity(item.id), `${item.name} deleted.`).then(() => setConfirmDelete(null))}
+                      className={cn(QUIET, "text-primary")}
+                    >
+                      Yes, delete
+                    </button>
+                    <button type="button" onClick={() => setConfirmDelete(null)} className={cn(QUIET, "text-tertiary/60")}>
+                      Keep it
+                    </button>
+                  </div>
+                ) : (
+                  <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-tertiary/8 pt-3.5">
                     <Toggle
                       label={item.visible ? "Shown" : "Hidden"}
                       checked={item.visible}
@@ -167,7 +198,7 @@ const AdminAmenitiesPage = () => {
                       <button type="button" aria-label="Move down" disabled={index === amenities.length - 1 || busyId !== null} onClick={() => move(index, 1)} className="rounded-lg p-2 text-tertiary/60 transition-colors hover:bg-tertiary/5 hover:text-tertiary disabled:opacity-30">
                         <ArrowDown aria-hidden="true" className="size-4" />
                       </button>
-                      <button type="button" aria-label={`Edit ${item.name}`} onClick={() => setEditing(item)} className="rounded-lg p-2 text-tertiary/60 transition-colors hover:bg-tertiary/5 hover:text-tertiary">
+                      <button type="button" aria-label={`Edit ${item.name}`} onClick={() => setForm({ editing: item })} className="rounded-lg p-2 text-tertiary/60 transition-colors hover:bg-tertiary/5 hover:text-tertiary">
                         <PencilLine aria-hidden="true" className="size-4" />
                       </button>
                       <button type="button" aria-label={`Delete ${item.name}`} onClick={() => setConfirmDelete(item.id)} className="rounded-lg p-2 text-primary/70 transition-colors hover:bg-primary/5 hover:text-primary">
@@ -175,28 +206,25 @@ const AdminAmenitiesPage = () => {
                       </button>
                     </div>
                   </div>
-                  {confirmDelete === item.id && (
-                    <div role="alert" className="mt-3 flex flex-wrap items-center gap-4 rounded-xl bg-primary/5 p-3 text-sm text-tertiary">
-                      Delete {item.name} for good?
-                      <button
-                        type="button"
-                        disabled={busyId === item.id}
-                        onClick={() => void run(item.id, () => deleteAmenity(item.id), `${item.name} deleted.`).then(() => setConfirmDelete(null))}
-                        className={cn(QUIET, "text-primary")}
-                      >
-                        Yes, delete
-                      </button>
-                      <button type="button" onClick={() => setConfirmDelete(null)} className={cn(QUIET, "text-tertiary/60")}>
-                        Keep it
-                      </button>
-                    </div>
-                  )}
-                </li>
-              ))}
-            </ol>
-          )}
-        </section>
-      </div>
+                )}
+              </li>
+            ))}
+          </ol>
+        )}
+      </section>
+
+      {form && (
+        <FormModal label={form.editing ? `Edit ${form.editing.name}` : "Add an amenity"} onClose={() => setForm(null)}>
+          <AmenityForm
+            editing={form.editing}
+            onCancel={() => setForm(null)}
+            onDone={async () => {
+              setForm(null);
+              await mutate();
+            }}
+          />
+        </FormModal>
+      )}
     </>
   );
 };

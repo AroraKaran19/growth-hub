@@ -1,6 +1,6 @@
 import mongoose, { Types } from "mongoose";
 import { env } from "../config/env";
-import { SLOT_MINUTES } from "../constants/booking";
+import { HOLD_CAP_MS, SLOT_MINUTES } from "../constants/booking";
 import type { SeatType } from "../constants/catalogue";
 import { AppError } from "../middlewares/error.middleware";
 import {
@@ -13,7 +13,7 @@ import {
   type SeatMapDoc,
   type VenueDoc,
 } from "../models";
-import { addDays, indiaNow, instantOf, isIsoDate, timeLabel, weekdayOf } from "../utils/indiaTime";
+import { addDays, indiaNow, instantOf, isIsoDate, timeLabel } from "../utils/indiaTime";
 import { freshRef, isRef } from "../utils/refs";
 import type { AdminRescheduleInput, BookingInput, ConfirmInput, QuoteInput, RescheduleInput } from "../validators/booking";
 import { effectiveStatus, scheduleError, seatError, windowFor, type TimeWindow } from "./bookingRules";
@@ -26,11 +26,12 @@ import { tellBookingConfirmed, tellLatePaymentReleased } from "./memberNotices";
 import { issueInvoice } from "./invoiceIssue.service";
 import { discountedPrice, quotePassLines } from "./pricing";
 import { capturePayment, createOrder, fetchPayment, refundPayment, verifyPaymentSignature } from "./razorpay.service";
+import { daySpan, isOutDuring } from "./outages";
 import { claimRanges, dayRanges, releaseRanges, setHold } from "./seatDays.service";
 import { offeredAddons } from "./venueCatalogue.service";
+import { windowOn } from "./venueHours";
 
 const HOLD_STEP_MS = 2 * 60_000;
-const HOLD_CAP_MS = 20 * 60_000;
 // Long enough for the capture call; the seat stays ours until the booking is final.
 const CONFIRM_GRACE_MS = 5 * 60_000;
 const SEAT_DAY_RETENTION_DAYS = 400;
@@ -88,7 +89,7 @@ export const loadBookable = async (slug: string) => {
 };
 
 const scheduleFor = (venue: VenueDoc, input: Pick<BookingInput, "passType" | "startMin" | "hours" | "date">) => {
-  const window = windowFor(venue, input.passType, input.startMin, input.hours);
+  const window = windowFor(venue, input.date, input.passType, input.startMin, input.hours);
   if (!window) throw ruleError("VENUE_CLOSED");
   const problem = scheduleError(venue, input.date, window, indiaNow(), input.passType);
   if (problem) throw ruleError(problem);
@@ -106,15 +107,22 @@ const priceFor = async (venue: VenueDoc, input: QuoteInput) =>
     addonKeys: input.addonKeys,
   });
 
-const checkSeats = (venue: VenueDoc, map: SeatMapDoc, input: QuoteInput) => {
-  const problem = seatError(input.seatIds, map.seats, input.spaceType, input.people, venue.outOfServiceSeatIds);
+/** Seats out of service at any moment of the window on that date. */
+const outDuring = (venue: VenueDoc, seatIds: string[], date: string, window: TimeWindow) => {
+  const span = daySpan(date, window);
+  return seatIds.filter((id) => isOutDuring(venue.outages, id, span.start, span.end));
+};
+
+const checkSeats = (venue: VenueDoc, map: SeatMapDoc, input: QuoteInput, window: TimeWindow) => {
+  const out = outDuring(venue, input.seatIds, input.date, window);
+  const problem = seatError(input.seatIds, map.seats, input.spaceType, input.people, out);
   if (problem) throw ruleError(problem.code, { seatIds: problem.seatIds });
 };
 
 export const quoteBooking = async (input: QuoteInput) => {
   const { venue, map } = await loadBookable(input.venueSlug);
   const window = scheduleFor(venue, input);
-  if (input.seatIds.length) checkSeats(venue, map, input);
+  if (input.seatIds.length) checkSeats(venue, map, input, window);
   const { price, addons } = await priceFor(venue, input);
   return { date: input.date, startMin: window.start, endMin: window.end, price, addons };
 };
@@ -143,7 +151,7 @@ export const createBooking = async (memberId: string, input: BookingInput, reque
 
   const { venue, map } = await loadBookable(input.venueSlug);
   const window = scheduleFor(venue, input);
-  checkSeats(venue, map, input);
+  checkSeats(venue, map, input, window);
   const { price, addons } = await priceFor(venue, input);
 
   const now = Date.now();
@@ -167,7 +175,8 @@ export const createBooking = async (memberId: string, input: BookingInput, reque
     startMin: window.start,
     endMin: window.end,
     people: input.people,
-    extras: { preference: input.preference, companyName: input.companyName },
+    extras: { preference: input.preference },
+    billing: input.billing,
     addons,
     price,
     status: (isFree ? "upcoming" : "pending-payment") as BookingStatus,
@@ -181,7 +190,7 @@ export const createBooking = async (memberId: string, input: BookingInput, reque
     await mongoose.connection.transaction(async (session) => {
       await Booking.create([doc], { session });
       if (isFree) {
-        const invoiceNumber = await issueInvoice("booking", bookingId, doc.memberId, indiaNow().date, session);
+        const invoiceNumber = await issueInvoice("booking", bookingId, doc.memberId, indiaNow().date, session, doc.billing);
         await Booking.updateOne({ _id: bookingId }, { invoiceNumber }, { session });
       }
       await claimRanges(
@@ -284,7 +293,7 @@ export const setBookingCoupon = async (memberId: string, ref: string, code: stri
       if (!updated) throw holdRanOut();
       await setHold(booking._id, null, session);
       await redeemFor(updated, session);
-      const invoiceNumber = await issueInvoice("booking", booking._id, booking.memberId, indiaNow().date, session);
+      const invoiceNumber = await issueInvoice("booking", booking._id, booking.memberId, indiaNow().date, session, booking.billing);
       await Booking.updateOne({ _id: booking._id }, { invoiceNumber }, { session });
       return { ...updated, invoiceNumber };
     });
@@ -394,7 +403,7 @@ const finalise = (bookingId: Types.ObjectId, paymentId: string, orderId: string)
     }
 
     await setHold(bookingId, null, session);
-    const invoiceNumber = await issueInvoice("booking", bookingId, updated.memberId, indiaNow(now).date, session);
+    const invoiceNumber = await issueInvoice("booking", bookingId, updated.memberId, indiaNow(now).date, session, updated.billing);
     await Booking.updateOne({ _id: bookingId }, { invoiceNumber }, { session });
     await redeemFor(updated, session);
     return { booking: { ...updated, invoiceNumber }, confirmedNow: true };
@@ -508,10 +517,10 @@ const venueOf = async (booking: BookingDoc) => {
   return venue;
 };
 
-/** The same length at a new start; a whole day always covers the opening hours. */
-const movedWindow = (venue: VenueDoc, booking: BookingDoc, startMin: number): TimeWindow | null =>
+/** The same length at a new start; a whole day covers the new date's own hours. */
+const movedWindow = (venue: VenueDoc, booking: BookingDoc, date: string, startMin: number): TimeWindow | null =>
   booking.passType === "full-day"
-    ? windowFor(venue, "full-day", 0, 1)
+    ? windowFor(venue, date, "full-day", 0, 1)
     : { start: startMin, end: startMin + (booking.endMin - booking.startMin) };
 
 /** Moves a booking in one transaction; new seatIds (admins only) must suit the same party. */
@@ -520,7 +529,7 @@ const moveBooking = async (booking: BookingDoc, input: RescheduleInput, newSeatI
   reschedulable(booking, now);
   const venue = await venueOf(booking);
 
-  const window = movedWindow(venue, booking, input.startMin);
+  const window = movedWindow(venue, booking, input.date, input.startMin);
   if (!window) throw ruleError("VENUE_CLOSED");
   const problem = scheduleError(venue, input.date, window, indiaNow(now), booking.passType);
   if (problem) throw ruleError(problem);
@@ -529,7 +538,8 @@ const moveBooking = async (booking: BookingDoc, input: RescheduleInput, newSeatI
   if (newSeatIds) {
     const map = await SeatMap.findOne({ venueId: venue._id }).lean<SeatMapDoc>();
     if (!map) throw notBookable();
-    const seatProblem = seatError(newSeatIds, map.seats, booking.spaceType, booking.people, venue.outOfServiceSeatIds);
+    const out = outDuring(venue, newSeatIds, input.date, window);
+    const seatProblem = seatError(newSeatIds, map.seats, booking.spaceType, booking.people, out);
     if (seatProblem) throw ruleError(seatProblem.code, { seatIds: seatProblem.seatIds });
     const byId = new Map(map.seats.map((seat) => [seat.id, seat]));
     seats = newSeatIds.map((id) => ({ id, label: byId.get(id)!.label, type: byId.get(id)!.type as SeatType }));
@@ -539,7 +549,7 @@ const moveBooking = async (booking: BookingDoc, input: RescheduleInput, newSeatI
   if (input.date === booking.date && window.start === booking.startMin && sameSeats) {
     throw new AppError("That's the time you already have.", 400, "NOTHING_TO_CHANGE");
   }
-  const off = seatIds.filter((id) => venue.outOfServiceSeatIds.includes(id));
+  const off = outDuring(venue, seatIds, input.date, window);
   if (off.length) throw ruleError("SEAT_OUT_OF_SERVICE", { seatIds: off });
 
   await mongoose.connection.transaction(async (session) => {
@@ -574,17 +584,16 @@ export const rescheduleOptions = async (memberId: string, ref: string, date: str
   reschedulable(booking, now);
   const venue = await venueOf(booking);
 
-  const closed = !venue.openDays.includes(weekdayOf(date));
+  const whole = windowOn(venue, date);
+  const closed = !whole;
   const own = booking._id.toString();
   const ranges = await dayRanges(venue._id, date, now);
   const seatIds = booking.seats.map((seat) => seat.id);
-  const outOfService = seatIds.some((id) => venue.outOfServiceSeatIds.includes(id));
   const free = (window: TimeWindow) =>
     seatIds.every((id) =>
       (ranges.get(id) ?? []).every((range) => range.bookingId === own || range.end <= window.start || range.start >= window.end),
     );
 
-  const whole = windowFor(venue, "full-day", 0, 1);
   const candidates: TimeWindow[] = [];
   if (whole && booking.passType === "full-day") candidates.push(whole);
   else if (whole) {
@@ -602,7 +611,10 @@ export const rescheduleOptions = async (memberId: string, ref: string, date: str
       startMin: window.start,
       label: timeLabel(window.start),
       available:
-        !closed && !outOfService && !scheduleError(venue, date, window, today, booking.passType) && free(window),
+        !closed &&
+        !outDuring(venue, seatIds, date, window).length &&
+        !scheduleError(venue, date, window, today, booking.passType) &&
+        free(window),
     })),
   };
 };

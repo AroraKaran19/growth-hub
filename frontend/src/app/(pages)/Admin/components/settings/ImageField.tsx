@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import Image from "next/image";
 import { ImagePlus, LoaderCircle, Trash2 } from "lucide-react";
+import RequiredMark from "@/app/components/ui/form/RequiredMark";
 import { IMAGE_TYPES, UploadError, uploadImage } from "@/libs/api/uploads";
 import { readApiError } from "@/libs/api/errors";
 import type { SiteImage } from "@/types/homeContent";
@@ -20,10 +21,11 @@ type ImageFieldProps = {
   aspect?: string;
   /** A smaller preview, for portraits such as testimonial photos. */
   compact?: boolean;
+  required?: boolean;
 };
 
 /** Uploads straight to S3 through a presigned ticket, or takes a pasted URL. */
-const ImageField = ({ id, label, value, onChange, hint, optional, aspect = "aspect-video", compact = false }: ImageFieldProps) => {
+const ImageField = ({ id, label, value, onChange, hint, optional, aspect = "aspect-video", compact = false, required = false }: ImageFieldProps) => {
   const input = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,6 +48,7 @@ const ImageField = ({ id, label, value, onChange, hint, optional, aspect = "aspe
     <div>
       <p className={LABEL}>
         {label}
+        {required && <RequiredMark />}
         {optional && <span className="ml-1.5 font-normal text-tertiary/45">(optional)</span>}
       </p>
       <div className="flex flex-col gap-3 sm:flex-row">
@@ -88,6 +91,7 @@ const ImageField = ({ id, label, value, onChange, hint, optional, aspect = "aspe
             <input
               id={`${id}-src`}
               value={value.src}
+              aria-required={required || undefined}
               onChange={(event) => onChange({ ...value, src: event.target.value })}
               placeholder="https://..."
               className={inputClass(false)}

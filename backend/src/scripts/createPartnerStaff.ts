@@ -19,6 +19,8 @@ const main = async () => {
   if (!process.env.MONGODB_URI) throw new Error("MONGODB_URI is not set");
 
   await mongoose.connect(process.env.MONGODB_URI);
+  const other = await PartnerStaff.exists({ venueSlug, email: { $ne: email } });
+  if (other) throw new Error(`"${venueSlug}" already has a partner login. Each venue has one.`);
   const staff = await PartnerStaff.findOneAndUpdate(
     { email },
     { $set: { name, venueSlug, status: "active" } },

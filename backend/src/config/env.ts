@@ -1,17 +1,7 @@
-import {
-  MEMBER_EVENTS,
-  STAFF_EVENTS,
-  type MemberEvent,
-  type NotificationTemplates,
-  type StaffEvent,
-} from "../constants/notifications";
-
 export type EmailSettings = {
   domain: string;
   from: string;
   fromName: string;
-  /** Null until MSG91 approves the reset email; required in production. */
-  passwordResetTemplateId: string | null;
 };
 
 export type RazorpaySettings = {
@@ -55,8 +45,6 @@ export type AppEnv = {
   payoutEncryptionKey: Buffer | null;
   /** Browser origins allowed to call the API: the frontend plus CORS_ORIGINS. */
   corsOrigins: string[];
-  /** Optional everywhere: a missing template id skips that message. */
-  notifications: NotificationTemplates;
 };
 
 const MIN_SECRET_LENGTH = 32;
@@ -101,12 +89,7 @@ export const loadEnv = (source: NodeJS.ProcessEnv = process.env): AppEnv => {
   };
   const email =
     msg91AuthKey && emailParts.domain && emailParts.from && emailParts.fromName
-      ? {
-          domain: emailParts.domain,
-          from: emailParts.from,
-          fromName: emailParts.fromName,
-          passwordResetTemplateId: read("MSG91_EMAIL_PASSWORD_RESET_TEMPLATE_ID"),
-        }
+      ? { domain: emailParts.domain, from: emailParts.from, fromName: emailParts.fromName }
       : null;
   const authTestPhone = read("AUTH_TEST_PHONE");
   const authTestOtp = read("AUTH_TEST_OTP");
@@ -152,17 +135,6 @@ export const loadEnv = (source: NodeJS.ProcessEnv = process.env): AppEnv => {
         }
       : null;
 
-  const templates = <E extends string>(prefix: string, events: readonly E[]) =>
-    Object.fromEntries(
-      events.flatMap((event) => {
-        const id = read(`${prefix}${event}`);
-        return id ? [[event, id]] : [];
-      }),
-    ) as Partial<Record<E, string>>;
-  const notifications: NotificationTemplates = {
-    emailTemplates: templates<MemberEvent | StaffEvent>("MSG91_EMAIL_TEMPLATE_", [...MEMBER_EVENTS, ...STAFF_EVENTS]),
-  };
-
   const result: AppEnv = {
     nodeEnv,
     isProduction,
@@ -184,7 +156,6 @@ export const loadEnv = (source: NodeJS.ProcessEnv = process.env): AppEnv => {
     cronSecret,
     payoutEncryptionKey,
     corsOrigins,
-    notifications,
   };
 
   // A sign-in that skips the SMS is a development convenience, and the code is
@@ -209,7 +180,6 @@ export const loadEnv = (source: NodeJS.ProcessEnv = process.env): AppEnv => {
     }
     // Each feature switches itself off without its variable, so these warn instead of stopping the server.
     const missing = [
-      !email?.passwordResetTemplateId && "MSG91_EMAIL_PASSWORD_RESET_TEMPLATE_ID (password reset emails)",
       !revalidateSecret && "REVALIDATE_SECRET (instant site updates)",
       !razorpayWebhookSecret && "RAZORPAY_WEBHOOK_SECRET (payment webhooks and membership renewals)",
       !qrSigningSecret && "QR_SIGNING_SECRET (check-in QR codes)",

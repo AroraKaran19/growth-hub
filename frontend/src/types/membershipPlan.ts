@@ -1,4 +1,6 @@
-export type PlanSpace = "desk" | "private-cabin" | "office" | "meeting-room";
+import type { DayHours } from "./catalogue";
+
+export type PlanSpace ="desk" | "private-cabin" | "office" | "meeting-room";
 
 export type RoomMode = "full-day" | "time-slot";
 
@@ -21,4 +23,4 @@ export type PlanInput = {
 
 export type MembershipPlan = PlanInput & { id: string; venueSlug: string; sortOrder: number; inUse: boolean };
 
-export type PlanVenue = { slug: string; name: string; openDays: number[]; opensAt: string; closesAt: string };
+export type PlanVenue = { slug: string; name: string; hours: DayHours[] };

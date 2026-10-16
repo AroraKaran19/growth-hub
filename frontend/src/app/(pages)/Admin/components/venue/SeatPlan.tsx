@@ -6,7 +6,8 @@ type SeatPlanProps = {
   seats: ApiSeat[];
   /** Seats drawn as out of service. */
   isOff?: (seat: ApiSeat) => boolean;
-  onToggle?: (seat: ApiSeat) => void;
+  /** Makes each seat a button that opens a dialog. */
+  onSelect?: (seat: ApiSeat) => void;
   className?: string;
 };
 
@@ -17,7 +18,7 @@ const boxStyle = (seat: ApiSeat) => ({
   height: `${seat.height}%`,
 });
 
-const SeatPlan = ({ image, seats, isOff, onToggle, className }: SeatPlanProps) => (
+const SeatPlan = ({ image, seats, isOff, onSelect, className }: SeatPlanProps) => (
   <div className={cn("relative overflow-hidden rounded-xl border border-tertiary/10", className)}>
     {/* Plain img: the seat boxes are percentages of this exact image. */}
     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -28,7 +29,7 @@ const SeatPlan = ({ image, seats, isOff, onToggle, className }: SeatPlanProps) =
         ? "border-tertiary/40 bg-tertiary/35"
         : "border-green-600 bg-green-500/35";
 
-      if (!onToggle) {
+      if (!onSelect) {
         return (
           <span
             key={seat.id}
@@ -42,9 +43,8 @@ const SeatPlan = ({ image, seats, isOff, onToggle, className }: SeatPlanProps) =
         <button
           key={seat.id}
           type="button"
-          role="switch"
-          aria-checked={!off}
-          onClick={() => onToggle(seat)}
+          aria-haspopup="dialog"
+          onClick={() => onSelect(seat)}
           title={`${seat.label}: ${off ? "out of service" : "bookable"}`}
           style={boxStyle(seat)}
           className={cn(

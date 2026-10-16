@@ -27,10 +27,11 @@ const initials = (name: string) =>
 const PasswordInput = ({ id, label, value, onChange, error, autoComplete }: { id: string; label: string; value: string; onChange: (value: string) => void; error?: string; autoComplete: string }) => {
   const [isShown, setIsShown] = useState(false);
   return (
-    <Field id={id} label={label} error={error}>
+    <Field id={id} label={label} error={error} required>
       <div className="relative">
         <input
           id={id}
+          aria-required="true"
           type={isShown ? "text" : "password"}
           value={value}
           autoComplete={autoComplete}
@@ -55,13 +56,16 @@ type StaffProfilePageProps = {
   roleLabel: string;
   /** What this login can reach: pages for admins, the venue for partners. */
   access: ReactNode;
-  emailNote: string;
 };
 
-const StaffProfilePage = ({ surface, roleLabel, access, emailNote }: StaffProfilePageProps) => {
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const StaffProfilePage = ({ surface, roleLabel, access }: StaffProfilePageProps) => {
   const account = useAuthStore(surface, (state) => state.account) as AccountFor<StaffSurface> | null;
   const [name, setName] = useState(account?.name ?? "");
-  const [nameError, setNameError] = useState<string>();
+  const [email, setEmail] = useState(account?.email ?? "");
+  const [emailPassword, setEmailPassword] = useState("");
+  const [detailErrors, setDetailErrors] = useState<Partial<Record<"name" | "email" | "emailPassword", string>>>({});
   const [isSavingName, setIsSavingName] = useState(false);
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
@@ -71,23 +75,38 @@ const StaffProfilePage = ({ surface, roleLabel, access, emailNote }: StaffProfil
 
   if (!account) return null;
 
-  const saveName = async (event: FormEvent) => {
+  const trimmedEmail = email.trim().toLowerCase();
+  const isEmailChanged = trimmedEmail !== account.email;
+  const isNameChanged = name.trim() !== account.name;
+
+  const saveDetails = async (event: FormEvent) => {
     event.preventDefault();
     const trimmed = name.trim();
-    if (trimmed.length < 2) {
-      setNameError("Enter a name.");
-      return;
-    }
+    const found = {
+      ...(trimmed.length < 2 && { name: "Enter a name." }),
+      ...(!EMAIL.test(trimmedEmail) && { email: "Enter a valid email address." }),
+      ...(isEmailChanged && !emailPassword && { emailPassword: "Enter your current password to change your email." }),
+    };
+    setDetailErrors(found);
+    if (Object.keys(found).length) return;
+
     setIsSavingName(true);
     try {
       const api = surface === "admin" ? adminApi : partnerApi;
-      const { data } = await api.patch<{ data: { account: AccountFor<StaffSurface> } }>("/auth/me", { name: trimmed });
+      const { data } = await api.patch<{ data: { account: AccountFor<StaffSurface> } }>("/auth/me", {
+        ...(isNameChanged && { name: trimmed }),
+        ...(isEmailChanged && { email: trimmedEmail, currentPassword: emailPassword }),
+      });
       (authStoreFor(surface).getState().setAccount as (value: AccountFor<StaffSurface>) => void)(data.data.account);
-      toastDone("Your name is saved.");
+      setEmailPassword("");
+      toastDone(isEmailChanged ? "Email changed. Your other devices are signed out." : "Your name is saved.");
     } catch (caught) {
       const info = readApiError(caught);
-      if (info.fields.name) setNameError(info.fields.name);
-      else toastFailed(info.message);
+      if (info.code === "INVALID_CREDENTIALS") setDetailErrors({ emailPassword: "That isn't your current password." });
+      else if (info.code === "EMAIL_TAKEN") setDetailErrors({ email: info.message });
+      else if (info.fields.name || info.fields.email || info.fields.currentPassword) {
+        setDetailErrors({ name: info.fields.name, email: info.fields.email, emailPassword: info.fields.currentPassword });
+      } else toastFailed(info.message);
     } finally {
       setIsSavingName(false);
     }
@@ -149,36 +168,85 @@ const StaffProfilePage = ({ surface, roleLabel, access, emailNote }: StaffProfil
             <div className="relative mt-5 border-t border-secondary/12 pt-4">{access}</div>
           </section>
 
-          <form onSubmit={saveName} noValidate className={cn(RAISED, "p-5 sm:p-6")}>
+          <form onSubmit={saveDetails} noValidate className={cn(RAISED, "p-5 sm:p-6")}>
             <h2 className="flex items-center gap-2 text-base font-bold text-tertiary">
               <UserRound aria-hidden="true" className="size-4 text-primary" />
               Details
             </h2>
             <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Field id="profile-name" label="Name" error={nameError}>
+              <Field id="profile-name" label="Name" error={detailErrors.name} required>
                 <input
                   id="profile-name"
+                  aria-required="true"
                   value={name}
                   maxLength={80}
                   onChange={(event) => {
                     setName(event.target.value);
-                    setNameError(undefined);
+                    setDetailErrors((current) => ({ ...current, name: undefined }));
                   }}
-                  className={inputClass(Boolean(nameError))}
+                  className={inputClass(Boolean(detailErrors.name))}
                 />
               </Field>
-              <Field id="profile-email" label="Email">
-                <input id="profile-email" value={account.email} readOnly className={inputClass(false, "cursor-not-allowed bg-tertiary/4 text-tertiary/60")} />
-                <p className="mt-1.5 text-xs text-tertiary/55">{emailNote}</p>
+              <Field id="profile-email" label="Email" error={detailErrors.email} required>
+                <input
+                  id="profile-email"
+                  type="email"
+                  aria-required="true"
+                  autoComplete="email"
+                  value={email}
+                  onChange={(event) => {
+                    setEmail(event.target.value);
+                    setDetailErrors((current) => ({ ...current, email: undefined, emailPassword: undefined }));
+                  }}
+                  className={inputClass(Boolean(detailErrors.email))}
+                />
+                {!detailErrors.email && (
+                  <p className="mt-1.5 text-xs text-tertiary/55">You sign in with this, and reset links are sent here.</p>
+                )}
               </Field>
             </div>
-            <button
-              type="submit"
-              disabled={isSavingName || name.trim() === account.name}
-              className="cta-gradient mt-5 rounded-lg px-5 py-2.5 text-sm font-medium text-secondary transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {isSavingName ? "Saving..." : "Save name"}
-            </button>
+
+            {isEmailChanged && (
+              <div className="mt-4 animate-[fade-up_0.2s_ease-out_both] rounded-xl bg-surface p-4 motion-reduce:animate-none">
+                <PasswordInput
+                  id="profile-email-password"
+                  label="Current password"
+                  value={emailPassword}
+                  autoComplete="current-password"
+                  error={detailErrors.emailPassword}
+                  onChange={(value) => {
+                    setEmailPassword(value);
+                    setDetailErrors((current) => ({ ...current, emailPassword: undefined }));
+                  }}
+                />
+                <p className="mt-2 text-xs text-tertiary/55">
+                  Needed to change your email. Your other devices are signed out; this one stays signed in.
+                </p>
+              </div>
+            )}
+
+            <div className="mt-5 flex flex-wrap items-center gap-4">
+              <button
+                type="submit"
+                disabled={isSavingName || (!isNameChanged && !isEmailChanged)}
+                className="cta-gradient rounded-lg px-5 py-2.5 text-sm font-medium text-secondary transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isSavingName ? "Saving..." : "Save details"}
+              </button>
+              {isEmailChanged && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail(account.email);
+                    setEmailPassword("");
+                    setDetailErrors({});
+                  }}
+                  className="text-sm font-medium text-tertiary/60 transition-colors hover:text-tertiary"
+                >
+                  Keep {account.email}
+                </button>
+              )}
+            </div>
           </form>
         </div>
 

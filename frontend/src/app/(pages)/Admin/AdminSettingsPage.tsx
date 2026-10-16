@@ -7,11 +7,14 @@ import {
   Armchair,
   Building2,
   ExternalLink,
+  FileText,
   Images,
   LayoutGrid,
   ListOrdered,
+  LogIn,
   Megaphone,
   MessageSquareQuote,
+  Search,
   Sparkles,
   Wifi,
   type LucideIcon,
@@ -21,6 +24,7 @@ import type { HomeOverrides, HomeSectionKey } from "@/types/homeContent";
 import { cn } from "@/utils";
 import { PartnerPageHeader as PageHeader, PartnerSkeleton as Skeleton } from "../Partner/components/PartnerUi";
 import SectionEditor from "./components/settings/SectionEditor";
+import { SeoForm, SeoPagesForm } from "./components/settings/seoForms";
 import {
   AmenitiesForm,
   CommunityForm,
@@ -28,6 +32,7 @@ import {
   FeaturesForm,
   HeadingForm,
   HeroForm,
+  SigninForm,
   StepsForm,
 } from "./components/settings/sectionForms";
 
@@ -41,6 +46,9 @@ const SECTIONS: { key: HomeSectionKey; label: string; hint: string; icon: Lucide
   { key: "community", label: "Community photos", hint: "The heading and six photos in the mosaic. The layout stays the same.", icon: Images },
   { key: "testimonials", label: "Testimonials", hint: "The heading beside the testimonial carousel.", icon: MessageSquareQuote },
   { key: "cta", label: "Bottom banner", hint: "The banner near the footer, also shown on About, Locations, Memberships and Pricing.", icon: Megaphone },
+  { key: "signin", label: "Sign-in screens", hint: "The photo beside the sign-in form for customers, venue partners and admins.", icon: LogIn },
+  { key: "seo", label: "SEO and sharing", hint: "Site name, search copy, share image, favicon and search engine settings.", icon: Search },
+  { key: "seoPages", label: "Page titles", hint: "The search title and description of each public page. Venue pages use their own name and description.", icon: FileText },
 ];
 
 const AdminSettingsPage = () => {
@@ -103,13 +111,16 @@ const AdminSettingsPage = () => {
       </>
     ),
     cta: <SectionEditor section="cta" {...shared("cta")}>{(draft, set, errors) => <CtaForm draft={draft} set={set} errors={errors} />}</SectionEditor>,
+    signin: <SectionEditor section="signin" {...shared("signin")}>{(draft, set, errors) => <SigninForm draft={draft} set={set} errors={errors} />}</SectionEditor>,
+    seo: <SectionEditor section="seo" {...shared("seo")}>{(draft, set, errors) => <SeoForm draft={draft} set={set} errors={errors} />}</SectionEditor>,
+    seoPages: <SectionEditor section="seoPages" {...shared("seoPages")}>{(draft, set, errors) => <SeoPagesForm draft={draft} set={set} errors={errors} />}</SectionEditor>,
   };
 
   return (
     <>
       <PageHeader
         title="Site settings"
-        description="Edit the landing page. Unedited sections keep their built-in copy, and saved changes show on the site straight away."
+        description="Edit the landing page, sign-in screens and how the site shows in search. Unedited sections keep their built-in copy, and saved changes show on the site straight away."
         actions={
           <Link href="/" target="_blank" className="inline-flex items-center gap-1.5 text-sm font-medium text-tertiary/65 hover:text-tertiary">
             View landing page

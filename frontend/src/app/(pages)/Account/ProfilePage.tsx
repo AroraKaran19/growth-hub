@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Pencil } from "lucide-react";
+import RequiredMark from "@/app/components/ui/form/RequiredMark";
 import SelectField from "@/app/components/ui/form/SelectField";
 import {
   GENDER_OPTIONS,
@@ -34,7 +35,6 @@ import {
   type ProfileErrors,
 } from "./profileDraft";
 import { toStatsBooking } from "./bookingAdapter";
-import BillingDetailsCard from "./components/BillingDetailsCard";
 import { profileStats } from "./profileStats";
 
 const initials = (name: string) =>
@@ -57,6 +57,7 @@ type Field = {
   options?: SelectOption[];
   /** Shown under the box while editing. */
   hint?: string;
+  required?: boolean;
 };
 
 type Section = {
@@ -71,7 +72,7 @@ const SECTIONS: Section[] = [
     title: "Personal Details",
     showMobile: true,
     fields: [
-      { label: "Full Name", key: "name", autoComplete: "name" },
+      { label: "Full Name", key: "name", autoComplete: "name", required: true },
       {
         label: "Date of Birth",
         key: "dateOfBirth",
@@ -84,6 +85,7 @@ const SECTIONS: Section[] = [
         type: "email",
         autoComplete: "email",
         hint: "Booking confirmations, receipts and payment updates are emailed here.",
+        required: true,
       },
       { label: "Gender", key: "gender", options: GENDER_OPTIONS },
     ],
@@ -364,6 +366,7 @@ const ProfileView = ({ account }: { account: MemberAccount }) => {
                           value={raw}
                           options={options}
                           onChange={(next) => change(field.key, next)}
+                          required={field.required}
                         />
                         {error && (
                           <p role="alert" className="mt-1.5 text-xs text-primary">
@@ -385,6 +388,7 @@ const ProfileView = ({ account }: { account: MemberAccount }) => {
                     <div key={field.key}>
                       <label htmlFor={field.key} className={FIELD_LABEL}>
                         {field.label}
+                        {isEditing && field.required && <RequiredMark />}
                       </label>
                       <input
                         // Remounted per mode so a date input is never handed
@@ -401,6 +405,7 @@ const ProfileView = ({ account }: { account: MemberAccount }) => {
                         // Read-only fields are skipped in the tab order so the
                         // keyboard does not walk through a dozen dead inputs.
                         tabIndex={isEditing ? undefined : -1}
+                        aria-required={(isEditing && field.required) || undefined}
                         aria-invalid={Boolean(error)}
                         aria-describedby={
                           error ? `${field.key}-error` : undefined
@@ -460,8 +465,6 @@ const ProfileView = ({ account }: { account: MemberAccount }) => {
           ))}
         </div>
       </div>
-
-      <BillingDetailsCard account={account} className="mt-6" />
     </>
   );
 };

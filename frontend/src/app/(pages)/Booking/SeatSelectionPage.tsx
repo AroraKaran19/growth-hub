@@ -40,10 +40,11 @@ const SeatSelectionPage = ({ venue }: { venue: VenueDetail }) => {
     isSeatingComplete,
     isConfigured,
     isScheduled,
+    isInvoiceReady,
   } = useBookingSelection(venue);
 
   // Seats depend on the date and time, so a selection that lost them starts over on the options step.
-  const needsOptions = checkoutStepFor({ isConfigured, isScheduled, isSeatingComplete: true }) === "book";
+  const needsOptions = checkoutStepFor({ isConfigured, isScheduled, isSeatingComplete: true, isInvoiceReady }) === "book";
   useEffect(() => {
     if (isHydrated && needsOptions) router.replace(`/workspaces/${venue.slug}/book`);
   }, [isHydrated, needsOptions, router, venue.slug]);
@@ -71,10 +72,11 @@ const SeatSelectionPage = ({ venue }: { venue: VenueDetail }) => {
   const { taken: planTaken, error: planTakenError } = useMembershipTakenSeats(venue.slug, planQuery);
   const taken = isPass ? passTaken : planTaken;
   const blocked = new Set([...(taken?.takenSeatIds ?? []), ...(taken?.outOfServiceSeatIds ?? [])]);
-  // Seats someone else booked or is paying for right now can't be picked.
-  const liveSeats = (seatMap?.seats ?? []).map((seat) =>
-    blocked.has(seat.id) && !selection.seatIds.includes(seat.id) ? { ...seat, available: false } : seat,
-  );
+  // Booked, being paid for, or out of service in the chosen window; until that loads, out right now.
+  const liveSeats = (seatMap?.seats ?? []).map((seat) => {
+    const isOff = taken ? blocked.has(seat.id) : !seat.available;
+    return { ...seat, available: selection.seatIds.includes(seat.id) || !isOff };
+  });
   const { memberships } = useMemberships();
   const yourSeatIds = reservedSeatIdsFor(memberships, venue.slug);
   const canPick = venue.published && Boolean(seatMap);

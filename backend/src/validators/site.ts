@@ -13,7 +13,20 @@ const href = z
 
 const image = z.object({ src: imageSchema, alt: z.string().trim().max(160, "Keep it under 160 characters.") }).strict();
 
+// A blank src keeps the built-in look, such as the staff sign-in dark panel.
+const optionalImage = z
+  .object({ src: z.union([imageSchema, z.literal("")]), alt: z.string().trim().max(160, "Keep it under 160 characters.") })
+  .strict();
+
 const heading = { title: text(90), subtitle: text(300) };
+
+const blankOr = (schema: z.ZodType<string>) => z.union([z.literal(""), schema]);
+const upTo = (max: number) => z.string().trim().max(max, `Keep it under ${max} characters.`);
+
+export const SEO_PAGES = ["home", "workspaces", "locations", "memberships", "pricing", "about", "contact", "support", "faqs"] as const;
+
+// Blank page fields keep each page's built-in title and description.
+const seoPage = z.object({ title: upTo(70), description: upTo(160) }).strict();
 
 const link = z.object({ label: text(40), href }).strict();
 
@@ -46,6 +59,25 @@ export const HOME_SECTION_SCHEMAS = {
   community: z.object({ ...heading, photos: z.array(image).length(6, "Keep exactly six photos.") }).strict(),
   testimonials: z.object(heading).strict(),
   cta: z.object({ title: text(90), text: text(300), primary: link, secondary: link }).strict(),
+  signin: z.object({ member: image, partner: optionalImage, admin: optionalImage }).strict(),
+  seo: z
+    .object({
+      siteName: text(60),
+      siteUrl: blankOr(
+        z.string().trim().regex(/^https:\/\/[a-z0-9.-]+\.[a-z]{2,}(:\d{2,5})?$/i, "Use the site's https address, like https://growthhub.in."),
+      ),
+      defaultTitle: text(70),
+      description: text(160),
+      keywords: z.array(z.string().trim().min(1).max(40, "Keep each keyword under 40 characters.")).max(15, "Up to 15 keywords."),
+      shareImage: optionalImage,
+      favicon: optionalImage,
+      appleIcon: optionalImage,
+      twitterHandle: blankOr(z.string().trim().regex(/^@[A-Za-z0-9_]{1,15}$/, "Use the handle with its @, like @growthhub.")),
+      googleVerification: blankOr(z.string().trim().regex(/^[A-Za-z0-9_-]{10,100}$/, "Paste only the code from the Google meta tag.")),
+      hideFromSearch: z.boolean(),
+    })
+    .strict(),
+  seoPages: z.object(Object.fromEntries(SEO_PAGES.map((page) => [page, seoPage])) as Record<(typeof SEO_PAGES)[number], typeof seoPage>).strict(),
 };
 
 export type HomeSection = keyof typeof HOME_SECTION_SCHEMAS;

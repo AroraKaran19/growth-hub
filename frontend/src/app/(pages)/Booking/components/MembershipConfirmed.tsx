@@ -75,7 +75,7 @@ const MembershipConfirmed = ({ membership, venue }: MembershipConfirmedProps) =>
         </div>
 
         <p className="mt-4 text-sm text-tertiary/60">
-          Renews automatically until you stop it in My Memberships. Open {venue.openHours}.
+          Renews automatically until you stop it in My Memberships. Opening hours: {venue.hoursSummary}.
         </p>
 
         {venue.googleMapsUrl && (

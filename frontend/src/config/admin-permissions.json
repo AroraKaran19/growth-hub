@@ -1,6 +1,7 @@
 {
   "permissions": [
     { "key": "overview", "label": "Overview", "description": "Dashboard stats and alerts" },
+    { "key": "analytics", "label": "Analytics", "description": "Occupancy, peak hours and sales trends per workspace" },
     { "key": "workspaces", "label": "Workspaces", "description": "Every workspace page" },
     { "key": "workspaces.venues", "group": "workspaces", "label": "Manage workspaces", "description": "Venues, their details, photos and seat map" },
     { "key": "workspaces.types", "group": "workspaces", "label": "Workspace types", "description": "Names, descriptions and images of the types" },
@@ -9,6 +10,7 @@
     { "key": "workspaces.availability", "group": "workspaces", "label": "Availability", "description": "Seats out of service" },
     { "key": "workspaces.seat-maps", "group": "workspaces", "label": "Seat maps", "description": "The floor plan library" },
     { "key": "bookings", "label": "Bookings", "description": "Bookings and cancellation requests" },
+    { "key": "support", "label": "Support requests", "description": "Customer help requests and their status" },
     { "key": "memberships", "label": "Memberships", "description": "Every membership page" },
     { "key": "memberships.manage", "group": "memberships", "label": "Memberships", "description": "Members' memberships, renewals, stops and cancellations" },
     { "key": "memberships.plans", "group": "memberships", "label": "Membership plans", "description": "Create and edit the plans each venue sells" },

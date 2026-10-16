@@ -5,6 +5,8 @@ import { initializeS3 } from "./config/aws";
 import { migrateLegacyPermissions } from "./services/permissions";
 import { migrateMembershipPrices } from "./services/membershipPlan.service";
 import { dropLegacyCheckInIndex } from "./services/checkIn.service";
+import { refreshAllWorkspaceTypes } from "./services/workspaceTypes.service";
+import { migrateOutOfServiceSeats, migrateVenueHours } from "./services/venueCatalogue.service";
 
 dotenv.config();
 
@@ -22,6 +24,12 @@ const startServer = async () => {
     const plans = await migrateMembershipPrices();
     if (plans) console.log(`Turned venue membership prices into ${plans} membership plan(s).`);
     await dropLegacyCheckInIndex();
+    const outages = await migrateOutOfServiceSeats();
+    if (outages) console.log(`Moved ${outages} venue(s) to timed out-of-service records.`);
+    // After the plan migration, which still reads the old open days.
+    const hours = await migrateVenueHours();
+    if (hours) console.log(`Moved ${hours} venue(s) to opening hours per weekday.`);
+    await refreshAllWorkspaceTypes();
     await initializeS3().catch((error: unknown) => {
       console.warn(
         "⚠️  S3 unavailable, image uploads will fail:",

@@ -17,7 +17,7 @@ export type MemberProfileFields = {
   billingEmail: string | null;
 };
 
-/** Optional company details invoices are issued to; state is a GST state code. */
+/** Company details for an invoice; state is a GST state code. */
 export type MemberBilling = {
   companyName: string | null;
   gstin: string | null;

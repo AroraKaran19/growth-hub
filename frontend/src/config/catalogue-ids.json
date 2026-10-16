@@ -1,4 +1,4 @@
 {
-  "workspaceTypes": ["hot-desk", "dedicated-desk", "private-cabin", "meeting-room"],
+  "workspaceTypes": ["hot-desk", "dedicated-desk", "private-cabin", "office", "meeting-room"],
   "seatTypes": ["desk", "private-cabin", "office", "meeting-room"]
 }

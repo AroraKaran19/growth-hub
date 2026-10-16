@@ -1,3 +1,4 @@
+import { EMPTY_COMPANY_INVOICE, normaliseCompanyInvoice, type CompanyInvoiceDraft } from "@/utils/companyInvoice";
 import type { SeatType } from "./seat";
 
 export type BookingStepId = "space" | "datetime" | "seat" | "payment";
@@ -49,7 +50,6 @@ export type BookingSelection = {
   preference: string;
   /** Keys of the venue's add-ons picked for a pass. */
   addOns: string[];
-  companyName: string;
   /** A pass's day, or a membership's start date. */
   date: string;
   /** Start time; memberships follow the venue's access hours instead. */
@@ -59,6 +59,7 @@ export type BookingSelection = {
   planId: string;
   /** Optional names for desk plan seats, by seat id. */
   holders: Record<string, string>;
+  invoice: CompanyInvoiceDraft;
 };
 
 export const DEFAULT_SELECTION: BookingSelection = {
@@ -68,12 +69,12 @@ export const DEFAULT_SELECTION: BookingSelection = {
   bookingType: "full-day",
   preference: "none",
   addOns: [],
-  companyName: "",
   date: "",
   time: "",
   seatIds: [],
   planId: "",
   holders: {},
+  invoice: EMPTY_COMPANY_INVOICE,
 };
 
 const holdersFrom = (value: unknown): Record<string, string> =>
@@ -98,11 +99,11 @@ export const normaliseSelection = (value: unknown): BookingSelection => {
       : DEFAULT_SELECTION.bookingType,
     preference: text(saved.preference, DEFAULT_SELECTION.preference),
     addOns: Array.isArray(saved.addOns) ? saved.addOns : [],
-    companyName: text(saved.companyName, ""),
     date: text(saved.date, ""),
     time: text(saved.time, ""),
     seatIds: Array.isArray(saved.seatIds) ? saved.seatIds : [],
     planId: text(saved.planId, ""),
     holders: holdersFrom(saved.holders),
+    invoice: normaliseCompanyInvoice(saved.invoice),
   };
 };

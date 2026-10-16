@@ -15,17 +15,19 @@ import {
   type SeatMapDoc,
   type VenueDoc,
 } from "../models";
-import { indiaNow, toMinutes, weekdayOf } from "../utils/indiaTime";
+import { indiaNow, instantOf, weekdayOf } from "../utils/indiaTime";
 import { addonsForDay, deskSalesRecordedOn } from "./addonOrder.service";
 import { ruleError } from "./booking.service";
 import type { DeskStaff } from "./checkIn.service";
+import { isOutDuring } from "./outages";
 import { claimRanges } from "./seatDays.service";
 import { toStaffBookingViews } from "./staffBookings.service";
 import { toStaffMembershipViews } from "./staffMemberships.service";
+import { windowOn } from "./venueHours";
 
 const HIDDEN: BookingDoc["status"][] = ["pending-payment", "expired"];
 
-const venueOf = async (staff: DeskStaff) => {
+export const venueOf = async (staff: DeskStaff) => {
   const venue = await Venue.findOne({ slug: staff.venueSlug }).lean<VenueDoc>();
   if (!venue) throw new AppError("This venue no longer exists.", 404, "VENUE_NOT_FOUND");
   return venue;
@@ -36,24 +38,24 @@ export const addWalkIn = async (staff: DeskStaff, seatId: string, now = new Date
   const venue = await venueOf(staff);
   const map = await SeatMap.findOne({ venueId: venue._id }).lean<SeatMapDoc>();
   if (!map?.seats.some((seat) => seat.id === seatId)) throw ruleError("SEAT_UNKNOWN", { seatIds: [seatId] });
-  if (venue.outOfServiceSeatIds.includes(seatId)) throw ruleError("SEAT_OUT_OF_SERVICE", { seatIds: [seatId] });
 
   const today = indiaNow(now);
-  const opens = toMinutes(venue.opensAt);
-  const closes = toMinutes(venue.closesAt);
+  const open = windowOn(venue, today.date);
   const rounded = Math.floor(today.minutes / SLOT_MINUTES) * SLOT_MINUTES;
-  const start = opens === null ? rounded : Math.max(opens, rounded);
-  if (opens === null || closes === null || !venue.openDays.includes(weekdayOf(today.date)) || start >= closes) {
-    throw ruleError("VENUE_CLOSED");
+  const start = open ? Math.max(open.start, rounded) : rounded;
+  // Out of service from now to closing, so an outage that ended minutes ago doesn't count.
+  if (isOutDuring(venue.outages, seatId, now, open ? instantOf(today.date, open.end) : null)) {
+    throw ruleError("SEAT_OUT_OF_SERVICE", { seatIds: [seatId] });
   }
+  if (!open || start >= open.end) throw ruleError("VENUE_CLOSED");
 
   await mongoose.connection.transaction((session) =>
     claimRanges(
-      { venueId: venue._id, date: today.date, seatIds: [seatId], start, end: closes, bookingId: null, holdExpiresAt: null, kind: "walk-in" },
+      { venueId: venue._id, date: today.date, seatIds: [seatId], start, end: open.end, bookingId: null, holdExpiresAt: null, kind: "walk-in" },
       session,
     ),
   );
-  return { seatId, start, end: closes };
+  return { seatId, start, end: open.end };
 };
 
 export const removeWalkIn = async (staff: DeskStaff, seatId: string, now = new Date()) => {

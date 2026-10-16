@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import useSWR from "swr";
 import { Eye, Landmark, PencilLine } from "lucide-react";
+import RequiredMark from "@/app/components/ui/form/RequiredMark";
 import { fetchPayoutAccount, savePayoutAccount } from "@/libs/api/payouts";
 import { readApiError } from "@/libs/api/errors";
 import type { PayoutAccountInput } from "@/types/payout";
@@ -56,13 +57,15 @@ const BankDetailsCard = ({ venueSlug }: { venueSlug: string }) => {
     }
   };
 
-  const field = (key: keyof PayoutAccountInput, label: string, placeholder: string) => (
+  const field = (key: keyof PayoutAccountInput, label: string, placeholder: string, required = true) => (
     <div>
       <label htmlFor={`bank-${key}`} className="mb-1 block text-xs font-medium text-tertiary/70">
         {label}
+        {required && <RequiredMark />}
       </label>
       <input
         id={`bank-${key}`}
+        aria-required={required || undefined}
         value={draft[key] ?? ""}
         placeholder={placeholder}
         autoComplete="off"
@@ -98,7 +101,7 @@ const BankDetailsCard = ({ venueSlug }: { venueSlug: string }) => {
           {field("accountNumber", "Account number", "6 to 18 digits")}
           {field("ifsc", "IFSC", "e.g. HDFC0001234")}
           {field("bankName", "Bank", "Bank name")}
-          {field("upiId", "UPI id (optional)", "name@bank")}
+          {field("upiId", "UPI id (optional)", "name@bank", false)}
           {formError && <p role="alert" className="text-xs text-primary sm:col-span-2">{formError}</p>}
           <div className="flex items-center justify-end gap-3 sm:col-span-2">
             <button type="button" onClick={() => setIsEditing(false)} className="text-sm font-medium text-tertiary/65 hover:text-tertiary">

@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { ShieldCheck, UserPlus } from "lucide-react";
+import RequiredMark from "@/app/components/ui/form/RequiredMark";
 import type { InviteAdminInput } from "@/hooks/useTeam";
 import type { AdminRole } from "@/types/auth";
 import { readApiError } from "@/libs/api/errors";
@@ -97,9 +98,11 @@ const InviteAdminCard = ({ grantable, canCreateSuperAdmin, onInvite }: InviteAdm
         <div>
           <label htmlFor="invite-name" className={LABEL}>
             Name
+            <RequiredMark />
           </label>
           <input
             id="invite-name"
+            aria-required="true"
             value={name}
             onChange={(event) => setName(event.target.value)}
             placeholder="Their full name"
@@ -111,9 +114,11 @@ const InviteAdminCard = ({ grantable, canCreateSuperAdmin, onInvite }: InviteAdm
         <div>
           <label htmlFor="invite-email" className={LABEL}>
             Work email
+            <RequiredMark />
           </label>
           <input
             id="invite-email"
+            aria-required="true"
             type="email"
             autoComplete="off"
             value={email}
@@ -146,6 +151,7 @@ const InviteAdminCard = ({ grantable, canCreateSuperAdmin, onInvite }: InviteAdm
           value={temporaryPassword}
           onChange={setTemporaryPassword}
           error={errors.temporaryPassword}
+          required
         />
       </div>
 

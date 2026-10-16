@@ -13,13 +13,16 @@ import {
   SeatMap,
   Venue,
   type CouponDoc,
+  type DailyWindow,
   type PayoutStatementDoc,
   type SeatDayDoc,
   type SeatMapDoc,
   type VenueDoc,
 } from "../models";
 import { toCsv } from "../utils/csv";
-import { addDays, indiaNow, instantOf, toMinutes, weekdayOf } from "../utils/indiaTime";
+import { addDays, indiaNow, instantOf } from "../utils/indiaTime";
+import { outRangesOn } from "./outages";
+import { windowOn } from "./venueHours";
 
 export const REPORTS = ["sales", "bookings", "cancellations", "memberships", "occupancy", "coupons", "payouts"] as const;
 export type ReportName = (typeof REPORTS)[number];
@@ -283,14 +286,24 @@ const occupancy = async (range: ReportRange, now: Date): Promise<Report> => {
 
   for (const venue of venues) {
     const map = maps.find((item) => item.venueId?.equals(venue._id));
-    const desks = (map?.seats ?? []).filter((seat) => seat.type === "desk" && !venue.outOfServiceSeatIds.includes(seat.id)).map((seat) => seat.id);
-    const opens = toMinutes(venue.opensAt);
-    const closes = toMinutes(venue.closesAt);
-    const dayMinutes = opens === null || closes === null ? 0 : Math.max(0, closes - opens);
+    const desks = (map?.seats ?? []).filter((seat) => seat.type === "desk").map((seat) => seat.id);
     const days = await SeatDay.find({ venueId: venue._id, seatId: { $in: desks }, date: { $gte: range.from, $lte: last } }).lean<SeatDayDoc[]>();
+    // Opening minutes desks were out; pruned outages are gone, so only recent ones count.
+    const outMinutes = (date: string, hours: DailyWindow) =>
+      desks.reduce(
+        (sum, seatId) =>
+          sum +
+          outRangesOn(venue.outages, seatId, date).reduce(
+            (minutes, out) => minutes + Math.max(0, Math.min(out.end, hours.end) - Math.max(out.start, hours.start)),
+            0,
+          ),
+        0,
+      );
 
     for (let date = range.from; date <= last; date = addDays(date, 1)) {
-      const open = venue.openDays.includes(weekdayOf(date)) ? desks.length * dayMinutes : 0;
+      const hours = windowOn(venue, date);
+      const dayMinutes = hours ? hours.end - hours.start : 0;
+      const open = hours ? Math.max(0, desks.length * dayMinutes - outMinutes(date, hours)) : 0;
       let taken = 0;
       for (const day of days.filter((item) => item.date === date)) {
         if (day.membershipId && !day.membershipHoldExpiresAt) {
@@ -326,7 +339,7 @@ const occupancy = async (range: ReportRange, now: Date): Promise<Report> => {
     series: [...daily.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([date, total]) => ({ label: date, value: total.open ? Math.round((total.taken / total.open) * 1000) / 10 : 0, kind: "percent" as const })),
-    note: "Desks only, using each venue's current map. A member's reserved day counts as the full opening hours.",
+    note: "Desks only, using each venue's current map. A member's reserved day counts as the full opening hours. Hours a desk is out of service don't count as open.",
   };
 };
 

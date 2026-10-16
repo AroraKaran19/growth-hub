@@ -20,6 +20,7 @@ export const ASSET_MAX_BYTES: Record<AssetKind, number> = {
   category: 2 * MB,
   site: 2 * MB,
   landing: 5 * MB,
+  support: 5 * MB,
 };
 
 /** Long enough to pick a file, short enough that a leaked ticket is useless. */

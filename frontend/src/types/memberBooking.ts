@@ -28,6 +28,8 @@ export type MemberBooking = {
   endDate: string;
   dateRange: string;
   time: string;
+  /** Visit length in minutes, null for a whole day; decides whether today can still be picked. */
+  lengthMinutes?: number | null;
   type: string;
   seats: string[];
   total: number;

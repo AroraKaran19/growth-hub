@@ -10,8 +10,10 @@ import { useVenue } from "@/hooks/useVenues";
 import { moveAsAdmin } from "@/libs/api/adminRecords";
 import { readApiError } from "@/libs/api/errors";
 import { cn } from "@/utils";
+import { invoiceToLabel } from "@/utils/companyInvoice";
 import { formatDay } from "@/utils/date";
 import { toMinutes } from "@/utils/time";
+import { hoursOn, isOpenOn } from "@/utils/venueHours";
 import { BOOKING_SPACE_LABELS } from "../../../Booking/membershipBooking";
 import { rupees } from "../../../Partner/requestRules";
 import AdminCancelForm from "./AdminCancelForm";
@@ -50,7 +52,7 @@ const BookingDrawer = ({ bookingRef, onClose, onChanged }: { bookingRef: string;
   const isFullDay = booking?.passType === "full-day";
   const slots = useMemo(() => {
     if (!booking || !venue || !date || isFullDay) return [];
-    return buildTimeSlots(date, venue, booking.endMin - booking.startMin);
+    return buildTimeSlots(date, hoursOn(venue.hours, date), booking.endMin - booking.startMin);
   }, [booking, venue, date, isFullDay]);
   const sameKindSeats = (venue?.seatMap?.seats ?? []).filter((seat) => seat.type === booking?.spaceType);
 
@@ -130,20 +132,33 @@ const BookingDrawer = ({ bookingRef, onClose, onChanged }: { bookingRef: string;
               <dt className="text-xs text-tertiary/50">Status</dt>
               <dd className="mt-1 text-sm capitalize text-tertiary">{booking.status.replace("-", " ")}</dd>
             </div>
+            <div className="col-span-2">
+              <dt className="text-xs text-tertiary/50">Invoice to</dt>
+              <dd className="mt-1 text-sm text-tertiary">{invoiceToLabel(booking.billing) ?? booking.member.name}</dd>
+            </div>
           </dl>
 
           {canChange && !booking.hasOpenRequest && (
             <Section title="Move booking" open={panel === "move"} onToggle={() => setPanel(panel === "move" ? null : "move")}>
               <div className="flex flex-col gap-4">
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <DateField label="New date" value={date} onChange={(value) => { setDate(value); setTime(""); }} />
+                  <DateField label="New date" value={date} onChange={(value) => { setDate(value); setTime(""); }} required />
                   {!isFullDay && (
                     <SelectField
                       label="Start time"
                       value={time}
                       onChange={setTime}
-                      placeholder={date ? "Pick a time" : "Pick a date first"}
+                      placeholder={
+                        !date
+                          ? "Pick a date first"
+                          : slots.length
+                            ? "Pick a time"
+                            : isOpenOn(venue?.hours, date)
+                              ? "No start fits that day"
+                              : "Closed that day"
+                      }
                       options={slots.map((slot) => ({ value: slot.id, label: slot.label }))}
+                      required
                     />
                   )}
                 </div>

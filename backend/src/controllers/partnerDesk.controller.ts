@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import { z } from "zod";
 import { asyncHandler, sendSuccessResponse } from "../middlewares/error.middleware";
 import { addWalkIn, removeWalkIn, todayAtDesk } from "../services/partnerDesk.service";
+import { partnerOverview } from "../services/partnerOverview.service";
 import { parseBody } from "../utils/validate";
 import { deskStaffOf } from "./checkIn.controller";
 
@@ -11,7 +12,11 @@ export const getToday = asyncHandler(async (req: Request, res: Response) => {
   sendSuccessResponse(res, await todayAtDesk(deskStaffOf(req)), "Today");
 });
 
-export const postWalkIn = asyncHandler(async (req: Request, res: Response) => {
+export const getDeskOverview = asyncHandler(async (req: Request, res: Response) => {
+  sendSuccessResponse(res, { overview: await partnerOverview(deskStaffOf(req)) }, "Overview");
+});
+
+export const postWalkIn =asyncHandler(async (req: Request, res: Response) => {
   const { seatId } = parseBody(walkInSchema, req.body);
   sendSuccessResponse(res, { walkIn: await addWalkIn(deskStaffOf(req), seatId) }, "Walk-in added", 201);
 });

@@ -7,6 +7,7 @@ import { useVenue } from "@/hooks/useVenues";
 import type { ApiMembership } from "@/types/membership";
 import { formatDay } from "@/utils/date";
 import { daysLabel, membershipTitle, seatNoun, windowLabel } from "@/utils/plans";
+import { hoursOnDays } from "@/utils/venueHours";
 
 type MemberPassModalProps = {
   membership: ApiMembership;
@@ -100,7 +101,9 @@ const MemberPassModal = ({ membership, onClose }: MemberPassModalProps) => {
           {(membership.window || venue) && (
             <div>
               <dt className={ROW_LABEL}>{membership.window ? "Your window" : "Access"}</dt>
-              <dd className={ROW_VALUE}>{membership.window ? windowLabel(membership.window) : venue?.openHours}</dd>
+              <dd className={ROW_VALUE}>
+                {membership.window ? windowLabel(membership.window) : venue && hoursOnDays(venue.hours, membership.plan?.days)}
+              </dd>
             </div>
           )}
         </dl>

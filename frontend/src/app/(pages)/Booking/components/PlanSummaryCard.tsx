@@ -6,6 +6,7 @@ import type { Venue } from "@/types/venue";
 import { formatDay } from "@/utils/date";
 import { daysLabel, isTimeSlotPlan, locksLabel, windowLabel } from "@/utils/plans";
 import { toMinutes } from "@/utils/time";
+import { hoursOnDays } from "@/utils/venueHours";
 import { planErrorText, rupees } from "../checkoutState";
 
 type PlanSummaryCardProps = {
@@ -37,7 +38,7 @@ const PlanSummaryCard = ({ venue, plan, selection, quote, problem, isQuoting, un
         ? dailyWindow
           ? windowLabel(dailyWindow)
           : "Pick a start time above"
-        : venue.openHours,
+        : hoursOnDays(venue.hours, plan.days),
     },
     {
       icon: Repeat,

@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import { Check, ChevronDown, Minus } from "lucide-react";
+import RequiredMark from "@/app/components/ui/form/RequiredMark";
 import { ADMIN_PERMISSIONS, hasPermission, type AdminPermissionInfo } from "@/config/adminPermissions";
 import { cn } from "@/utils";
 
@@ -144,11 +145,13 @@ const PermissionPicker = ({ value, onChange, error, idPrefix, grantable }: Permi
   const groups = TOP_LEVEL.filter((entry) => pagesOf(entry.key).length);
 
   return (
-    <fieldset aria-describedby={error ? `${idPrefix}-error` : undefined}>
-      <legend className="sr-only">Sections they can open</legend>
+    <fieldset aria-required="true" aria-describedby={error ? `${idPrefix}-error` : undefined}>
+      <legend className="sr-only">Sections they can open, at least one</legend>
       <div className="flex items-center justify-between gap-3">
         <span aria-hidden="true" className="text-sm font-medium text-tertiary">
           Sections they can open
+          <RequiredMark />
+          <span className="ml-1.5 font-normal text-tertiary/45">(at least one)</span>
         </span>
         <button type="button" onClick={toggleAll} className="text-sm font-medium text-primary transition-opacity hover:opacity-75">
           {allSelected ? "Clear all" : "Select all"}

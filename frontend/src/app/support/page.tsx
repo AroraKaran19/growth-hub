@@ -1,11 +1,8 @@
 import type { Metadata } from "next";
+import { pageMetadata } from "@/libs/seo";
 import SupportPage from "../(pages)/Help/SupportPage";
 
-export const metadata: Metadata = {
-  title: "Help Center",
-  description:
-    "Get help with Growth Hub bookings, refunds, memberships, check-in and your account.",
-};
+export const generateMetadata = (): Promise<Metadata> => pageMetadata("support");
 
 export default function Support() {
   return <SupportPage />;

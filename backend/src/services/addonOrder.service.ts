@@ -1,5 +1,6 @@
 import mongoose, { Types } from "mongoose";
 import { env } from "../config/env";
+import { HOLD_CAP_MS } from "../constants/booking";
 import { AppError } from "../middlewares/error.middleware";
 import {
   AddonOrder,
@@ -7,11 +8,12 @@ import {
   Membership,
   Venue,
   type AddonOrderDoc,
+  type BillingDetails,
   type BookingDoc,
   type MembershipDoc,
   type VenueDoc,
 } from "../models";
-import { addDays, dateLabel, indiaNow, instantOf, isIsoDate, weekdayOf } from "../utils/indiaTime";
+import { addDays, dateLabel, indiaNow, instantOf, isIsoDate } from "../utils/indiaTime";
 import { freshRef, isRef } from "../utils/refs";
 import type { ConfirmInput } from "../validators/booking";
 import { holdRanOut, refundQuietly } from "./booking.service";
@@ -23,19 +25,20 @@ import { rupees } from "./memberNotices";
 import { phoneOf } from "./staffBookings.service";
 import { effectiveMembershipStatus } from "./membershipView";
 import { notifyMember } from "./notify.service";
+import { siteLink } from "../utils/siteLink";
 import { addonLines } from "./pricing";
 import { capturePayment, createOrder, fetchPayment, verifyPaymentSignature } from "./razorpay.service";
 import { findMembers } from "./accountSnapshot.service";
 import { offeredAddons } from "./venueCatalogue.service";
+import { isOpenOn } from "./venueHours";
 
 const HOLD_STEP_MS = 2 * 60_000;
-const HOLD_CAP_MS = 20 * 60_000;
 const CONFIRM_GRACE_MS = 5 * 60_000;
 const MAX_DATES = 31;
 const ADMIN_LIMIT = 200;
 const DUPLICATE_KEY = 11000;
 
-export type AppOrderInput = { dates: string[]; addonKeys: string[] };
+export type AppOrderInput = { dates: string[]; addonKeys: string[]; billing?: BillingDetails | null };
 export type DeskOrderTarget = { bookingRef: string } | { membershipRef: string; dates: string[] };
 
 const notFound = () => new AppError("We couldn't find that add-on order.", 404, "ADDON_ORDER_NOT_FOUND");
@@ -87,7 +90,7 @@ const priceFor = async (venue: VenueDoc, addonKeys: string[], people: number, da
 const checkDates = (venue: VenueDoc, dates: string[], lastDay: string, today: string) => {
   const unique = [...new Set(dates)].sort();
   const bad = unique.filter(
-    (date) => !isIsoDate(date) || date < today || date > lastDay || !venue.openDays.includes(weekdayOf(date)),
+    (date) => !isIsoDate(date) || date < today || date > lastDay || !isOpenOn(venue, date),
   );
   if (!unique.length || unique.length > MAX_DATES || bad.length) throw dateUnavailable(bad);
   return unique;
@@ -135,6 +138,7 @@ export const createAppOrder = async (memberId: string, membershipRef: string, in
         status: "pending-payment",
         holdExpiresAt: new Date(now.getTime() + HOLD_STEP_MS),
         holdCapAt: new Date(now.getTime() + HOLD_CAP_MS),
+        billing: input.billing ?? null,
         requestKey,
       },
     ]);
@@ -194,6 +198,7 @@ const tellConfirmed = (order: AddonOrderDoc) =>
     venue: order.venueName,
     dates: order.dates.map(dateLabel).join(", "),
     amount: rupees(order.total),
+    ...(order.bookingId ? { link: siteLink("/account/bookings") } : {}),
   });
 
 /** One confirmation path for the browser and the webhook; a payment after the hold is never captured. */
@@ -248,7 +253,7 @@ const confirmOrder = async (order: AddonOrderDoc, paymentId: string) => {
     ).lean<AddonOrderDoc>();
     if (!updated) throw Object.assign(new Error("already confirmed"), { alreadyDone: true });
     // Numbered only by the confirmation that won, so a race never queues two invoices.
-    const invoiceNumber = await issueInvoice("addon-order", order._id, order.memberId, indiaNow(now).date, session);
+    const invoiceNumber = await issueInvoice("addon-order", order._id, order.memberId, indiaNow(now).date, session, updated.billing ?? null);
     await AddonOrder.updateOne({ _id: order._id }, { invoiceNumber }, { session });
     return { ...updated, invoiceNumber };
   }).catch(async (error: { alreadyDone?: boolean }) => {

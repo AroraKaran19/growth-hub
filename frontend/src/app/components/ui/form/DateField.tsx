@@ -2,6 +2,7 @@
 
 import { Calendar } from "lucide-react";
 import { cn } from "@/utils";
+import RequiredMark from "./RequiredMark";
 
 type DateFieldProps = {
   label: string;
@@ -9,6 +10,10 @@ type DateFieldProps = {
   onChange: (value: string) => void;
   placeholder?: string;
   className?: string;
+  required?: boolean;
+  /** ISO dates the picker allows. */
+  min?: string;
+  max?: string;
 };
 
 const DateField = ({
@@ -17,11 +22,15 @@ const DateField = ({
   onChange,
   placeholder = "Select",
   className,
+  required = false,
+  min,
+  max,
 }: DateFieldProps) => {
   return (
     <label className={cn("block", className)}>
       <span className="mb-1.5 block text-sm font-medium text-tertiary">
         {label}
+        {required && <RequiredMark />}
       </span>
 
       <span className="relative block">
@@ -30,7 +39,10 @@ const DateField = ({
         <input
           type="date"
           value={value}
+          min={min}
+          max={max}
           onChange={(event) => onChange(event.target.value)}
+          aria-required={required || undefined}
           className={cn(
             "peer relative w-full rounded-lg border border-tertiary/15 bg-secondary py-2.5 pl-3.5 pr-9 text-sm text-tertiary outline-none transition-colors",
             "hover:border-tertiary/30 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20",

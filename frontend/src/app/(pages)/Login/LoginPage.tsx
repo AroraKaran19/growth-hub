@@ -1,13 +1,14 @@
 "use client";
 
 import { Suspense, useEffect } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Crown, QrCode, TicketPercent } from "lucide-react";
+import AuthBackdrop from "@/app/components/shared/AuthBackdrop";
 import PhoneSignIn from "@/app/components/shared/PhoneSignIn";
 import Logo from "@/app/components/ui/Logo";
 import { useAuthStore } from "@/stores/auth";
+import type { SiteImage } from "@/types/homeContent";
 
 const BENEFITS = [
   {
@@ -53,23 +54,12 @@ const LoginForm = () => {
   return <PhoneSignIn headingTag="h1" onComplete={() => router.replace(next)} />;
 };
 
-const LoginPage = () => {
+const LoginPage = ({ image }: { image: SiteImage }) => {
   return (
     <div className="grid min-h-screen grid-cols-1 lg:grid-cols-[1.1fr_1fr]">
       {/* What Growth Hub sells is space, so the panel shows a real one. */}
       <div className="relative hidden overflow-hidden bg-tertiary lg:block">
-        <Image
-          src="/assets/home/hero-bg.webp"
-          alt=""
-          fill
-          sizes="(min-width: 1024px) 55vw, 0px"
-          priority
-          className="object-cover"
-        />
-        <div
-          aria-hidden="true"
-          className="absolute inset-0 bg-linear-to-t from-tertiary via-tertiary/85 to-tertiary/25"
-        />
+        <AuthBackdrop image={image} />
 
         <Link
           href="/"

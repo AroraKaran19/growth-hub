@@ -1,6 +1,7 @@
 "use client";
 
 import { ShieldCheck, UserRound, type LucideIcon } from "lucide-react";
+import RequiredMark from "@/app/components/ui/form/RequiredMark";
 import type { AdminRole } from "@/types/auth";
 import { cn } from "@/utils";
 
@@ -17,8 +18,16 @@ type RolePickerProps = {
 
 const RolePicker = ({ value, onChange, idPrefix }: RolePickerProps) => (
   <fieldset>
-    <legend className="mb-1.5 block text-sm font-medium text-tertiary">Role</legend>
-    <div role="radiogroup" className="grid grid-cols-2 gap-1 rounded-xl bg-tertiary/5 p-1">
+    <legend id={`${idPrefix}-label`} className="mb-1.5 block text-sm font-medium text-tertiary">
+      Role
+      <RequiredMark />
+    </legend>
+    <div
+      role="radiogroup"
+      aria-labelledby={`${idPrefix}-label`}
+      aria-required="true"
+      className="grid grid-cols-2 gap-1 rounded-xl bg-tertiary/5 p-1"
+    >
       {ROLES.map((role) => {
         const selected = role.value === value;
         const Icon = role.icon;

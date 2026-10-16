@@ -6,19 +6,23 @@ import {
   Membership,
   MembershipCharge,
   RazorpayPlan,
+  type BillingDetails,
+  type DailyWindow,
   type MembershipDoc,
   type MembershipPlanDoc,
   type MembershipStatus,
   type SeatMapDoc,
   type VenueDoc,
 } from "../models";
-import { MEMBERSHIP_RESERVE_AHEAD_DAYS } from "../constants/booking";
+import { HOLD_CAP_MS, MEMBERSHIP_RESERVE_AHEAD_DAYS } from "../constants/booking";
 import { addDays, indiaNow } from "../utils/indiaTime";
 import { freshRef, isRef } from "../utils/refs";
 import type { MembershipInput, MembershipQuoteInput, SubscriptionConfirmInput } from "../validators/membership";
 import { holdRanOut, refundQuietly, ruleError } from "./booking.service";
 import { dailyWindowFor, loadPlanForSale, snapshotOf } from "./planCheckout";
-import { seatError } from "./bookingRules";
+import { seatError, sellsToday } from "./bookingRules";
+import { coveredSpans, isOutDuringAny, lockedWindow } from "./outages";
+import { hoursOn } from "./venueHours";
 import { issueInvoice } from "./invoiceIssue.service";
 import { couponFor, recordRedemption, rememberCoupon } from "./coupon.service";
 import { removalNotices } from "./refund.service";
@@ -50,8 +54,6 @@ import { tellLatePaymentReleased, tellMembershipLapsed, tellMembershipStarted, t
 import { releaseDays, reserveDays, reserveFreeDays, setDayHold, type SeatDate } from "./seatDays.service";
 
 const HOLD_STEP_MS = 2 * 60_000;
-// Setting up a card, UPI or bank mandate takes longer than paying once.
-const HOLD_CAP_MS = 30 * 60_000;
 const CONFIRM_GRACE_MS = 5 * 60_000;
 const DUPLICATE_KEY = 11000;
 
@@ -96,25 +98,38 @@ const withCheckout = (membership: MembershipDoc): { membership: ReturnType<typeo
       : null,
 });
 
-const checkStart = (startDate: string) => {
-  if (startDate < indiaNow().date) throw ruleError("IN_PAST");
+/** A plan can start today only while today's own hours still sell, and a room's window hasn't begun. */
+const checkStart = (venue: VenueDoc, startDate: string, window: DailyWindow | null) => {
+  const now = indiaNow();
+  if (startDate < now.date) throw ruleError("IN_PAST");
+  if (startDate !== now.date) return;
+  const length = window ? window.end - window.start : null;
+  if (!sellsToday(hoursOn(venue, now.date), length, now.minutes) || (window && window.start <= now.minutes)) {
+    throw ruleError("IN_PAST");
+  }
 };
 
-const checkSeats = (venue: VenueDoc, map: SeatMapDoc, plan: MembershipPlanDoc, input: MembershipQuoteInput) => {
+type Coverage = { days: number[]; window: DailyWindow | null };
+
+/** A seat is out for a plan if it is out during any day and window the plan would lock. */
+const checkSeats = (venue: VenueDoc, map: SeatMapDoc, plan: MembershipPlanDoc, input: MembershipQuoteInput, cover: Coverage) => {
   if (plan.space === "desk" && input.people > plan.maxSeats) {
     throw new AppError(`This plan takes up to ${plan.maxSeats} seats.`, 422, "PLAN_SEAT_LIMIT", { maxSeats: plan.maxSeats });
   }
   if (!input.seatIds.length) return;
-  const problem = seatError(input.seatIds, map.seats, plan.space, input.people, venue.outOfServiceSeatIds);
+  const through = reserveThrough(input.startDate, input.length, indiaNow().date);
+  const spans = coveredSpans(input.startDate, through, cover.days, lockedWindow(venue, cover.window));
+  const out = input.seatIds.filter((id) => isOutDuringAny(venue.outages, id, spans));
+  const problem = seatError(input.seatIds, map.seats, plan.space, input.people, out);
   if (problem) throw ruleError(problem.code, { seatIds: problem.seatIds });
 };
 
 /** Everything a purchase is checked against, before any seat or payment is touched. */
 const checkout = async (input: MembershipQuoteInput) => {
   const { plan, venue, map, days } = await loadPlanForSale(input.planId);
-  checkStart(input.startDate);
-  checkSeats(venue, map, plan, input);
-  const window = dailyWindowFor(venue, plan, input.startMin);
+  const window = dailyWindowFor(venue, plan, input.startMin, days);
+  checkStart(venue, input.startDate, window);
+  checkSeats(venue, map, plan, input, { days, window });
   const quote = quoteMembership({ plan, length: input.length, people: input.people });
   return { plan, venue, map, days, window, quote };
 };
@@ -190,6 +205,7 @@ export const createMembership = async (memberId: string, input: MembershipInput,
             holders: (input.holders ?? [])
               .map((holder) => ({ seatId: holder.seatId, name: holder.name.trim() }))
               .filter((holder) => holder.name && input.seatIds.includes(holder.seatId)),
+            billing: input.billing,
             length: input.length,
             seats: input.seatIds.map((seatId) => ({
               id: seatId,
@@ -204,6 +220,7 @@ export const createMembership = async (memberId: string, input: MembershipInput,
             reservedThrough,
             status: "pending-payment",
             holdExpiresAt,
+            // Mandates get the same five minutes; a late approval is refunded if the seat has gone.
             holdCapAt: new Date(now + HOLD_CAP_MS),
             requestKey,
           },
@@ -410,7 +427,7 @@ const finalise = (id: Types.ObjectId, paymentId: string | null, subscriptionId: 
           amount: current.firstCycle.payable,
           // The webhook can confirm without the payment id; the subscription stands in for it.
           razorpayPaymentId: paymentId ?? `upfront:${subscriptionId}`,
-          invoiceNumber: await issueInvoice("membership-charge", chargeId, current.memberId, indiaNow(now).date, session),
+          invoiceNumber: await issueInvoice("membership-charge", chargeId, current.memberId, indiaNow(now).date, session, current.billing ?? null),
           chargedAt: now,
         },
       ],
@@ -616,7 +633,14 @@ export const recordCharge = async (subscriptionId: string, paymentId: string, pa
               periodEnd,
               amount: membership.cyclePrice,
               razorpayPaymentId: paymentId,
-              invoiceNumber: await issueInvoice("membership-charge", chargeId, membership.memberId, indiaNow().date, session),
+              invoiceNumber: await issueInvoice(
+                "membership-charge",
+                chargeId,
+                membership.memberId,
+                indiaNow().date,
+                session,
+                membership.billing ?? null,
+              ),
               chargedAt: new Date(),
             },
           ],
@@ -691,6 +715,17 @@ export const markCancelledByGateway = async (subscriptionId: string) => {
 };
 
 export const stopRenewal = async (memberId: string, ref: string) => stopRenewalOf(await getOwn(memberId, ref));
+
+/** Applies from the next renewal; invoices already issued keep their details. */
+export const setMembershipBilling = async (memberId: string, ref: string, billing: BillingDetails | null) => {
+  const membership = await getOwn(memberId, ref);
+  const status = effectiveMembershipStatus(membership, new Date());
+  if (!["active", "past-due"].includes(status) || membership.cancelAtCycleEnd) {
+    throw new AppError("This plan has no renewals left to invoice.", 409, "NOT_RENEWING");
+  }
+  await Membership.updateOne({ _id: membership._id }, { $set: { billing } });
+  return (await withRequests([await reload(membership._id)]))[0];
+};
 
 /** Razorpay stops now; the plan keeps its seat until the end of what was paid for. */
 export const stopRenewalOf = async (membership: MembershipDoc) => {

@@ -45,6 +45,7 @@ export const WORKSPACE_TYPE_OPTIONS: SelectOption[] = [
   { label: "Hot desk", value: "hot-desk" },
   { label: "Dedicated desk", value: "dedicated-desk" },
   { label: "Private cabin", value: "private-cabin" },
+  { label: "Office", value: "office" },
   { label: "Meeting room", value: "meeting-room" },
 ];
 

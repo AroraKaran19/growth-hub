@@ -1,4 +1,8 @@
-import type { AdminVenue } from "@/types/catalogue";
+import type { AdminVenue, DayHours } from "@/types/catalogue";
+import { WEEK_ORDER, hoursOnDay, windowOfHours } from "@/utils/venueHours";
+
+/** One weekday row of the hours editor; closed rows keep their times for when they reopen. */
+export type DayDraft = { day: number; isOpen: boolean; opensAt: string; closesAt: string };
 
 export type VenueDraft = {
   slug: string;
@@ -10,10 +14,8 @@ export type VenueDraft = {
   rating: string;
   distanceKm: string;
   googleMapsUrl: string;
-  openDays: number[];
-  opensAt: string;
-  closesAt: string;
-  openDaysLabel: string;
+  /** Seven rows, Monday first. */
+  hours: DayDraft[];
   hoursNote: string;
   image: string;
   gallery: string[];
@@ -32,6 +34,25 @@ export type VenueDraft = {
 
 export type DraftErrors = Partial<Record<string, string>>;
 
+const DEFAULT_RANGE = { opensAt: "09:00", closesAt: "18:00" };
+
+/** The editor's seven rows from saved hours; a closed day borrows the first open day's times. */
+export const weekDraft = (hours: DayHours[]): DayDraft[] => {
+  const first = WEEK_ORDER.map((day) => hoursOnDay(hours, day)).find(Boolean);
+  const fallback = first ? { opensAt: first.opensAt, closesAt: first.closesAt } : DEFAULT_RANGE;
+  return WEEK_ORDER.map((day) => {
+    const saved = hoursOnDay(hours, day);
+    return saved ? { day, isOpen: true, opensAt: saved.opensAt, closesAt: saved.closesAt } : { day, isOpen: false, ...fallback };
+  });
+};
+
+/** Open rows only, in weekday order, as the server stores them. */
+export const hoursFromDraft = (rows: DayDraft[]): DayHours[] =>
+  rows
+    .filter((row) => row.isOpen)
+    .map(({ day, opensAt, closesAt }) => ({ day, opensAt, closesAt }))
+    .sort((a, b) => a.day - b.day);
+
 export const EMPTY_DRAFT: VenueDraft = {
   slug: "",
   name: "",
@@ -42,10 +63,7 @@ export const EMPTY_DRAFT: VenueDraft = {
   rating: "0",
   distanceKm: "0",
   googleMapsUrl: "",
-  openDays: [1, 2, 3, 4, 5, 6],
-  opensAt: "09:00",
-  closesAt: "18:00",
-  openDaysLabel: "",
+  hours: WEEK_ORDER.map((day) => ({ day, isOpen: day !== 0, ...DEFAULT_RANGE })),
   hoursNote: "",
   image: "",
   gallery: [],
@@ -72,10 +90,7 @@ export const toDraft = (venue: AdminVenue): VenueDraft => ({
   rating: String(venue.rating),
   distanceKm: String(venue.distanceKm),
   googleMapsUrl: venue.googleMapsUrl,
-  openDays: venue.openDays,
-  opensAt: venue.opensAt,
-  closesAt: venue.closesAt,
-  openDaysLabel: venue.openDaysLabel,
+  hours: weekDraft(venue.hours),
   hoursNote: venue.hoursNote,
   image: venue.image,
   gallery: venue.gallery,
@@ -150,10 +165,13 @@ export const validateDraft = (draft: VenueDraft, mode: "create" | "edit"): Draft
   if (draft.googleMapsUrl.trim() && !isGoogleMapsUrl(draft.googleMapsUrl.trim())) {
     errors.googleMapsUrl = "Use a Google Maps link.";
   }
-  if (draft.opensAt && draft.closesAt && draft.closesAt <= draft.opensAt) {
-    errors.closesAt = "Closing time must be after opening time.";
+  for (const row of draft.hours) {
+    if (row.isOpen && !windowOfHours(row)) errors[`hours.${row.day}`] = "Closing time must be after opening time.";
   }
-  if (draft.workspaceTypes.length === 0) errors.workspaceTypes = "Pick at least one workspace type.";
+  if (draft.published && !draft.hours.some((row) => row.isOpen)) errors.hours = "Open at least one day to keep the venue live.";
+  if (draft.gallery.length < MIN_GALLERY_PHOTOS) {
+    errors.gallery = `Add at least ${MIN_GALLERY_PHOTOS} gallery photos.`;
+  }
 
   if (draft.hasOffer && draft.offerLabel.trim().length < 3) {
     errors.offerLabel = "Give the offer a short label, like Flat 20% OFF.";
@@ -174,15 +192,11 @@ export const toPayload = (draft: VenueDraft, mode: "create" | "edit"): Record<st
   rating: Number(draft.rating),
   distanceKm: Number(draft.distanceKm),
   googleMapsUrl: draft.googleMapsUrl.trim(),
-  openDays: draft.openDays,
-  opensAt: draft.opensAt,
-  closesAt: draft.closesAt,
-  openDaysLabel: draft.openDaysLabel.trim(),
+  hours: hoursFromDraft(draft.hours),
   hoursNote: draft.hoursNote.trim(),
   image: draft.image,
   gallery: draft.gallery,
   amenities: draft.amenities,
-  workspaceTypes: draft.workspaceTypes,
   rules: draft.rules.map((rule) => rule.trim()).filter(Boolean),
   startingPrice: priceOrNull(draft.startingPrice),
   halfDayPrice: priceOrNull(draft.halfDayPrice),
@@ -193,7 +207,12 @@ export const toPayload = (draft: VenueDraft, mode: "create" | "edit"): Record<st
 
 const FIELD_ALIASES: Record<string, string> = { "offer.label": "offerLabel", "offer.details": "offerDetails" };
 
-const PUBLISH_CODES = ["MAP_REQUIRED", "COVER_REQUIRED", "HOURS_REQUIRED"];
+// The server keys a bad day by weekday ("hours.6"); anything else about hours goes to the editor.
+const fieldKey = (key: string) => (/^hours\.\d$/.test(key) ? key : key.startsWith("hours") ? "hours" : (FIELD_ALIASES[key] ?? key));
+
+const PUBLISH_CODES = ["MAP_REQUIRED", "COVER_REQUIRED", "GALLERY_REQUIRED", "HOURS_REQUIRED"];
+
+export const MIN_GALLERY_PHOTOS = 2;
 
 type ApiErrorInfo = { code?: string; message: string; fields: Record<string, string> };
 
@@ -210,9 +229,7 @@ export const errorsFromApi = (info: ApiErrorInfo): ApiErrorView => {
     return { errors: { published: info.message }, formError: info.message, revertPublished: true };
   }
   if (info.code === "VALIDATION_FAILED") {
-    const errors = Object.fromEntries(
-      Object.entries(info.fields).map(([key, message]) => [FIELD_ALIASES[key] ?? key, message]),
-    );
+    const errors = Object.fromEntries(Object.entries(info.fields).map(([key, message]) => [fieldKey(key), message]));
     return { errors, formError: "Check the highlighted fields.", revertPublished: false };
   }
   return { errors: {}, formError: info.message, revertPublished: false };

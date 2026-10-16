@@ -78,10 +78,10 @@ const TestimonialForm = ({ editing, onDone }: { editing: Testimonial | null; onD
 
       <div className="mt-5 flex flex-col gap-4">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <TextInput id="testimonial-name" label="Name" value={draft.name} max={80} error={errors.name} placeholder="Their name" onChange={(name) => setDraft({ ...draft, name })} />
+          <TextInput id="testimonial-name" label="Name" value={draft.name} max={80} error={errors.name} placeholder="Their name" onChange={(name) => setDraft({ ...draft, name })} required />
           <TextInput id="testimonial-role" label="Role (optional)" value={draft.role} max={80} placeholder="Founder, Freelancer..." onChange={(role) => setDraft({ ...draft, role })} />
         </div>
-        <TextArea id="testimonial-quote" label="Quote" value={draft.quote} max={500} rows={3} error={errors.quote} onChange={(quote) => setDraft({ ...draft, quote })} />
+        <TextArea id="testimonial-quote" label="Quote" value={draft.quote} max={500} rows={3} error={errors.quote} onChange={(quote) => setDraft({ ...draft, quote })} required />
         <ImageField
           id="testimonial-photo"
           label="Photo"

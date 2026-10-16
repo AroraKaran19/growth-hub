@@ -2,6 +2,7 @@ export type WorkspaceType =
   | "hot-desk"
   | "dedicated-desk"
   | "private-cabin"
+  | "office"
   | "meeting-room";
 
 export type BookingDuration =

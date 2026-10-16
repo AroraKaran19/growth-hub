@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { KeyRound, X } from "lucide-react";
+import RequiredMark from "@/app/components/ui/form/RequiredMark";
+import SelectField from "@/app/components/ui/form/SelectField";
 import { readApiError } from "@/libs/api/errors";
 import { toastDone, toastFailed, toastInvited } from "@/libs/toast";
 import { cn } from "@/utils";
@@ -10,7 +12,6 @@ import type { AdminRole } from "@/types/auth";
 import PermissionPicker from "./team/PermissionPicker";
 import RolePicker from "./team/RolePicker";
 import TemporaryPasswordField from "./TemporaryPasswordField";
-import VenuePicker from "./VenuePicker";
 
 export type AccountChange = {
   name?: string;
@@ -28,7 +29,7 @@ type EditAccountModalProps = {
   /** Customers sign in with their phone, so it shows but never changes here. */
   account: { id: string; name: string; email: string; phone?: string };
   canEditDetails: boolean;
-  venue?: { slug: string; options: { slug: string; name: string }[] };
+  venue?: { slug: string; options: { slug: string; name: string; hasAccount?: boolean }[] };
   access?: { permissions: string[]; grantable?: string[] };
   /** Set only when the viewer may change the role. */
   role?: AdminRole;
@@ -55,8 +56,8 @@ const EditAccountModal = ({ portal, account, canEditDetails, venue, access, role
   const [name, setName] = useState(account.name);
   const [email, setEmail] = useState(account.email);
   const [venueSlug, setVenueSlug] = useState(venue?.slug ?? "");
-  const [pickedVenueName, setPickedVenueName] = useState<string>();
   const [permissions, setPermissions] = useState(access?.permissions ?? []);
+  const dialogRef = useRef<HTMLDivElement>(null);
   const [isResetting, setIsResetting] = useState(false);
   const isCustomer = portal === "member";
   const [password, setPassword] = useState("");
@@ -64,11 +65,12 @@ const EditAccountModal = ({ portal, account, canEditDetails, venue, access, role
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
+    // Capture phase, so an open dropdown's Escape closes only the dropdown.
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape" && !dialogRef.current?.querySelector("[aria-expanded='true']")) onClose();
     };
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => document.removeEventListener("keydown", onKeyDown, true);
   }, [onClose]);
 
   const nextEmail = email.trim().toLowerCase();
@@ -100,7 +102,7 @@ const EditAccountModal = ({ portal, account, canEditDetails, venue, access, role
     try {
       await onSave(change);
       const shownName = change.name ?? account.name;
-      const venueName = pickedVenueName ?? venue?.options.find((option) => option.slug === change.venueSlug)?.name;
+      const venueName = venue?.options.find((option) => option.slug === change.venueSlug)?.name;
       if (change.temporaryPassword && portal !== "member") {
         toastInvited({ email: change.email ?? account.email, password: change.temporaryPassword, portal });
       } else if (change.email && !isCustomer) {
@@ -116,6 +118,7 @@ const EditAccountModal = ({ portal, account, canEditDetails, venue, access, role
     } catch (caught) {
       const info = readApiError(caught);
       if (info.code === "EMAIL_TAKEN") setErrors({ email: "That email already has a Growth Hub account." });
+      else if (info.code === "VENUE_HAS_ACCOUNT") setErrors({ venueSlug: info.message });
       else if (Object.keys(info.fields).length > 0) setErrors(info.fields as Partial<Record<Field, string>>);
       else toastFailed(info.message);
       setIsSaving(false);
@@ -127,6 +130,7 @@ const EditAccountModal = ({ portal, account, canEditDetails, venue, access, role
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-tertiary/50 p-4 sm:items-center" onClick={onClose}>
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={`edit-${account.id}-title`}
@@ -168,9 +172,11 @@ const EditAccountModal = ({ portal, account, canEditDetails, venue, access, role
                 <div>
                   <label htmlFor={`edit-${account.id}-name`} className={LABEL}>
                     Name
+                    <RequiredMark />
                   </label>
                   <input
                     id={`edit-${account.id}-name`}
+                    aria-required="true"
                     value={name}
                     autoFocus
                     onChange={(event) => {
@@ -185,9 +191,11 @@ const EditAccountModal = ({ portal, account, canEditDetails, venue, access, role
                 <div>
                   <label htmlFor={`edit-${account.id}-email`} className={LABEL}>
                     Email
+                    <RequiredMark />
                   </label>
                   <input
                     id={`edit-${account.id}-email`}
+                    aria-required="true"
                     type="email"
                     autoComplete="off"
                     value={email}
@@ -211,14 +219,19 @@ const EditAccountModal = ({ portal, account, canEditDetails, venue, access, role
 
             {venue && (
               <div>
-                <VenuePicker
+                <SelectField
                   label="Venue they manage"
                   value={venueSlug}
-                  onChange={(slug, picked) => {
+                  onChange={(slug) => {
                     setVenueSlug(slug);
-                    setPickedVenueName(picked?.name);
                     clearError("venueSlug");
                   }}
+                  options={venue.options.map((option) => {
+                    const isTaken = Boolean(option.hasAccount) && option.slug !== venue.slug;
+                    return { value: option.slug, label: option.name, disabled: isTaken, note: isTaken ? "Has a login" : undefined };
+                  })}
+                  placeholder="Pick a venue"
+                  required
                 />
                 {errors.venueSlug ? (
                   <p className="mt-1.5 text-sm text-primary">{errors.venueSlug}</p>
@@ -263,6 +276,7 @@ const EditAccountModal = ({ portal, account, canEditDetails, venue, access, role
                       clearError("temporaryPassword");
                     }}
                     error={errors.temporaryPassword}
+                    required
                   />
                   <button
                     type="button"

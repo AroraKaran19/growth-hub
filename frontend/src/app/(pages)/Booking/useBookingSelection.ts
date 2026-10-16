@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, type SetStateAction } from "react";
-import { MAX_HOURS, MAX_SEATS } from "@/data/bookingOptions";
+import { MAX_HOURS, MAX_SEATS, sellsToday } from "@/data/bookingOptions";
 import { useVenuePlans } from "@/hooks/useVenuePlans";
 import {
   DEFAULT_SELECTION,
@@ -10,20 +10,26 @@ import {
 } from "@/types/booking";
 import type { VenuePlan } from "@/types/membership";
 import type { VenueDetail } from "@/types/venue";
-import { hasPassed } from "@/utils/date";
+import { validateCompanyInvoice } from "@/utils/companyInvoice";
+import { hasPassed, todayIso } from "@/utils/date";
 import { isTimeSlotPlan } from "@/utils/plans";
 import { readStoredItem, useIsClient, useStoredItem } from "@/utils/storage";
+import { hoursOn } from "@/utils/venueHours";
 import { needsStartTime } from "./membershipBooking";
-import { fitSelectionToVenue, maxPeopleFor, spaceTypesFor } from "./selectionRules";
+import { fitSelectionToVenue, maxPeopleFor, saleMinutesFor, spaceTypesFor } from "./selectionRules";
 
 const NO_PLANS: VenuePlan[] = [];
 
 const storageKey = (slug: string) => `growth-hub:booking:${slug}`;
 
 // Progress saved on an earlier visit can hold a day or start that has gone by.
-const dropPastSchedule = (selection: BookingSelection): BookingSelection => {
+const dropPastSchedule = (selection: BookingSelection, venue: VenueDetail, plans: VenuePlan[] | undefined): BookingSelection => {
   if (!selection.date) return selection;
-  if (hasPassed(selection.date)) return { ...selection, date: "", time: "" };
+  const plan = plans?.find((item) => item.id === selection.planId) ?? null;
+  const isPlanPending = Boolean(selection.planId) && !plan;
+  const isTodayOver =
+    selection.date === todayIso() && !isPlanPending && !sellsToday(hoursOn(venue.hours, selection.date), saleMinutesFor(selection, plan));
+  if (hasPassed(selection.date) || isTodayOver) return { ...selection, date: "", time: "" };
   if (hasPassed(selection.date, selection.time)) return { ...selection, time: "" };
   return selection;
 };
@@ -31,7 +37,7 @@ const dropPastSchedule = (selection: BookingSelection): BookingSelection => {
 const parseSelection = (raw: string | null, venue: VenueDetail, plans: VenuePlan[] | undefined): BookingSelection => {
   if (!raw) return DEFAULT_SELECTION;
   try {
-    return fitSelectionToVenue(dropPastSchedule(normaliseSelection(JSON.parse(raw))), venue, plans);
+    return dropPastSchedule(fitSelectionToVenue(normaliseSelection(JSON.parse(raw)), venue, plans), venue, plans);
   } catch {
     return DEFAULT_SELECTION;
   }
@@ -88,6 +94,7 @@ export const useBookingSelection = (venue: VenueDetail) => {
     ? Boolean(plan)
     : Boolean(selection.seats) && spaceTypesFor(venue, selection.bookingType).length > 0;
   const isScheduled = Boolean(selection.date && (!needsTime || selection.time));
+  const isInvoiceReady = Object.keys(validateCompanyInvoice(selection.invoice)).length === 0;
 
   // A desk booking needs one pick per person; a room is a single pick.
   const requiredPicks = selection.spaceType === "desk" ? selection.seats : 1;
@@ -109,6 +116,7 @@ export const useBookingSelection = (venue: VenueDetail) => {
     adjustHours,
     isConfigured,
     isScheduled,
+    isInvoiceReady,
     requiredPicks,
     remainingPicks,
     isSeatingComplete,

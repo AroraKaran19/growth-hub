@@ -3,14 +3,25 @@
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { CircleCheck, PackagePlus, Timer, X } from "lucide-react";
 import { AddonTiles, DayChips, toggled } from "@/app/components/shared/AddonPickers";
+import CompanyInvoiceFields from "@/app/components/shared/CompanyInvoiceFields";
+import RequiredMark from "@/app/components/ui/form/RequiredMark";
 import { useRazorpay, type RazorpaySuccess } from "@/hooks/useRazorpay";
 import { confirmAddonOrder, createAddonOrder, extendAddonHold, releaseAddonHoldOnLeave } from "@/libs/api/addonOrders";
+import { rememberCompanyDetails } from "@/libs/api/billing";
 import { readApiError } from "@/libs/api/errors";
 import { useSession } from "@/stores/session";
 import type { ApiAddonOrder } from "@/types/addonOrder";
 import type { ApiCheckout } from "@/types/apiBooking";
-import type { VenueAddonOffer } from "@/types/catalogue";
+import type { DayHours, VenueAddonOffer } from "@/types/catalogue";
 import type { ApiMembership } from "@/types/membership";
+import {
+  EMPTY_COMPANY_INVOICE,
+  billingInputFrom,
+  validateCompanyInvoice,
+  withSavedDetails,
+  type CompanyInvoiceDraft,
+  type CompanyInvoiceErrors,
+} from "@/utils/companyInvoice";
 import { formatDay, todayIso } from "@/utils/date";
 import { countdownLabel, rupees, secondsLeft } from "../../Booking/checkoutState";
 import { addonDays, addonOrderLines, afterConfirmFailure } from "../addonOrderRules";
@@ -20,16 +31,17 @@ const MIN_PAY_SECONDS = 30;
 type BuyAddonsModalProps = {
   membership: ApiMembership;
   offers: VenueAddonOffer[];
-  openDays: number[];
+  /** The venue's weekly hours; add-ons sell on its open days only. */
+  hours: DayHours[];
   onClose: () => void;
   onBought: (order: ApiAddonOrder) => void;
 };
 
 /** Add-ons for chosen days of a live plan, paid once by Razorpay. */
-const BuyAddonsModal = ({ membership, offers, openDays, onClose, onBought }: BuyAddonsModalProps) => {
+const BuyAddonsModal = ({ membership, offers, hours, onClose, onBought }: BuyAddonsModalProps) => {
   const razorpay = useRazorpay();
-  const { session } = useSession();
-  const [days] = useState(() => addonDays(openDays, todayIso(), membership.paidThrough));
+  const { session, account } = useSession();
+  const [days] = useState(() => addonDays(hours, todayIso(), membership.paidThrough));
   const [dates, setDates] = useState<string[]>(() => days.slice(0, 1));
   const [keys, setKeys] = useState<string[]>([]);
   const [order, setOrder] = useState<ApiAddonOrder | null>(null);
@@ -41,12 +53,26 @@ const BuyAddonsModal = ({ membership, offers, openDays, onClose, onBought }: Buy
   const [isBusy, setIsBusy] = useState(false);
   const [isSettling, setIsSettling] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+  // Starts from the plan's own invoice choice, so a company plan's extras go to the same company.
+  const [invoice, setInvoice] = useState<CompanyInvoiceDraft>(() =>
+    membership.billing
+      ? withSavedDetails({ ...EMPTY_COMPANY_INVOICE, forCompany: true, save: false }, membership.billing)
+      : EMPTY_COMPANY_INVOICE,
+  );
+  const [invoiceErrors, setInvoiceErrors] = useState<CompanyInvoiceErrors>({});
 
   const held = useRef<{ ref: string | null; settled: boolean }>({ ref: null, settled: false });
 
   const lines = addonOrderLines(offers, keys, membership.people, dates.length);
   const total = lines.reduce((sum, line) => sum + line.amount, 0);
-  const picks = `${[...dates].sort().join(",")}|${[...keys].sort().join(",")}`;
+  const billing = billingInputFrom(invoice);
+  const picks = `${[...dates].sort().join(",")}|${[...keys].sort().join(",")}|${JSON.stringify(billing)}`;
+
+  const changeInvoice = (next: CompanyInvoiceDraft) => {
+    const filled = next.forCompany && !invoice.forCompany ? withSavedDetails(next, account?.billing) : next;
+    setInvoice(filled);
+    if (Object.keys(invoiceErrors).length > 0) setInvoiceErrors(validateCompanyInvoice(filled));
+  };
 
   const releaseHeld = () => {
     const { ref, settled } = held.current;
@@ -156,14 +182,18 @@ const BuyAddonsModal = ({ membership, offers, openDays, onClose, onBought }: Buy
   const pay = async () => {
     if (!dates.length) return setError("Pick at least one day.");
     if (!keys.length) return setError("Pick at least one add-on.");
+    const invoiceProblems = validateCompanyInvoice(invoice);
+    setInvoiceErrors(invoiceProblems);
+    if (Object.keys(invoiceProblems).length > 0) return setError("Check the company details for the invoice.");
     setIsBusy(true);
     setError(null);
     try {
       if (order && checkout && orderPicks === picks) return openCheckout(order, checkout);
       releaseHeld();
       held.current = { ref: null, settled: false };
-      const result = await createAddonOrder(membership.ref, { dates, addonKeys: keys }, crypto.randomUUID());
+      const result = await createAddonOrder(membership.ref, { dates, addonKeys: keys, billing }, crypto.randomUUID());
       held.current.ref = result.order.ref;
+      void rememberCompanyDetails(invoice);
       setOrder(result.order);
       setOrderPicks(picks);
       setCheckout(result.checkout);
@@ -241,9 +271,12 @@ const BuyAddonsModal = ({ membership, offers, openDays, onClose, onBought }: Buy
         ) : (
           <>
             <div className="flex flex-col gap-6 overflow-y-auto p-6">
-              <fieldset>
+              <fieldset aria-required="true">
                 <div className="flex items-baseline justify-between gap-3">
-                  <legend className="text-sm font-medium text-tertiary">Which days?</legend>
+                  <legend className="text-sm font-medium text-tertiary">
+                    Which days?
+                    <RequiredMark />
+                  </legend>
                   {days.length > 1 && (
                     <button
                       type="button"
@@ -263,10 +296,15 @@ const BuyAddonsModal = ({ membership, offers, openDays, onClose, onBought }: Buy
                 )}
               </fieldset>
 
-              <fieldset>
-                <legend className="text-sm font-medium text-tertiary">What would you like?</legend>
+              <fieldset aria-required="true">
+                <legend className="text-sm font-medium text-tertiary">
+                  What would you like?
+                  <RequiredMark />
+                </legend>
                 <AddonTiles offers={offers} picked={keys} onToggle={(key) => pick(() => setKeys(toggled(keys, key)))} />
               </fieldset>
+
+              <CompanyInvoiceFields draft={invoice} errors={invoiceErrors} onChange={(next) => pick(() => changeInvoice(next))} />
             </div>
 
             <div className="shrink-0 border-t border-tertiary/10 bg-surface px-6 py-4">

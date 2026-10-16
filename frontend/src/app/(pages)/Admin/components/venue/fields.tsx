@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import RequiredMark from "@/app/components/ui/form/RequiredMark";
 import { cn } from "@/utils";
 
 export const INPUT =
@@ -17,11 +18,13 @@ type SectionProps = {
   title: string;
   hint?: string;
   action?: ReactNode;
+  /** An anchor other pages can link to, e.g. a venue health warning. */
+  id?: string;
   children: ReactNode;
 };
 
-export const Section = ({ title, hint, action, children }: SectionProps) => (
-  <section className={cn(RAISED, "p-5 sm:p-6")}>
+export const Section = ({ title, hint, action, id, children }: SectionProps) => (
+  <section id={id} className={cn(RAISED, "scroll-mt-24 p-5 sm:p-6")}>
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div>
         <h2 className="text-base font-bold text-tertiary">{title}</h2>
@@ -38,14 +41,17 @@ type FieldProps = {
   label: string;
   error?: string;
   optional?: boolean;
+  /** Shows the mark only; the child control sets its own aria-required. */
+  required?: boolean;
   children: ReactNode;
 };
 
-export const Field = ({ id, label, error, optional, children }: FieldProps) => (
+export const Field = ({ id, label, error, optional, required, children }: FieldProps) => (
   <div>
     <label htmlFor={id} className={LABEL}>
       {label}
-      {optional && <span className="ml-1.5 font-normal text-tertiary/45">(optional)</span>}
+      {required && <RequiredMark />}
+      {optional &&<span className="ml-1.5 font-normal text-tertiary/45">(optional)</span>}
     </label>
     {children}
     {error && (

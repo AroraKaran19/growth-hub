@@ -21,6 +21,18 @@ export type PartnerAccountView = {
 const venueUnknown = () => new AppError("That venue doesn't exist.", 422, "VENUE_UNKNOWN");
 const notFound = () => new AppError("That partner account no longer exists.", 404, "PARTNER_NOT_FOUND");
 
+/** One login per venue, active or disabled; hand it over by editing that login instead. */
+export const refuseSecondVenueAccount = async (venueSlug: string, exceptId?: Types.ObjectId) => {
+  const existing = await PartnerStaff.exists({ venueSlug, ...(exceptId && { _id: { $ne: exceptId } }) });
+  if (existing) {
+    throw new AppError(
+      "This venue already has a partner login. Edit that login to hand it to someone else.",
+      409,
+      "VENUE_HAS_ACCOUNT",
+    );
+  }
+};
+
 const venueNames = async () => {
   const venues = await Venue.find({}, { slug: 1, name: 1 })
     .sort({ name: 1 })
@@ -29,6 +41,12 @@ const venueNames = async () => {
     list: venues.map(({ slug, name }) => ({ slug, name })),
     bySlug: new Map(venues.map((venue) => [venue.slug, venue.name])),
   };
+};
+
+/** Venue pickers grey out venues that already have their one partner login. */
+export const withLoginStatus = async <V extends { slug: string }>(venues: V[]) => {
+  const taken = new Set(await PartnerStaff.distinct("venueSlug"));
+  return venues.map((venue) => ({ ...venue, hasAccount: taken.has(venue.slug) }));
 };
 
 const toView = (
@@ -63,12 +81,13 @@ export const listPartnerAccounts = async (venueSlug?: string) => {
   ]);
   return {
     accounts: staff.map((item) => toView(item, bySlug, activity.get(item._id.toString()))),
-    venues: list,
+    venues: await withLoginStatus(list),
   };
 };
 
 export const invitePartner = async (input: InvitePartnerInput, invitedById: string) => {
   if (!(await Venue.exists({ slug: input.venueSlug }))) throw venueUnknown();
+  await refuseSecondVenueAccount(input.venueSlug);
   const [admin, partner] = await Promise.all([
     Admin.exists({ email: input.email }),
     PartnerStaff.exists({ email: input.email }),
@@ -90,6 +109,7 @@ export const updatePartner = async (id: string, change: UpdatePartnerInput) => {
   const staff = Types.ObjectId.isValid(id) ? await PartnerStaff.findById(id).lean<PartnerStaffDoc>() : null;
   if (!staff) throw notFound();
   if (change.venueSlug && !(await Venue.exists({ slug: change.venueSlug }))) throw venueUnknown();
+  if (change.venueSlug && change.venueSlug !== staff.venueSlug) await refuseSecondVenueAccount(change.venueSlug, staff._id);
 
   const details = await detailsUpdate(staff, change);
   let updated: PartnerStaffDoc | null;

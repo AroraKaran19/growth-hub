@@ -16,9 +16,11 @@ import {
   adminRequestRoutes,
   adminSeatMapRoutes,
   adminVenueRoutes,
+  adminVenueStatsRoutes,
 } from "./adminCatalogue.routes";
 import assetRoutes from "./asset.routes";
 import addonOrderRoutes from "./addonOrder.routes";
+import analyticsRoutes from "./analytics.routes";
 import authRoutes from "./auth.routes";
 import bookingRoutes from "./booking.routes";
 import catalogueRoutes from "./catalogue.routes";
@@ -34,12 +36,14 @@ import teamRoutes from "./team.routes";
 import optionRoutes from "./options.routes";
 import adminUserRoutes from "./users.routes";
 import venueRoutes from "./venue.routes";
+import supportRoutes from "./support.routes";
 
 const router = Router();
 
 router.use("/auth", authRoutes);
 router.use("/addon-orders", addonOrderRoutes);
 router.use("/members", memberRoutes);
+router.use(supportRoutes);
 router.use("/bookings", bookingRoutes);
 router.use("/coupons", couponRoutes);
 router.use("/site", publicSiteRoutes);
@@ -55,8 +59,10 @@ router.use("/admin/staff", teamRoutes);
 router.use("/admin/options", optionRoutes);
 router.use("/admin/users", adminUserRoutes);
 router.use("/admin/overview", adminOverviewRoutes);
+router.use("/admin/analytics", analyticsRoutes);
 router.use("/admin/venues/:slug/payout-account", adminPayoutAccountRoutes);
 router.use("/admin/venues", adminVenueRoutes);
+router.use("/admin/venue-stats", adminVenueStatsRoutes);
 router.use("/admin/labels", adminLabelRoutes);
 router.use("/admin/amenities", adminAmenityRoutes);
 router.use("/admin/payouts", adminPayoutRoutes);
