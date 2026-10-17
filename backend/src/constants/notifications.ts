@@ -9,6 +9,7 @@ export const MEMBER_EVENTS = [
   "VENUE_REMOVED",
   "MEMBERSHIP_RENEWED",
   "SUPPORT_UPDATED",
+  "SEAT_CHANGED",
 ] as const;
 export type MemberEvent = (typeof MEMBER_EVENTS)[number];
 
@@ -22,7 +23,7 @@ export type StaffEvent = (typeof STAFF_EVENTS)[number];
 
 // Where each email's button points when the sender gives no link of its own.
 export const EVENT_PATHS: Record<MemberEvent | StaffEvent, string> = {
-  WELCOME: "/workspaces",
+  WELCOME: "/account",
   BOOKING_CONFIRMED: "/account/bookings",
   MEMBERSHIP_STARTED: "/account/memberships",
   ADDON_ORDER_CONFIRMED: "/account/memberships",
@@ -32,6 +33,7 @@ export const EVENT_PATHS: Record<MemberEvent | StaffEvent, string> = {
   VENUE_REMOVED: "/account/bookings",
   MEMBERSHIP_RENEWED: "/account/memberships",
   SUPPORT_UPDATED: "/account/support",
+  SEAT_CHANGED: "/account/bookings",
   CANCELLATION_REQUEST: "/partner/requests",
   STATEMENT_ISSUED: "/partner/statements",
   STATEMENT_PAID: "/partner/statements",
@@ -57,8 +59,9 @@ export const EMAIL_TEMPLATE_IDS: Record<MemberEvent | StaffEvent, string> = {
   VENUE_REMOVED: "growthhub_venue_removed",
   MEMBERSHIP_RENEWED: "growthhub_membership_renewed",
   SUPPORT_UPDATED: "growthhub_support_updated",
+  SEAT_CHANGED: "growthhub_seat_changed",
   CANCELLATION_REQUEST: "growthhub_cancellation_request",
-  STATEMENT_ISSUED: "growthhub_statement_issued",
+  STATEMENT_ISSUED: "growthhub_statement_issued_2",
   STATEMENT_PAID: "growthhub_statement_paid",
   PAYOUT_ACCOUNT_CHANGED: "growthhub_payout_account_changed",
 };

@@ -1,12 +1,17 @@
 "use client";
 
 import { useState } from "react";
+import { useSWRConfig } from "swr";
+import { usePartnerToday } from "@/hooks/usePartnerToday";
+import { readApiError } from "@/libs/api/errors";
+import { endSeatOutage } from "@/libs/api/partnerDesk";
+import { toastDone, toastFailed } from "@/libs/toast";
 import { usePartnerDesk } from "@/stores/partner";
 import { SEAT_TYPE_LABELS, type Seat } from "@/types/seat";
 import { cn } from "@/utils";
 import { formatDay } from "@/utils/date";
 import { scheduleLabel } from "@/utils/membershipLabels";
-import { outageEndLabel } from "@/utils/outages";
+import { indiaMomentLabel, outageEndLabel } from "@/utils/outages";
 import {
   BookingStatusBadge,
   CHECK_IN_BUTTON,
@@ -14,14 +19,38 @@ import {
   PartnerPageHeader,
   PartnerSkeleton,
 } from "./components/PartnerUi";
+import SeatUnavailableModal from "./components/SeatUnavailableModal";
 import { SEAT_STATUS_META, seatStatesFor, type SeatStatus } from "./seatStatus";
 
 const SECONDARY_BUTTON =
-  "inline-flex w-full items-center justify-center rounded-lg border border-tertiary/20 px-4 py-2.5 text-sm font-medium text-tertiary transition-colors hover:bg-tertiary/5";
+  "inline-flex w-full items-center justify-center rounded-lg border border-tertiary/20 px-4 py-2.5 text-sm font-medium text-tertiary transition-colors hover:bg-tertiary/5 disabled:opacity-50";
+
+const QUIET_LINK =
+  "self-center py-1 text-sm font-medium text-tertiary/70 underline-offset-4 transition-colors hover:text-primary hover:underline disabled:opacity-50";
 
 const PartnerSeatsPage = () => {
   const desk = usePartnerDesk();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [marking, setMarking] = useState<{ seat: Seat; openedAt: number } | null>(null);
+  const [endingId, setEndingId] = useState<string | null>(null);
+  const { today: feed } = usePartnerToday();
+  const { mutate } = useSWRConfig();
+
+  const refreshSeats = () =>
+    mutate((key) => Array.isArray(key) && (key[0] === "partner/today" || key[0] === "partner/venue"));
+
+  const endOutage = async (seat: Seat, done: string) => {
+    setEndingId(seat.id);
+    try {
+      await endSeatOutage(seat.id);
+      await refreshSeats();
+      toastDone(done);
+    } catch (caught) {
+      toastFailed(readApiError(caught).message);
+    } finally {
+      setEndingId(null);
+    }
+  };
 
   if (!desk.isReady) return <PartnerSkeleton />;
 
@@ -50,6 +79,9 @@ const PartnerSeatsPage = () => {
   const states = seatStatesFor(seats, desk);
   const selected: Seat | undefined = seats.find((seat) => seat.id === selectedId);
   const selectedState = selected ? states[selected.id] : null;
+  // The seat map says whether it is out now, so a listed outage on a usable seat is still ahead.
+  const scheduled = selected?.available ? (feed?.outages?.find((outage) => outage.seatId === selected.id) ?? null) : null;
+  const openMarking = (seat: Seat) => setMarking({ seat, openedAt: Date.now() });
 
   const counts = Object.values(states).reduce(
     (total, state) => ({ ...total, [state.status]: (total[state.status] ?? 0) + 1 }),
@@ -60,7 +92,7 @@ const PartnerSeatsPage = () => {
     <>
       <PartnerPageHeader
         title="Seats"
-        description="Live view of the floor. Select a seat to check someone in or mark a walk-in."
+        description="Live view of the floor. Select a seat to check someone in or mark it unavailable."
       />
 
       <ul className="mt-6 flex flex-wrap gap-x-5 gap-y-2">
@@ -216,10 +248,10 @@ const PartnerSeatsPage = () => {
                 {selectedState.status === "available" && (
                   <button
                     type="button"
-                    onClick={() => desk.toggleWalkIn(selected.id)}
+                    onClick={() => openMarking(selected)}
                     className={cn(CHECK_IN_BUTTON, "w-full py-2.5")}
                   >
-                    Mark as taken by a walk-in
+                    Mark as unavailable
                   </button>
                 )}
                 {selectedState.status === "walk-in" && (
@@ -237,9 +269,40 @@ const PartnerSeatsPage = () => {
                   </p>
                 )}
                 {selectedState.status === "blocked" && (
-                  <p className="rounded-lg bg-tertiary/4 px-3 py-2 text-sm text-tertiary/65">
-                    {outageEndLabel(selected.outUntil ?? null)}. Availability is managed in the admin panel.
-                  </p>
+                  <>
+                    <p className="rounded-lg bg-tertiary/4 px-3 py-2 text-sm text-tertiary/65">
+                      {outageEndLabel(selected.outUntil ?? null)}.
+                    </p>
+                    <button
+                      type="button"
+                      disabled={endingId === selected.id}
+                      onClick={() => void endOutage(selected, `${selected.label} is back in service.`)}
+                      className={SECONDARY_BUTTON}
+                    >
+                      {endingId === selected.id ? "Saving..." : "Back in service"}
+                    </button>
+                  </>
+                )}
+                {scheduled && (
+                  <div className="flex flex-col gap-1.5 rounded-lg bg-tertiary/4 px-3 py-2 text-sm text-tertiary/65">
+                    <span>
+                      Out of service from {indiaMomentLabel(Date.parse(scheduled.startsAt))}
+                      {scheduled.endsAt ? ` to ${indiaMomentLabel(Date.parse(scheduled.endsAt))}` : " until turned back on"}.
+                    </span>
+                    <button
+                      type="button"
+                      disabled={endingId === selected.id}
+                      onClick={() => void endOutage(selected, `The outage on ${selected.label} is cancelled.`)}
+                      className="self-start font-medium text-tertiary/80 underline underline-offset-4 hover:text-primary disabled:opacity-50"
+                    >
+                      Cancel it
+                    </button>
+                  </div>
+                )}
+                {selectedState.status !== "available" && selectedState.status !== "blocked" && (
+                  <button type="button" onClick={() => openMarking(selected)} className={QUIET_LINK}>
+                    Mark as unavailable for another time
+                  </button>
                 )}
                 {selectedState.status === "held" && (
                   <p className="rounded-lg bg-amber-500/10 px-3 py-2 text-sm text-amber-800">
@@ -256,6 +319,17 @@ const PartnerSeatsPage = () => {
           )}
         </aside>
       </div>
+
+      {marking && (
+        <SeatUnavailableModal
+          seat={marking.seat}
+          hours={desk.venue.hours}
+          today={desk.today}
+          openedAt={marking.openedAt}
+          onDone={refreshSeats}
+          onClose={() => setMarking(null)}
+        />
+      )}
     </>
   );
 };

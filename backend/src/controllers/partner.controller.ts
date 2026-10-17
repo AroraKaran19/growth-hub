@@ -6,6 +6,8 @@ import { parseBody } from "../utils/validate";
 import { setVenuePrices } from "../services/venueCatalogue.service";
 import { venueAddonsSchema, venuePricesSchema } from "../validators/catalogue";
 import { actorOf } from "./catalogue.controller";
+import { patchPartnerVenue } from "../services/partnerVenue.service";
+import { partnerVenueSchema } from "../validators/catalogue";
 
 // The venue always comes from the signed-in account, never from the request.
 const venueOf = (req: Request) => {
@@ -27,6 +29,12 @@ export const putMyVenuePrices = asyncHandler(async (req: Request, res: Response)
   await setVenuePrices(venueOf(req), parseBody(venuePricesSchema, req.body), actorOf(req));
   notifyVenuesChanged(venueOf(req));
   sendSuccessResponse(res, { venue: await getPartnerVenue(venueOf(req)) }, "Prices saved");
+});
+
+export const patchMyVenue = asyncHandler(async (req: Request, res: Response) => {
+  const venue = await patchPartnerVenue(venueOf(req), parseBody(partnerVenueSchema, req.body), actorOf(req));
+  notifyVenuesChanged(venue.slug);
+  sendSuccessResponse(res, { venue }, "Venue saved");
 });
 
 const slugOf = (req: Request) => String(req.params.slug).toLowerCase();

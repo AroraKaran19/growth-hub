@@ -118,6 +118,6 @@ export const updateMemberProfile = async (
     { returnDocument: "after" },
   ).lean<MemberDoc>();
   if (!member) throw new AppError("Please sign in again.", 401, "SESSION_REVOKED");
-  if (isFirstEmail) await tellWelcome(member._id);
+  if (isFirstEmail) await tellWelcome(member);
   return memberSummary(member);
 };

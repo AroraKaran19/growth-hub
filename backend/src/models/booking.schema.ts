@@ -2,6 +2,7 @@ import { Schema, model, type Types } from "mongoose";
 import { SEAT_TYPES, type AddonUnit, type SeatType } from "../constants/catalogue";
 import type { PassPrice, PassType } from "../services/pricing";
 import { billingDetailsSchema, type BillingDetails } from "./billing.schema";
+import { seatChangeSchema, type SeatChange } from "./seatChange.schema";
 
 export const BOOKING_STATUSES = [
   "pending-payment",
@@ -56,6 +57,7 @@ export interface BookingDoc {
   checkedInAt: Date | null;
   rescheduleCount: number;
   openRequestId: Types.ObjectId | null;
+  seatChanges?: SeatChange[];
   /** When the venue became owed this; null while not payable. */
   payableAt: Date | null;
   /** The issued statement that pays it. */
@@ -136,6 +138,7 @@ const bookingSchema = new Schema<BookingDoc>(
     checkedInAt: { type: Date, default: null },
     rescheduleCount: { type: Number, default: 0 },
     openRequestId: { type: Schema.Types.ObjectId, default: null },
+    seatChanges: { type: [seatChangeSchema], default: [] },
     payableAt: { type: Date, default: null },
     statementId: { type: Schema.Types.ObjectId, default: null },
     requestKey: { type: String, required: true },

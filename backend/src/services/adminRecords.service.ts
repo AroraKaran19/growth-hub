@@ -5,6 +5,14 @@ import type { AdminRescheduleInput } from "../validators/booking";
 import { rescheduleAsAdmin } from "./booking.service";
 import { requestHistory } from "./cancellation.service";
 import { stopRenewalOf } from "./membership.service";
+import {
+  bookingSeatOptions,
+  changeBookingSeat,
+  changeMembershipSeat,
+  membershipSeatOptions,
+  type SeatChanger,
+  type SeatChangeInput,
+} from "./seatChange.service";
 import { toStaffBookingViews } from "./staffBookings.service";
 import { toStaffMembershipViews } from "./staffMemberships.service";
 
@@ -63,6 +71,16 @@ export const adminReschedule = async (ref: string, input: AdminRescheduleInput) 
   bookingDetail(await rescheduleAsAdmin(ref, input));
 
 export const adminMembershipDetail = async (ref: string) => membershipDetail(await findMembership(ref));
+
+export const adminBookingSeatOptions = async (ref: string) => bookingSeatOptions(await findBooking(ref));
+
+export const adminChangeBookingSeat = async (ref: string, changer: SeatChanger, input: SeatChangeInput) =>
+  bookingDetail(await changeBookingSeat(await findBooking(ref), changer, input));
+
+export const adminMembershipSeatOptions = async (ref: string) => membershipSeatOptions(await findMembership(ref));
+
+export const adminChangeMembershipSeat = async (ref: string, changer: SeatChanger, input: SeatChangeInput) =>
+  membershipDetail(await changeMembershipSeat(await findMembership(ref), changer, input));
 
 export const adminStopRenewal = async (ref: string) => {
   const membership = await findMembership(ref);

@@ -28,6 +28,12 @@ export const MEMBER_ASSET_KINDS: readonly AssetKind[] = ["support"];
 export const isMemberAssetKind = (value: unknown): value is AssetKind =>
   isAssetKind(value) && MEMBER_ASSET_KINDS.includes(value);
 
+/** Kinds venue staff upload; their owner is always the signed-in partner's venue. */
+export const PARTNER_ASSET_KINDS: readonly AssetKind[] = ["venue-cover", "venue-gallery"];
+
+export const isPartnerAssetKind = (value: unknown): value is AssetKind =>
+  isAssetKind(value) && PARTNER_ASSET_KINDS.includes(value);
+
 export type UploadTicket = PresignedPost & {
   key: string;
   publicUrl: string;

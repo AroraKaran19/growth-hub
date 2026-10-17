@@ -19,7 +19,7 @@ import { indiaNow, instantOf, weekdayOf } from "../utils/indiaTime";
 import { addonsForDay, deskSalesRecordedOn } from "./addonOrder.service";
 import { ruleError } from "./booking.service";
 import type { DeskStaff } from "./checkIn.service";
-import { isOutDuring } from "./outages";
+import { isOutDuring, liveOutages } from "./outages";
 import { claimRanges } from "./seatDays.service";
 import { toStaffBookingViews } from "./staffBookings.service";
 import { toStaffMembershipViews } from "./staffMemberships.service";
@@ -60,9 +60,12 @@ export const addWalkIn = async (staff: DeskStaff, seatId: string, now = new Date
 
 export const removeWalkIn = async (staff: DeskStaff, seatId: string, now = new Date()) => {
   const venue = await venueOf(staff);
+  const { date, minutes } = indiaNow(now);
+  // Frees the walk-in in the seat now, keeping any desk sale booked for later today.
+  const current = { kind: "walk-in", start: { $lte: minutes }, end: { $gt: minutes } };
   const result = await SeatDay.updateOne(
-    { venueId: venue._id, date: indiaNow(now).date, seatId, "ranges.kind": "walk-in" },
-    { $pull: { ranges: { kind: "walk-in" } } },
+    { venueId: venue._id, date, seatId, ranges: { $elemMatch: current } },
+    { $pull: { ranges: current } },
   );
   if (result.modifiedCount !== 1) throw new AppError("That seat has no walk-in today.", 404, "WALK_IN_NOT_FOUND");
   return { seatId };
@@ -73,7 +76,7 @@ const isLiveHold = (expiresAt: Date | null | undefined, now: Date) => Boolean(ex
 /** Everything the front desk shows for today, in one read. */
 export const todayAtDesk = async (staff: DeskStaff, now = new Date()) => {
   const venue = await venueOf(staff);
-  const today = indiaNow(now).date;
+  const { date: today, minutes: nowMinutes } = indiaNow(now);
 
   const [bookings, memberships, days] = await Promise.all([
     Booking.find({ venueSlug: staff.venueSlug, date: today, status: { $nin: HIDDEN } })
@@ -111,8 +114,9 @@ export const todayAtDesk = async (staff: DeskStaff, now = new Date()) => {
         seatCheckIns: view.seatList.map((seat) => ({ seatId: seat.id, label: seat.label, holder: seat.holder, checkedInAt: at(seat.id) })),
       };
     }),
+    // Only walk-ins covering this moment; a desk sale later today isn't in the seat yet.
     walkInSeatIds: days
-      .filter((day) => day.ranges.some((range) => range.kind === "walk-in"))
+      .filter((day) => day.ranges.some((range) => range.kind === "walk-in" && range.start <= nowMinutes && range.end > nowMinutes))
       .map((day) => day.seatId)
       .sort(),
     // Someone is on the payment page for these right now.
@@ -123,6 +127,8 @@ export const todayAtDesk = async (staff: DeskStaff, now = new Date()) => {
       )
       .map((day) => day.seatId)
       .sort(),
+    // Running and scheduled, so the desk can bring a seat back early.
+    outages: liveOutages(venue.outages, now).map(({ seatId, startsAt, endsAt }) => ({ seatId, startsAt, endsAt })),
     addons: await addonsForDay(staff.venueSlug, today),
     deskSalesToday: await deskSalesRecordedOn(staff.venueSlug, today),
   };

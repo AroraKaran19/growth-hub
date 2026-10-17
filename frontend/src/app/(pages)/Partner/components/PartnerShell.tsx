@@ -16,6 +16,7 @@ import {
   Puzzle,
   ReceiptText,
   ScanLine,
+  Store,
   CircleUserRound,
 } from "lucide-react";
 import Logo from "@/app/components/ui/Logo";
@@ -31,6 +32,7 @@ export const PARTNER_LINKS = [
   { label: "Check-in", href: "/partner/check-in", icon: ScanLine },
   { label: "Bookings", href: "/partner/bookings", icon: CalendarCheck },
   { label: "Seats", href: "/partner/seats", icon: Armchair },
+  { label: "Venue settings", href: "/partner/venue", icon: Store },
   { label: "Members", href: "/partner/members", icon: Crown },
   { label: "Requests", href: "/partner/requests", icon: MessageSquareText },
   { label: "Prices", href: "/partner/prices", icon: IndianRupee },

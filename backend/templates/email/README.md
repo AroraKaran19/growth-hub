@@ -27,6 +27,7 @@ The header logo loads from `https://growthhubconnect.in/email/logo-white.png`, w
 | membership-lapsed.html | `growthhub_membership_lapsed` | A membership ends unpaid | membership_id, venue, ends |
 | venue-removed.html | `growthhub_venue_removed` | A venue is removed with bookings still ahead | ref, venue, reason, amount |
 | membership-renewed.html | `growthhub_membership_renewed` | A membership renewal is charged, with its invoice attached | membership_id, venue, plan, period, renewed_until, amount, invoice_number, invoice_note |
+| seat-changed.html | `growthhub_seat_changed` | The venue or Growth Hub moves a booking or membership to another seat | kind, id_label, ref, venue, old_seat, new_seat, effective, note (block hides when empty), action (button text) |
 | support-updated.html | `growthhub_support_updated` | Growth Hub replies to a support request or changes its status | request_id, subject, status, reply, action (button text), follow_up |
 
 ## Venue staff
@@ -36,7 +37,7 @@ These go to every active partner login of the venue.
 | File | MSG91 template ID | Sent when | Variables |
 | --- | --- | --- | --- |
 | cancellation-request.html | `growthhub_cancellation_request` | A customer asks to cancel | ref, member, venue, starts, reason, details |
-| statement-issued.html | `growthhub_statement_issued` | A monthly payout statement is issued | venue, month, total |
+| statement-issued.html | `growthhub_statement_issued_2` | A monthly payout statement is issued | venue, month, total |
 | statement-paid.html | `growthhub_statement_paid` | A statement is marked paid | venue, month, total, utr, paidOn |
 | payout-account-changed.html | `growthhub_payout_account_changed` | The venue's payout bank account changes | venue, bank, last4 |
 

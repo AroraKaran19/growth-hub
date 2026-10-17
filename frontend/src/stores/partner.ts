@@ -1,11 +1,14 @@
 "use client";
 
 import { createContext, useContext, useMemo } from "react";
+import { useSWRConfig } from "swr";
 import { toast } from "react-toastify";
 import { usePartnerToday } from "@/hooks/usePartnerToday";
 import { usePartnerBookings, usePartnerMembers } from "@/hooks/useStaffBookings";
 import { readApiError } from "@/libs/api/errors";
 import { recordDeskAddons, voidDeskAddons } from "@/libs/api/addonOrders";
+import { cancelMembershipAsPartner } from "@/libs/api/cancellations";
+import { changePartnerBookingSeat, changePartnerMemberSeat } from "@/libs/api/seatChanges";
 import {
   addWalkIn,
   checkInAtDesk,
@@ -22,8 +25,10 @@ import type {
   PartnerSession,
 } from "@/types/partner";
 import type { DeskAddonTarget } from "@/types/addonOrder";
+import type { CancellationReason } from "@/types/cancellation";
 import type { StaffMembership } from "@/types/membership";
 import type { Seat } from "@/types/seat";
+import type { SeatChangeInput } from "@/types/seatChange";
 import type { PartnerVenue } from "@/types/venue";
 import { todayIso } from "@/utils/date";
 import { membershipTitle, spaceName } from "@/utils/membershipLabels";
@@ -49,6 +54,8 @@ const toPartnerMember = (membership: StaffMembership, today: TodayMember | undef
   startDate: membership.startDate,
   paidThrough: membership.paidThrough ?? membership.startDate,
   renewsOn: membership.renewsOn,
+  paidTotal: membership.paidTotal ?? 0,
+  hasOpenRequest: membership.hasOpenRequest ?? false,
   today: today ? { checkedInAt: today.checkedInAt, seats: today.seatCheckIns } : null,
 });
 
@@ -79,7 +86,8 @@ export const usePartnerDesk = () => {
   const isClient = useIsClient();
   const { today: feed, isLoading: isFeedLoading, mutate: refreshFeed } = usePartnerToday();
   const { bookings: apiBookings, isLoading: areBookingsLoading, mutate: refreshBookings } = usePartnerBookings();
-  const { members: apiMembers, isLoading: areMembersLoading } = usePartnerMembers();
+  const { members: apiMembers, isLoading: areMembersLoading, mutate: refreshMembers } = usePartnerMembers();
+  const { mutate: mutateAll } = useSWRConfig();
   const venue = useShellVenue();
   // Seats the admin panel took out of service arrive marked unavailable.
   const seats = venue.seatMap?.seats ?? NO_SEATS;
@@ -183,6 +191,28 @@ export const usePartnerDesk = () => {
     }
   };
 
+  /** Throws the server's refusal, for the modal to show inline. */
+  const changeMemberSeat = async (ref: string, input: SeatChangeInput) => {
+    const updated = await changePartnerMemberSeat(ref, input);
+    await refreshMembers((list) => list?.map((item) => (item.ref === updated.ref ? updated : item)), { revalidate: false });
+    await refreshFeed();
+  };
+
+  const changeBookingSeat = async (ref: string, input: SeatChangeInput) => {
+    const updated = await changePartnerBookingSeat(ref, input);
+    await refreshBookings((list) => list?.map((item) => (item.ref === updated.ref ? updated : item)), { revalidate: false });
+    await refreshFeed();
+  };
+
+  const cancelMembership = async (ref: string, body: { reason: CancellationReason; refundAmount: number; note: string }) => {
+    await cancelMembershipAsPartner(ref, body);
+    await Promise.all([
+      refreshMembers(),
+      refreshFeed(),
+      mutateAll((key) => Array.isArray(key) && key[0] === "partner/requests"),
+    ]);
+  };
+
   const toggleWalkIn = async (seatId: string) => {
     try {
       if (feed?.walkInSeatIds.includes(seatId)) await removeWalkIn(seatId);
@@ -211,5 +241,8 @@ export const usePartnerDesk = () => {
     checkIn,
     quickCheckIn,
     toggleWalkIn,
+    changeMemberSeat,
+    changeBookingSeat,
+    cancelMembership,
   };
 };

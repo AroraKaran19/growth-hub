@@ -4,6 +4,7 @@ import type { RequestSummary, VenueRemovalNotice } from "./cancellation";
 import type { MembershipLengthKey } from "./catalogue";
 import type { PlanLength, PlanPrices, PlanSpace, RoomMode } from "./membershipPlan";
 import type { SeatType } from "./seat";
+import type { SeatChange } from "./seatChange";
 
 export type MembershipStatus =
   | "pending-payment"
@@ -138,6 +139,10 @@ export type StaffMembership = {
   paidThrough: string | null;
   renewsOn: string | null;
   cancelAtCycleEnd: boolean;
+  /** Paise charged so far, the most a cancellation can refund. */
+  paidTotal: number;
+  hasOpenRequest: boolean;
+  seatChanges: SeatChange[];
 };
 
 export const isLiveMembership = (membership: { status: MembershipStatus }) =>

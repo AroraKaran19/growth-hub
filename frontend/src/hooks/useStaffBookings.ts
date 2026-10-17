@@ -35,12 +35,12 @@ export const useAdminBookings = (enabled = true, venue = "") => {
 
 export const usePartnerMembers = () => {
   const accountId = useAuthStore("partner", (state) => state.account?.id);
-  const { data, error, isLoading } = useSWR(
+  const { data, error, isLoading, mutate } = useSWR(
     accountId ? ["partner/members", accountId] : null,
     async () => ((await partnerApi.get("/partner/members")) as Envelope<{ members: StaffMembership[] }>).data.data.members,
     LIVE,
   );
-  return { members: data ?? [], error, isLoading: isLoading || !accountId };
+  return { members: data ?? [], error, isLoading: isLoading || !accountId, mutate };
 };
 
 /** Plans across venues; nothing is fetched for an admin without the section. */

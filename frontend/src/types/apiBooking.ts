@@ -4,6 +4,7 @@ import type { RequestSummary, VenueRemovalNotice } from "./cancellation";
 import type { AddonUnit } from "./catalogue";
 import type { PassType } from "./booking";
 import type { SeatType } from "./seat";
+import type { SeatChange } from "./seatChange";
 
 export type ApiBookingStatus =
   | "pending-payment"
@@ -138,4 +139,5 @@ export type StaffBooking = {
   rescheduleCount: number;
   checkedInAt: string | null;
   extras: { preference: string };
+  seatChanges: SeatChange[];
 };

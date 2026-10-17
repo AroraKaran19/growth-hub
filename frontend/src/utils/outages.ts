@@ -11,8 +11,10 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 
 /** The seat's unended outage; they start when made, so a lagging browser clock can't hide one. */
 export const currentOutage = (outages: SeatOutage[] | undefined, seatId: string, now = Date.now()) =>
-  (outages ?? []).find((outage) => outage.seatId === seatId && (outage.endsAt === null || Date.parse(outage.endsAt) > now)) ??
-  null;
+  (outages ?? []).find(
+    (outage) =>
+      outage.seatId === seatId && Date.parse(outage.startsAt) <= now && (outage.endsAt === null || Date.parse(outage.endsAt) > now),
+  ) ?? null;
 
 export const isOutNow = (outages: SeatOutage[] | undefined, seatId: string, now = Date.now()) =>
   currentOutage(outages, seatId, now) !== null;

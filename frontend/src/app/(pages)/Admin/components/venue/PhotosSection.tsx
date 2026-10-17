@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import Image from "next/image";
 import { ChevronLeft, ChevronRight, ImagePlus, LoaderCircle, X } from "lucide-react";
 import RequiredMark from "@/app/components/ui/form/RequiredMark";
-import { IMAGE_TYPES, UploadError, uploadImage } from "@/libs/api/uploads";
+import { IMAGE_TYPES, UploadError, uploadImage, type VenuePhotoKind } from "@/libs/api/uploads";
 import { readApiError } from "@/libs/api/errors";
 import { cn } from "@/utils";
 import { QUIET, Section } from "./fields";
@@ -22,12 +22,23 @@ type PhotosSectionProps = {
   galleryError?: string;
   onCover: (url: string) => void;
   onGallery: (urls: string[]) => void;
+  /** Partner pages pass their own uploader; admin pages use the default. */
+  upload?: (file: File, kind: VenuePhotoKind, ownerId: string) => Promise<string>;
 };
 
 const messageFor = (error: unknown) =>
   error instanceof UploadError ? error.message : readApiError(error).message;
 
-const PhotosSection = ({ ownerId, image, gallery, coverError, galleryError, onCover, onGallery }: PhotosSectionProps) => {
+const PhotosSection = ({
+  ownerId,
+  image,
+  gallery,
+  coverError,
+  galleryError,
+  onCover,
+  onGallery,
+  upload = uploadImage,
+}: PhotosSectionProps) => {
   const coverInput = useRef<HTMLInputElement>(null);
   const galleryInput = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState<"cover" | "gallery" | null>(null);
@@ -41,7 +52,7 @@ const PhotosSection = ({ ownerId, image, gallery, coverError, galleryError, onCo
     setBusy("cover");
     setError(null);
     try {
-      onCover(await uploadImage(file, "venue-cover", ownerId));
+      onCover(await upload(file, "venue-cover", ownerId));
     } catch (caught) {
       setError(messageFor(caught));
     } finally {
@@ -59,7 +70,7 @@ const PhotosSection = ({ ownerId, image, gallery, coverError, galleryError, onCo
     // Reorder and remove are locked while busy, so gallery is still current here.
     const { added, failed } = await uploadEach(
       picked,
-      (file) => uploadImage(file, "venue-gallery", ownerId),
+      (file) => upload(file, "venue-gallery", ownerId),
       messageFor,
     );
     if (added.length > 0) onGallery([...gallery, ...added]);

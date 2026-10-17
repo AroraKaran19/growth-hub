@@ -235,6 +235,50 @@ export const releaseDays = async (membershipId: Types.ObjectId, fromDate?: strin
   await SeatDay.updateMany({ "ranges.membershipId": membershipId, ...from }, { $pull: { ranges: { membershipId } } }, { session });
 };
 
+/** The dates one seat is held for a membership, from a date on. */
+export const membershipSeatDates = async (venueId: Types.ObjectId, membershipId: Types.ObjectId, seatId: string, fromDate: string) => {
+  const days = await SeatDay.find(
+    { venueId, seatId, date: { $gte: fromDate }, $or: [{ membershipId }, { "ranges.membershipId": membershipId }] },
+    { date: 1 },
+  ).lean<{ date: string }[]>();
+  return [...new Set(days.map((day) => day.date))].sort();
+};
+
+/** Seats among these that anything other than this membership holds on any of the dates. */
+export const seatsBlockedForMembership = async (
+  input: { venueId: Types.ObjectId; seatIds: string[]; dates: string[]; membershipId: Types.ObjectId; window: DailyWindow | null },
+  now = new Date(),
+) => {
+  if (!input.seatIds.length || !input.dates.length) return new Set<string>();
+  const existing = await SeatDay.find({ venueId: input.venueId, seatId: { $in: input.seatIds }, date: { $in: input.dates } }).lean<
+    SeatDayDoc[]
+  >();
+  return new Set(existing.filter((day) => blocksMembership(day, input.membershipId, input.window, now)).map((day) => day.seatId));
+};
+
+/** Frees one seat of a membership from a date on, leaving its other seats held. */
+export const releaseSeatDays = async (
+  venueId: Types.ObjectId,
+  membershipId: Types.ObjectId,
+  seatId: string,
+  fromDate: string,
+  session: ClientSession,
+) => {
+  const days = { venueId, seatId, date: { $gte: fromDate } };
+  await SeatDay.updateMany({ ...days, membershipId }, { $set: { membershipId: null, membershipHoldExpiresAt: null } }, { session });
+  await SeatDay.updateMany({ ...days, "ranges.membershipId": membershipId }, { $pull: { ranges: { membershipId } } }, { session });
+};
+
+/** Moves a booking's window on one date from one seat to another, or throws SEAT_TAKEN. */
+export const moveBookingRange = async (
+  input: { venueId: Types.ObjectId; bookingId: Types.ObjectId; date: string; start: number; end: number; fromSeatId: string; toSeatId: string },
+  session: ClientSession,
+) => {
+  const { venueId, bookingId, date, start, end } = input;
+  await claimRanges({ venueId, date, seatIds: [input.toSeatId], start, end, bookingId, holdExpiresAt: null }, session);
+  await SeatDay.updateOne({ venueId, seatId: input.fromSeatId, date }, { $pull: { ranges: { bookingId } } }, { session });
+};
+
 export const releaseRanges = (bookingId: Types.ObjectId, session?: ClientSession) =>
   SeatDay.updateMany({ "ranges.bookingId": bookingId }, { $pull: { ranges: { bookingId } } }, { session });
 

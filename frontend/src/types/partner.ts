@@ -54,6 +54,9 @@ export type PartnerMember = {
   paidThrough: string;
   /** Next charge, or null when the plan will not renew. */
   renewsOn: string | null;
+  /** Paise paid so far, the refund cap when the desk cancels. */
+  paidTotal: number;
+  hasOpenRequest: boolean;
   /** Set only when the membership is due in today. */
   today: { checkedInAt: string | null; seats: SeatCheckIn[] } | null;
 };

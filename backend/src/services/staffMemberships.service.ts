@@ -1,4 +1,5 @@
-import { Membership, type MembershipDoc } from "../models";
+import type { Types } from "mongoose";
+import { Membership, MembershipCharge, seatChangesView, type MembershipDoc, type SeatChangeView } from "../models";
 import type { DailyWindow, SeatHolder } from "../models";
 import { holdersView, planSnapshotView, toMembershipView, windowView, type PlanSnapshotView } from "./membershipView";
 import { findMembers } from "./accountSnapshot.service";
@@ -28,10 +29,22 @@ export type StaffMembershipView = {
   paidThrough: string | null;
   renewsOn: string | null;
   cancelAtCycleEnd: boolean;
+  /** Paise charged so far, the most a cancellation can refund. */
+  paidTotal: number;
+  hasOpenRequest: boolean;
+  seatChanges: SeatChangeView[];
+};
+
+const paidByMembership = async (memberships: MembershipDoc[]) => {
+  const rows = await MembershipCharge.aggregate<{ _id: Types.ObjectId; total: number }>([
+    { $match: { membershipId: { $in: memberships.map((item) => item._id) } } },
+    { $group: { _id: "$membershipId", total: { $sum: "$amount" } } },
+  ]);
+  return new Map(rows.map((row) => [row._id.toString(), row.total]));
 };
 
 export const toStaffMembershipViews = async (memberships: MembershipDoc[]): Promise<StaffMembershipView[]> => {
-  const members = await findMembers(memberships.map((item) => item.memberId));
+  const [members, paid] = await Promise.all([findMembers(memberships.map((item) => item.memberId)), paidByMembership(memberships)]);
   const byId = new Map(members.map((member) => [member._id.toString(), member]));
   const now = new Date();
   return memberships.map((membership) => {
@@ -60,6 +73,9 @@ export const toStaffMembershipViews = async (memberships: MembershipDoc[]): Prom
       paidThrough: membership.paidThrough,
       renewsOn: view.renewsOn,
       cancelAtCycleEnd: membership.cancelAtCycleEnd,
+      paidTotal: paid.get(membership._id.toString()) ?? 0,
+      hasOpenRequest: Boolean(membership.openRequestId),
+      seatChanges: seatChangesView(membership.seatChanges),
     };
   });
 };

@@ -23,4 +23,9 @@ export type AddonChoice = {
   enabled: boolean;
 };
 
-export type PartnerVenue = VenueDetail & { addonChoices: AddonChoice[] };
+export type PartnerVenue = VenueDetail & { addonChoices: AddonChoice[]; version: number };
+
+/** The listing fields a venue's own staff may change. */
+export type PartnerListingInput = Partial<
+  Pick<PartnerVenue, "description" | "longDescription" | "hours" | "hoursNote" | "image" | "gallery" | "amenities">
+> & { version: number };

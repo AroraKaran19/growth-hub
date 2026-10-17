@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Search } from "lucide-react";
+import { ArrowRightLeft, CircleX, Search } from "lucide-react";
+import ChangeSeatModal from "@/app/components/shared/ChangeSeatModal";
 import { usePartnerDesk } from "@/stores/partner";
-import { MEMBERSHIP_STATUS_LABELS, type MembershipStatus } from "@/types/membership";
+import { MEMBERSHIP_STATUS_LABELS, isLiveMembership, type MembershipStatus } from "@/types/membership";
+import type { PartnerMember } from "@/types/partner";
 import { cn } from "@/utils";
 import { formatDay } from "@/utils/date";
 import { scheduleLabel } from "@/utils/membershipLabels";
@@ -14,6 +16,8 @@ import {
   PartnerSkeleton,
   PartnerStat,
 } from "./components/PartnerUi";
+import RowActionsMenu, { type RowAction } from "../Admin/components/users/RowActionsMenu";
+import CancelMembershipModal from "./components/CancelMembershipModal";
 import DeskAddonModal, { type DeskAddonSubject } from "./components/DeskAddonModal";
 import SeatCheckIns from "./components/SeatCheckIns";
 import TodayAddonsCell from "./components/TodayAddonsCell";
@@ -27,8 +31,18 @@ const PartnerMembersPage = () => {
   const desk = usePartnerDesk();
   const [query, setQuery] = useState("");
   const [addonsFor, setAddonsFor] = useState<DeskAddonSubject | null>(null);
+  const [seatFor, setSeatFor] = useState<PartnerMember | null>(null);
+  const [cancelFor, setCancelFor] = useState<PartnerMember | null>(null);
 
   if (!desk.isReady) return <PartnerSkeleton />;
+
+  const actionsFor = (member: PartnerMember): RowAction[] =>
+    isLiveMembership(member)
+      ? [
+          { key: "seat", label: "Change seat", icon: ArrowRightLeft, onSelect: () => setSeatFor(member) },
+          { key: "cancel", label: "Cancel membership", icon: CircleX, tone: "danger", onSelect: () => setCancelFor(member) },
+        ]
+      : [];
 
   const search = query.trim().toLowerCase();
   const rows = desk.members.filter(
@@ -100,6 +114,9 @@ const PartnerMembersPage = () => {
                 <th scope="col" className="px-5 py-3 font-semibold">Dates</th>
                 <th scope="col" className="px-5 py-3 font-semibold">Add-ons today</th>
                 <th scope="col" className="px-5 py-3 font-semibold">Today</th>
+                <th scope="col" className="px-3 py-3 font-semibold">
+                  <span className="sr-only">Actions</span>
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-tertiary/8">
@@ -193,6 +210,9 @@ const PartnerMembersPage = () => {
                         </button>
                       )}
                     </td>
+                    <td className="px-3 py-3.5 text-right">
+                      <RowActionsMenu label={`Actions for ${member.memberName}`} actions={actionsFor(member)} />
+                    </td>
                   </tr>
                 );
               })}
@@ -212,6 +232,25 @@ const PartnerMembersPage = () => {
           onRecord={desk.recordAddons}
           onVoid={desk.voidAddons}
           onClose={() => setAddonsFor(null)}
+        />
+      )}
+
+      {seatFor && (
+        <ChangeSeatModal
+          desk="partner"
+          record="membership"
+          recordRef={seatFor.membershipId}
+          customerName={seatFor.memberName}
+          onSave={(input) => desk.changeMemberSeat(seatFor.membershipId, input)}
+          onClose={() => setSeatFor(null)}
+        />
+      )}
+
+      {cancelFor && (
+        <CancelMembershipModal
+          member={cancelFor}
+          onCancel={(body) => desk.cancelMembership(cancelFor.membershipId, body)}
+          onClose={() => setCancelFor(null)}
         />
       )}
     </>

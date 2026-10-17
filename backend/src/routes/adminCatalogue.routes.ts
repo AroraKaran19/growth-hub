@@ -37,6 +37,12 @@ import {
   postAdminAddonOrderCancel,
   postAdminMembershipCancel,
 } from "../controllers/cancellation.controller";
+import {
+  getAdminBookingSeatOptions,
+  getAdminMembershipSeatOptions,
+  postAdminBookingSeat,
+  postAdminMembershipSeat,
+} from "../controllers/seatChange.controller";
 import { getAdminMemberships } from "../controllers/membership.controller";
 import { getAdminBookings } from "../controllers/staffBookings.controller";
 import type { AdminPermission } from "../constants/permissions";
@@ -152,6 +158,8 @@ adminBookingRoutes.get("/", getAdminBookings);
 adminBookingRoutes.get("/:ref", getAdminBookingDetail);
 adminBookingRoutes.post("/:ref/reschedule", postAdminReschedule);
 adminBookingRoutes.post("/:ref/cancel", postAdminBookingCancel);
+adminBookingRoutes.get("/:ref/seat-options", getAdminBookingSeatOptions);
+adminBookingRoutes.post("/:ref/seat", postAdminBookingSeat);
 
 // Desk sales belong with bookings: the same people look after both.
 export const adminAddonOrderRoutes = guarded("bookings");
@@ -171,6 +179,8 @@ adminMembershipRoutes.get("/", getAdminMemberships);
 adminMembershipRoutes.get("/:ref", getAdminMembershipDetail);
 adminMembershipRoutes.post("/:ref/stop-renewal", postAdminStopRenewal);
 adminMembershipRoutes.post("/:ref/cancel", postAdminMembershipCancel);
+adminMembershipRoutes.get("/:ref/seat-options", getAdminMembershipSeatOptions);
+adminMembershipRoutes.post("/:ref/seat", postAdminMembershipSeat);
 
 // Either section opens this; each request is then checked against its own kind.
 export const adminRequestRoutes = Router();

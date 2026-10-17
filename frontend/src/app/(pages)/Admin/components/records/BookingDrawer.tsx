@@ -1,7 +1,9 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
-import { ChevronDown } from "lucide-react";
+import { ArrowRightLeft, ChevronDown } from "lucide-react";
+import ChangeSeatModal from "@/app/components/shared/ChangeSeatModal";
+import SeatChangeList from "@/app/components/shared/SeatChangeList";
 import DateField from "@/app/components/ui/form/DateField";
 import SelectField from "@/app/components/ui/form/SelectField";
 import { buildTimeSlots } from "@/data/bookingOptions";
@@ -9,6 +11,7 @@ import { useAdminBooking } from "@/hooks/useStaffBookings";
 import { useVenue } from "@/hooks/useVenues";
 import { moveAsAdmin } from "@/libs/api/adminRecords";
 import { readApiError } from "@/libs/api/errors";
+import { changeAdminBookingSeat } from "@/libs/api/seatChanges";
 import { cn } from "@/utils";
 import { invoiceToLabel } from "@/utils/companyInvoice";
 import { formatDay } from "@/utils/date";
@@ -18,7 +21,7 @@ import { BOOKING_SPACE_LABELS } from "../../../Booking/membershipBooking";
 import { rupees } from "../../../Partner/requestRules";
 import AdminCancelForm from "./AdminCancelForm";
 import { seatCountProblem } from "./moveRules";
-import RecordDrawer from "./RecordDrawer";
+import RecordDrawer, { CHANGE_SEAT_BUTTON } from "./RecordDrawer";
 import RequestHistory from "./RequestHistory";
 
 type Panel = "move" | "cancel" | null;
@@ -48,6 +51,7 @@ const BookingDrawer = ({ bookingRef, onClose, onChanged }: { bookingRef: string;
   const [picked, setPicked] = useState<string[]>([]);
   const [moveError, setMoveError] = useState<string | null>(null);
   const [isMoving, setIsMoving] = useState(false);
+  const [isSeatOpen, setIsSeatOpen] = useState(false);
 
   const isFullDay = booking?.passType === "full-day";
   const slots = useMemo(() => {
@@ -83,6 +87,7 @@ const BookingDrawer = ({ bookingRef, onClose, onChanged }: { bookingRef: string;
   };
 
   const canChange = booking?.status === "upcoming";
+  const canChangeSeat = canChange || booking?.status === "checked-in";
 
   return (
     <RecordDrawer
@@ -123,6 +128,14 @@ const BookingDrawer = ({ bookingRef, onClose, onChanged }: { bookingRef: string;
               <dd className="mt-1 text-sm text-tertiary">
                 {BOOKING_SPACE_LABELS[booking.spaceType]}, {booking.seats.join(", ")}
               </dd>
+              {canChangeSeat && (
+                <dd className="mt-2">
+                  <button type="button" onClick={() => setIsSeatOpen(true)} className={CHANGE_SEAT_BUTTON}>
+                    <ArrowRightLeft aria-hidden="true" className="size-3.5" />
+                    Change seat
+                  </button>
+                </dd>
+              )}
             </div>
             <div>
               <dt className="text-xs text-tertiary/50">Paid</dt>
@@ -220,11 +233,32 @@ const BookingDrawer = ({ bookingRef, onClose, onChanged }: { bookingRef: string;
             </Section>
           )}
 
+          {(booking.seatChanges ?? []).length > 0 && (
+            <section>
+              <h3 className="mb-3 text-sm font-semibold text-tertiary">Seat changes</h3>
+              <SeatChangeList changes={booking.seatChanges} />
+            </section>
+          )}
+
           <section>
             <h3 className="mb-3 text-sm font-semibold text-tertiary">Cancellation requests</h3>
             <RequestHistory requests={booking.requests} />
           </section>
         </div>
+      )}
+
+      {isSeatOpen && booking && (
+        <ChangeSeatModal
+          desk="admin"
+          record="booking"
+          recordRef={booking.ref}
+          customerName={booking.member.name}
+          onSave={async (input) => {
+            await mutate(await changeAdminBookingSeat(booking.ref, input), { revalidate: false });
+            onChanged();
+          }}
+          onClose={() => setIsSeatOpen(false)}
+        />
       )}
     </RecordDrawer>
   );

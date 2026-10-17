@@ -14,6 +14,12 @@ export const useStatement = (id: string | null) => {
   return { statement: data, error, isLoading, mutate };
 };
 
+export const useMyPayoutAccount = () => {
+  const accountId = useAuthStore("partner", (state) => state.account?.id);
+  const { data, error, isLoading } = useSWR(accountId ? ["partner/payout-account", accountId] : null, fetchMyPayoutAccount);
+  return { payoutAccount: data ?? null, error, isLoading: isLoading || !accountId };
+};
+
 export const useMyStatements = () => {
   const accountId = useAuthStore("partner", (state) => state.account?.id);
   const statements = useSWR(accountId ? ["partner/statements", accountId] : null, fetchMyStatements);

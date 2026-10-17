@@ -2,6 +2,7 @@ import { Schema, model, type Types } from "mongoose";
 import { MEMBERSHIP_LENGTHS, PLAN_SPACES, ROOM_MODES, type MembershipLength, type PlanSpace, type RoomMode } from "../constants/catalogue";
 import { billingDetailsSchema, type BillingDetails } from "./billing.schema";
 import type { BookedSeat } from "./booking.schema";
+import { seatChangeSchema, type SeatChange } from "./seatChange.schema";
 
 export const MEMBERSHIP_STATUSES = [
   "pending-payment",
@@ -72,6 +73,7 @@ export interface MembershipDoc {
   razorpay: { planId: string | null; subscriptionId: string | null; shortUrl?: string | null };
   firstPaymentId: string | null;
   openRequestId: Types.ObjectId | null;
+  seatChanges?: SeatChange[];
   requestKey: string;
   createdAt: Date;
   updatedAt: Date;
@@ -143,6 +145,7 @@ const membershipSchema = new Schema<MembershipDoc>(
     },
     firstPaymentId: { type: String, default: null },
     openRequestId: { type: Schema.Types.ObjectId, default: null },
+    seatChanges: { type: [seatChangeSchema], default: [] },
     requestKey: { type: String, required: true },
   },
   { timestamps: true },

@@ -1,6 +1,6 @@
 import type { QueryFilter, Types } from "mongoose";
 import { AppError } from "../middlewares/error.middleware";
-import { Booking, Member, type BookingDoc, type MemberDoc } from "../models";
+import { Booking, Member, seatChangesView, type BookingDoc, type MemberDoc, type SeatChangeView } from "../models";
 import { addDays, indiaNow, isIsoDate, timeLabel } from "../utils/indiaTime";
 import { canonicalRef, isRef } from "../utils/refs";
 import { escapeRegex } from "../utils/regex";
@@ -33,6 +33,7 @@ export type StaffBookingView = {
   rescheduleCount: number;
   checkedInAt: string | null;
   extras: { preference: string };
+  seatChanges: SeatChangeView[];
 };
 
 export const phoneOf = (member: MemberDoc) =>
@@ -64,6 +65,7 @@ export const toStaffBookingViews = async (bookings: BookingDoc[], now: Date): Pr
       rescheduleCount: booking.rescheduleCount,
       checkedInAt: booking.checkedInAt ? new Date(booking.checkedInAt).toISOString() : null,
       extras: { preference: booking.extras?.preference ?? "none" },
+      seatChanges: seatChangesView(booking.seatChanges),
     };
   });
 };

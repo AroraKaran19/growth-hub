@@ -1,16 +1,20 @@
 "use client";
 
 import { useState } from "react";
+import { ArrowRightLeft } from "lucide-react";
+import ChangeSeatModal from "@/app/components/shared/ChangeSeatModal";
+import SeatChangeList from "@/app/components/shared/SeatChangeList";
 import { useAdminMembership } from "@/hooks/useStaffBookings";
 import { stopRenewalAsAdmin } from "@/libs/api/adminRecords";
 import { readApiError } from "@/libs/api/errors";
+import { changeAdminMembershipSeat } from "@/libs/api/seatChanges";
 import { MEMBERSHIP_STATUS_LABELS, isLiveMembership } from "@/types/membership";
 import { invoiceToLabel } from "@/utils/companyInvoice";
 import { formatDay } from "@/utils/date";
 import { cycleUnit, membershipTitle, scheduleLabel, spaceName } from "@/utils/membershipLabels";
 import { rupees } from "../../../Partner/requestRules";
 import AdminCancelForm from "./AdminCancelForm";
-import RecordDrawer from "./RecordDrawer";
+import RecordDrawer, { CHANGE_SEAT_BUTTON } from "./RecordDrawer";
 import RequestHistory from "./RequestHistory";
 
 /** One membership for an admin: details, stop renewal, cancel and every request. */
@@ -25,6 +29,7 @@ const MembershipDrawer = ({
 }) => {
   const { membership, error, mutate } = useAdminMembership(membershipRef);
   const [isCancelOpen, setIsCancelOpen] = useState(false);
+  const [isSeatOpen, setIsSeatOpen] = useState(false);
   const [isStopping, setIsStopping] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -90,7 +95,15 @@ const MembershipDrawer = ({
               <dd className="mt-1 text-sm text-tertiary">{scheduleLabel(membership)}</dd>
             </div>
             <div className="col-span-2">
-              <dt className="text-xs text-tertiary/50">{membership.seatList.length === 1 ? "Seat" : "Seats"}</dt>
+              <dt className="flex items-center justify-between gap-3 text-xs text-tertiary/50">
+                {membership.seatList.length === 1 ? "Seat" : "Seats"}
+                {isLive && (
+                  <button type="button" onClick={() => setIsSeatOpen(true)} className={CHANGE_SEAT_BUTTON}>
+                    <ArrowRightLeft aria-hidden="true" className="size-3.5" />
+                    Change seat
+                  </button>
+                )}
+              </dt>
               <dd className="mt-1.5">
                 <ul className="flex flex-wrap gap-1.5">
                   {membership.seatList.map((seat) => (
@@ -178,11 +191,32 @@ const MembershipDrawer = ({
             </section>
           )}
 
+          {(membership.seatChanges ?? []).length > 0 && (
+            <section>
+              <h3 className="mb-3 text-sm font-semibold text-tertiary">Seat changes</h3>
+              <SeatChangeList changes={membership.seatChanges} />
+            </section>
+          )}
+
           <section>
             <h3 className="mb-3 text-sm font-semibold text-tertiary">Cancellation requests</h3>
             <RequestHistory requests={membership.requests} />
           </section>
         </div>
+      )}
+
+      {isSeatOpen && membership && (
+        <ChangeSeatModal
+          desk="admin"
+          record="membership"
+          recordRef={membership.ref}
+          customerName={membership.member.name}
+          onSave={async (input) => {
+            await mutate(await changeAdminMembershipSeat(membership.ref, input), { revalidate: false });
+            onChanged();
+          }}
+          onClose={() => setIsSeatOpen(false)}
+        />
       )}
     </RecordDrawer>
   );

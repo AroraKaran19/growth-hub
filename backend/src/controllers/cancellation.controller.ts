@@ -65,6 +65,11 @@ export const postPartnerDecision = asyncHandler(async (req: Request, res: Respon
   sendSuccessResponse(res, { request }, "Decision saved");
 });
 
+export const postPartnerMembershipCancel = asyncHandler(async (req: Request, res: Response) => {
+  const request = await cancelDirectly(partnerOf(req), "membership", refOf(req), parseBody(adminCancelSchema, req.body));
+  sendSuccessResponse(res, { request }, "Cancelled");
+});
+
 export const getAdminRequests = asyncHandler(async (req: Request, res: Response) => {
   const { kinds } = adminOf(req);
   const asked = typeof req.query.kind === "string" ? req.query.kind.split(",") : [];

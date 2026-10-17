@@ -15,7 +15,8 @@ type RecordDrawerProps = {
 const RecordDrawer = ({ title, subtitle, badge, onClose, children }: RecordDrawerProps) => {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      // A popup opened over the drawer marks its own Escape as handled.
+      if (event.key === "Escape" && !event.defaultPrevented) onClose();
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
@@ -53,5 +54,8 @@ const RecordDrawer = ({ title, subtitle, badge, onClose, children }: RecordDrawe
     </div>
   );
 };
+
+export const CHANGE_SEAT_BUTTON =
+  "inline-flex items-center gap-1.5 rounded-full border border-tertiary/15 bg-surface px-3 py-1 text-xs font-medium text-tertiary transition-all hover:border-primary/40 hover:text-primary hover:shadow-sm";
 
 export default RecordDrawer;

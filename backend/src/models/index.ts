@@ -7,6 +7,7 @@ export * from "./refreshToken.schema";
 export * from "./session.schema";
 export * from "./addonType.schema";
 export * from "./seatMap.schema";
+export * from "./seatChange.schema";
 export * from "./venue.schema";
 export * from "./booking.schema";
 export * from "./counter.schema";

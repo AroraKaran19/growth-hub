@@ -30,3 +30,6 @@ export const cancelAsAdmin = (
   ref: string,
   body: { reason: CancellationReason; refundAmount: number; note: string },
 ) => requestOf(adminApi.post(`/admin/${PATHS[kind]}/${ref}/cancel`, body));
+
+export const cancelMembershipAsPartner = (ref: string, body: { reason: CancellationReason; refundAmount: number; note: string }) =>
+  requestOf(partnerApi.post(`/partner/members/${ref}/cancel`, body));

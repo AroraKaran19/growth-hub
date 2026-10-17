@@ -3,7 +3,7 @@
 import useSWR from "swr";
 import { partnerApi, publicApi } from "@/libs/api/client";
 import { useAuthStore } from "@/stores/auth";
-import type { PartnerVenue, Venue, VenueDetail } from "@/types/venue";
+import type { PartnerListingInput, PartnerVenue, Venue, VenueDetail } from "@/types/venue";
 
 type Envelope<T> = { data: { data: T } };
 
@@ -50,5 +50,11 @@ export const usePartnerVenue = () => {
     await mutate(response.data.data.venue, { revalidate: false });
   };
 
-  return { venue: data, error, isLoading, saveAddons, savePrices, refresh: () => mutate() };
+  const saveListing = async (listing: PartnerListingInput) => {
+    const response = (await partnerApi.patch("/partner/venue", listing)) as Envelope<{ venue: PartnerVenue }>;
+    await mutate(response.data.data.venue, { revalidate: false });
+    return response.data.data.venue;
+  };
+
+  return { venue: data, error, isLoading, saveAddons, savePrices, saveListing, refresh: () => mutate() };
 };

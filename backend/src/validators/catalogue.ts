@@ -158,6 +158,24 @@ export const venuePricesSchema = venueFields
   .strict()
   .refine((change) => Object.keys(change).length > 0, { message: "Nothing to change." });
 
+/** What a venue's own staff may change about its listing; the rest is Growth Hub's. */
+export const partnerVenueSchema = venueFields
+  .pick({
+    description: true,
+    longDescription: true,
+    hours: true,
+    hoursNote: true,
+    image: true,
+    gallery: true,
+    amenities: true,
+  })
+  .partial()
+  .extend({ version: z.number({ error: "Reload the venue and try again." }).int().min(0) })
+  .strict()
+  .refine((change) => Object.keys(change).length > 1, { message: "Nothing to change." });
+
+export type PartnerVenueInput = z.infer<typeof partnerVenueSchema>;
+
 export const assignSeatMapSchema = z.object({ seatMapId: objectIdSchema });
 
 export const takeSeatOutSchema = z

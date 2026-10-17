@@ -1,6 +1,6 @@
 "use client";
 
-import { adminApi, memberApi } from "./client";
+import { adminApi, memberApi, partnerApi } from "./client";
 
 export const IMAGE_TYPES = ["image/webp", "image/png", "image/jpeg", "image/avif"];
 
@@ -28,6 +28,20 @@ export const uploadImage = async (
 ): Promise<string> => {
   checkType(file);
   const { data } = await adminApi.post<{ data: Ticket }>("/admin/assets/upload-url", {
+    assetKind: kind,
+    ownerId,
+    contentType: file.type,
+  });
+  await sendToS3(data.data, file);
+  return data.data.publicUrl;
+};
+
+export type VenuePhotoKind = "venue-cover" | "venue-gallery";
+
+/** A venue's own staff upload its photos; the server keys them under their venue. */
+export const uploadPartnerImage = async (file: File, kind: VenuePhotoKind, ownerId: string): Promise<string> => {
+  checkType(file);
+  const { data } = await partnerApi.post<{ data: Ticket }>("/partner/assets/upload-url", {
     assetKind: kind,
     ownerId,
     contentType: file.type,

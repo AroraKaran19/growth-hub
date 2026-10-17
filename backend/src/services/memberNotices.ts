@@ -1,12 +1,13 @@
-import type { MembershipDoc } from "../models";
+import type { MemberDoc, MembershipDoc } from "../models";
 import { dateLabel } from "../utils/indiaTime";
 import { siteLink } from "../utils/siteLink";
 import { notifyMember } from "./notify.service";
+import { phoneOf } from "./staffBookings.service";
 
-export const tellWelcome = (memberId: unknown) =>
-  notifyMember("WELCOME", memberId, {
-    memberships_link: siteLink("/memberships"),
-    billing_link: siteLink("/account/billing"),
+export const tellWelcome = (member: MemberDoc) =>
+  notifyMember("WELCOME", member._id, {
+    email: member.email ?? "",
+    phone: phoneOf(member),
     help_link: siteLink("/support"),
   });
 

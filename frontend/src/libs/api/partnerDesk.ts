@@ -1,6 +1,7 @@
 "use client";
 
 import type { StaffBooking } from "@/types/apiBooking";
+import type { SeatOutage } from "@/types/catalogue";
 import type { StaffMembership } from "@/types/membership";
 import type { PlanInput } from "@/types/membershipPlan";
 import type { CheckInInput, CheckInResult, SeatCheckIn } from "@/types/partner";
@@ -29,6 +30,8 @@ export type DeskToday = {
   members: TodayMember[];
   walkInSeatIds: string[];
   beingBookedSeatIds: string[];
+  /** Running and scheduled outages. */
+  outages: SeatOutage[];
   addons: TodayAddon[];
   deskSalesToday: DeskSale[];
 };
@@ -47,3 +50,43 @@ export const checkInAtDesk = async (input: CheckInInput) =>
 export const addWalkIn = (seatId: string) => partnerApi.post("/partner/walk-ins", { seatId });
 
 export const removeWalkIn = (seatId: string) => partnerApi.delete(`/partner/walk-ins/${encodeURIComponent(seatId)}`);
+
+export type UnavailableReason = "out-of-service" | "taken";
+
+/** A wall-clock moment at the venue: an ISO date and minutes after midnight. */
+export type SeatMoment = { date: string; minutes: number };
+
+export type SeatUnavailableInput = { reason: UnavailableReason; from: SeatMoment; until: SeatMoment | null };
+
+export type SeatConflict = {
+  kind: "booking" | "membership" | "walk-in";
+  ref: string;
+  member: string;
+  date: string;
+  lastDate: string;
+  time: string;
+};
+
+export type UnavailableSummary = {
+  seatId: string;
+  seatLabel: string;
+  reason: UnavailableReason;
+  from: SeatMoment;
+  until: SeatMoment | null;
+  /** For a desk sale: the part of each open day it holds. */
+  windows: { date: string; start: number; end: number }[];
+  replaces: { startsAt: string; endsAt: string | null } | null;
+};
+
+export type UnavailablePreview = { summary: UnavailableSummary; conflicts: SeatConflict[] };
+
+const seatPath = (seatId: string) => `/partner/seats/${encodeURIComponent(seatId)}`;
+
+export const previewSeatUnavailable = async (seatId: string, input: SeatUnavailableInput) =>
+  ((await partnerApi.post(`${seatPath(seatId)}/unavailable/preview`, input)) as Envelope<UnavailablePreview>).data.data;
+
+export const markSeatUnavailable = async (seatId: string, input: SeatUnavailableInput) =>
+  ((await partnerApi.post(`${seatPath(seatId)}/unavailable`, input)) as Envelope<{ summary: UnavailableSummary }>).data.data
+    .summary;
+
+export const endSeatOutage = (seatId: string) => partnerApi.delete(`${seatPath(seatId)}/outage`);

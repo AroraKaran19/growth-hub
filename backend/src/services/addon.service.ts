@@ -25,7 +25,7 @@ export type AddonChoice = {
   enabled: boolean;
 };
 
-export type PartnerVenue = PublicVenueDetail & { addonChoices: AddonChoice[] };
+export type PartnerVenue = PublicVenueDetail & { addonChoices: AddonChoice[]; version: number };
 
 const toView = (type: AddonTypeDoc): AddonTypeView => ({
   id: type._id.toString(),
@@ -77,10 +77,15 @@ export const addonChoicesFor = async (venueSlug: string) => {
   });
 };
 
-export const getPartnerVenue = async (venueSlug: string): Promise<PartnerVenue> => ({
-  ...(await getPublicVenue(venueSlug)),
-  addonChoices: await addonChoicesFor(venueSlug),
-});
+export const getPartnerVenue = async (venueSlug: string): Promise<PartnerVenue> => {
+  // Read first, so a save racing this read can only make the version look older.
+  const version = (await Venue.findOne({ slug: venueSlug }, { __v: 1 }).lean<{ __v: number }>())?.__v ?? 0;
+  return {
+    ...(await getPublicVenue(venueSlug)),
+    addonChoices: await addonChoicesFor(venueSlug),
+    version,
+  };
+};
 
 export const setVenueAddons = async (venueSlug: string, input: VenueAddonsInput, actor: Actor) => {
   const ids = input.addons.map((addon) => addon.addonTypeId);

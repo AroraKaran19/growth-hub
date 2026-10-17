@@ -451,18 +451,21 @@ const decide = async (id: string, decider: Decider, decision: Decision, gatewayS
   }
 };
 
-/** An admin cancelling outright: decides the open request, or opens and approves one. */
+/** Staff cancelling outright: decides the open request, or opens and approves one. */
 export const cancelDirectly = async (
-  admin: Extract<Decider, { type: "admin" }>,
+  decider: Decider,
   kind: RequestKind,
   ref: string,
   input: { reason: CancellationReason; refundAmount: number; note: string },
 ) => {
   const target = await targetByRef(kind, ref);
+  if (decider.type === "partner" && target.doc.venueSlug !== decider.venueSlug) {
+    throw new AppError("This belongs to another venue.", 403, "WRONG_VENUE");
+  }
   const approve = { decision: "approve" as const, refundAmount: input.refundAmount, note: input.note };
-  if (target.doc.openRequestId) return decideRequest(target.doc.openRequestId.toString(), admin, approve);
+  if (target.doc.openRequestId) return decideRequest(target.doc.openRequestId.toString(), decider, approve);
 
-  if (!admin.kinds.includes(kind)) {
+  if (decider.type === "admin" && !decider.kinds.includes(kind)) {
     throw new AppError("You don't have access to this section.", 403, "PERMISSION_DENIED");
   }
   const status = statusNow(target, new Date());
@@ -476,7 +479,7 @@ export const cancelDirectly = async (
     previousStatus: status,
     systemOpened: false,
   });
-  return decide(request._id.toString(), admin, approve, true);
+  return decide(request._id.toString(), decider, approve, true);
 };
 
 /** Checking in shows the member still wants the booking. */

@@ -1,13 +1,16 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Search } from "lucide-react";
+import { ArrowRightLeft, Search } from "lucide-react";
+import ChangeSeatModal from "@/app/components/shared/ChangeSeatModal";
 import SelectField from "@/app/components/ui/form/SelectField";
 import { usePartnerDesk } from "@/stores/partner";
+import RowActionsMenu from "../Admin/components/users/RowActionsMenu";
 import DeskAddonModal, { type DeskAddonSubject } from "./components/DeskAddonModal";
 import TodayAddonsCell from "./components/TodayAddonsCell";
 import {
   PARTNER_BOOKING_STATUS_LABELS,
+  type PartnerBooking,
   type PartnerBookingStatus,
 } from "@/types/partner";
 import { cn } from "@/utils";
@@ -44,6 +47,7 @@ const PartnerBookingsPage = () => {
   const [status, setStatus] = useState("");
   const [query, setQuery] = useState("");
   const [addonsFor, setAddonsFor] = useState<DeskAddonSubject | null>(null);
+  const [seatFor, setSeatFor] = useState<PartnerBooking | null>(null);
 
   const inRange = useMemo(
     () => ({
@@ -193,17 +197,27 @@ const PartnerBookingsPage = () => {
                       </div>
                     )}
                   </td>
-                  <td className="px-5 py-3.5 text-right">
-                    {booking.status === "upcoming" && booking.date === desk.today && (
-                      <button
-                        type="button"
-                        onClick={() => void desk.quickCheckIn(booking.bookingId)}
-                        className={CHECK_IN_BUTTON}
-                      >
-                        Check in
-                        <span className="sr-only"> {booking.memberName}</span>
-                      </button>
-                    )}
+                  <td className="px-5 py-3.5">
+                    <div className="flex items-center justify-end gap-2">
+                      {booking.status === "upcoming" && booking.date === desk.today && (
+                        <button
+                          type="button"
+                          onClick={() => void desk.quickCheckIn(booking.bookingId)}
+                          className={CHECK_IN_BUTTON}
+                        >
+                          Check in
+                          <span className="sr-only"> {booking.memberName}</span>
+                        </button>
+                      )}
+                      <RowActionsMenu
+                        label={`Actions for ${booking.memberName}, ${booking.bookingId}`}
+                        actions={
+                          booking.status === "upcoming" || booking.status === "checked-in"
+                            ? [{ key: "seat", label: "Change seat", icon: ArrowRightLeft, onSelect: () => setSeatFor(booking) }]
+                            : []
+                        }
+                      />
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -223,6 +237,17 @@ const PartnerBookingsPage = () => {
           onRecord={desk.recordAddons}
           onVoid={desk.voidAddons}
           onClose={() => setAddonsFor(null)}
+        />
+      )}
+
+      {seatFor && (
+        <ChangeSeatModal
+          desk="partner"
+          record="booking"
+          recordRef={seatFor.bookingId}
+          customerName={seatFor.memberName}
+          onSave={(input) => desk.changeBookingSeat(seatFor.bookingId, input)}
+          onClose={() => setSeatFor(null)}
         />
       )}
     </>
