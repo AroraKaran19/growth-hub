@@ -17,6 +17,7 @@ import {
 import { cn } from "@/utils";
 import { formatDay } from "@/utils/date";
 import { RAISED } from "../venue/fields";
+import CustomerPicker, { type PickedCustomer } from "./CustomerPicker";
 
 const INPUT =
   "w-full rounded-lg border bg-secondary px-3.5 py-2.5 text-sm text-tertiary outline-none transition-colors placeholder:text-tertiary/40 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20 disabled:bg-tertiary/4 disabled:text-tertiary/55";
@@ -35,6 +36,7 @@ const SCOPE_OPTIONS = (Object.keys(COUPON_SCOPE_LABELS) as CouponScope[]).map((v
 const VISIBILITY_OPTIONS = [
   { value: "public", label: "Every member's wallet" },
   { value: "code-only", label: "Only with the code" },
+  { value: "member", label: "One customer" },
 ];
 
 type Draft = {
@@ -51,9 +53,10 @@ type Draft = {
   perMemberLimit: string;
   totalLimit: string;
   visibility: CouponVisibility;
+  customer: PickedCustomer | null;
 };
 
-type Errors = Partial<Record<keyof Draft, string>>;
+type Errors = Partial<Record<keyof Draft | "memberId", string>>;
 
 const emptyDraft = (today: string): Draft => ({
   code: "",
@@ -69,6 +72,7 @@ const emptyDraft = (today: string): Draft => ({
   perMemberLimit: "1",
   totalLimit: "",
   visibility: "code-only",
+  customer: null,
 });
 
 const rupeesText = (paise: number | null) => (paise === null ? "" : String(paise / 100));
@@ -88,6 +92,9 @@ const draftOf = (coupon: AdminCoupon): Draft => ({
   perMemberLimit: String(coupon.perMemberLimit),
   totalLimit: coupon.totalLimit === null ? "" : String(coupon.totalLimit),
   visibility: coupon.visibility,
+  customer: coupon.assignedTo
+    ? { id: coupon.assignedTo.memberId, name: coupon.assignedTo.name, phone: coupon.assignedTo.phone, email: null }
+    : null,
 });
 
 type CouponFormProps = {
@@ -124,6 +131,7 @@ const CouponForm = ({ editing, today, onDone }: CouponFormProps) => {
     else if (draft.endsOn < draft.startsOn) found.endsOn = "End on or after the start date.";
     if (!(Number(draft.perMemberLimit) >= 1)) found.perMemberLimit = "At least 1.";
     if (draft.totalLimit && !(Number(draft.totalLimit) >= 1)) found.totalLimit = "Leave blank for no limit.";
+    if (draft.visibility === "member" && !draft.customer) found.memberId = "Pick a customer.";
     return found;
   };
 
@@ -141,6 +149,7 @@ const CouponForm = ({ editing, today, onDone }: CouponFormProps) => {
     perMemberLimit: Number(draft.perMemberLimit),
     totalLimit: draft.totalLimit ? Number(draft.totalLimit) : null,
     visibility: draft.visibility,
+    ...(draft.visibility === "member" && draft.customer && { memberId: draft.customer.id }),
     active: editing?.active ?? true,
   });
 
@@ -189,7 +198,7 @@ const CouponForm = ({ editing, today, onDone }: CouponFormProps) => {
         </span>
         <div className="min-w-0">
           <h2 className="truncate text-base font-bold text-tertiary">{editing ? `Edit ${editing.code}` : "Create a coupon"}</h2>
-          <p className="text-sm text-tertiary/55">Public coupons show in every wallet; code-only ones need the code.</p>
+          <p className="text-sm text-tertiary/55">Show it in every wallet, keep it behind a code, or give it to one customer.</p>
         </div>
       </div>
 
@@ -334,9 +343,23 @@ const CouponForm = ({ editing, today, onDone }: CouponFormProps) => {
         <SelectField
           label="Who sees it"
           value={draft.visibility}
-          onChange={(value) => set("visibility", value as CouponVisibility)}
+          onChange={(value) => {
+            set("visibility", value as CouponVisibility);
+            setErrors((current) => ({ ...current, memberId: undefined }));
+          }}
           options={VISIBILITY_OPTIONS}
         />
+
+        {draft.visibility === "member" && (
+          <CustomerPicker
+            value={draft.customer}
+            onChange={(customer) => {
+              set("customer", customer);
+              setErrors((current) => ({ ...current, memberId: undefined }));
+            }}
+            error={errors.memberId}
+          />
+        )}
       </div>
 
       <button

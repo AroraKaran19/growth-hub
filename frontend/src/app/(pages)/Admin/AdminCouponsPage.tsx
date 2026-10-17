@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { PencilLine, Plus } from "lucide-react";
+import { PencilLine, Plus, UserRound } from "lucide-react";
 import { useAdminCoupons } from "@/hooks/useCoupons";
 import { updateAdminCoupon } from "@/libs/api/coupons";
 import { readApiError } from "@/libs/api/errors";
@@ -57,7 +57,7 @@ const AdminCouponsPage = () => {
     <>
       <PageHeader
         title="Coupons"
-        description="Offers members use at checkout. Public coupons show in every wallet; code-only ones need the code."
+        description="Offers members use at checkout. Public coupons show in every wallet, code-only ones need the code, and one-customer ones reach a single wallet."
         actions={
           <button
             type="button"
@@ -110,7 +110,17 @@ const AdminCouponsPage = () => {
                   <tr key={coupon.id} className="transition-colors hover:bg-tertiary/2">
                     <td className="px-5 py-3.5">
                       <p className="font-mono font-semibold text-tertiary">{coupon.code}</p>
-                      <p className="text-xs text-tertiary/50">{coupon.visibility === "public" ? "In every wallet" : "Code only"}</p>
+                      {coupon.visibility === "member" && coupon.assignedTo ? (
+                        <p className="mt-0.5 flex max-w-56 flex-col text-xs">
+                          <span className="flex min-w-0 items-center gap-1 font-medium text-primary">
+                            <UserRound aria-hidden="true" className="size-3 shrink-0" />
+                            <span className="truncate">For {coupon.assignedTo.name}</span>
+                          </span>
+                          <span className="text-tertiary/50">{coupon.assignedTo.phone}</span>
+                        </p>
+                      ) : (
+                        <p className="text-xs text-tertiary/50">{coupon.visibility === "public" ? "In every wallet" : "Code only"}</p>
+                      )}
                     </td>
                     <td className="px-5 py-3.5">
                       <p className="font-medium text-primary">{couponHeadline(coupon)}</p>
