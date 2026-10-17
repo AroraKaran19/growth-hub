@@ -18,7 +18,7 @@ The header logo loads from `https://growthhubconnect.in/email/logo-white.png`, w
 
 | File | MSG91 template ID | Sent when | Variables |
 | --- | --- | --- | --- |
-| welcome.html | `growthhub_welcome` | A new customer saves their email for the first time, finishing sign-up | memberships_link, billing_link, help_link |
+| welcome.html | `growthhub_welcome` | A new customer finishes sign-up (account confirmation) | email, phone, help_link |
 | booking-confirmed.html | `growthhub_booking_confirmed` | A booking (desk, room or pass) is paid, with its invoice attached. Its button opens the booking with the check-in QR | booking_id, venue, date, time, addons (list of label, amount; the block hides when empty), amount, invoice_number, invoice_note |
 | membership-started.html | `growthhub_membership_started` | A membership is paid, with its first invoice attached | membership_id, venue, plan, starts, amount, invoice_number, invoice_note |
 | addon-order-confirmed.html | `growthhub_addon_order_confirmed` | Add-ons bought later for a booking or membership are paid, with the invoice attached | order_id, added_to, venue, items (list of label, amount), dates, amount, invoice_number, invoice_note |
