@@ -26,6 +26,8 @@ export interface CouponDoc {
   perMemberLimit: number;
   totalLimit: number | null;
   visibility: CouponVisibility;
+  /** Set only for "member" coupons; name and phone are a display snapshot. */
+  assignedTo: CouponAssignee | null;
   active: boolean;
   redemptionCount: number;
   createdBy: { id: string; name: string } | null;
@@ -34,7 +36,14 @@ export interface CouponDoc {
   updatedAt: Date;
 }
 
+export type CouponAssignee = { memberId: Types.ObjectId; name: string; phone: string };
+
 const byline = new Schema<{ id: string; name: string }>({ id: String, name: String }, { _id: false });
+
+const assignee = new Schema<CouponAssignee>(
+  { memberId: { type: Schema.Types.ObjectId, required: true }, name: String, phone: String },
+  { _id: false },
+);
 
 const couponSchema = new Schema<CouponDoc>(
   {
@@ -51,6 +60,7 @@ const couponSchema = new Schema<CouponDoc>(
     perMemberLimit: { type: Number, default: 1 },
     totalLimit: { type: Number, default: null },
     visibility: { type: String, enum: [...COUPON_VISIBILITY], default: "code-only" },
+    assignedTo: { type: assignee, default: null },
     active: { type: Boolean, default: true },
     redemptionCount: { type: Number, default: 0 },
     createdBy: { type: byline, default: null },
@@ -60,5 +70,6 @@ const couponSchema = new Schema<CouponDoc>(
 );
 
 couponSchema.index({ visibility: 1, active: 1, endsOn: 1 });
+couponSchema.index({ "assignedTo.memberId": 1 }, { sparse: true });
 
 export const Coupon = model<CouponDoc>("Coupon", couponSchema, "coupons");

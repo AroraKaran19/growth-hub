@@ -16,7 +16,7 @@ type SeatMapProps = {
 };
 
 const LEGEND = [
-  { label: "Available", className: "bg-green-500" },
+  { label: "Available", className: "border border-green-500 bg-green-300/60" },
   { label: "Selected", className: "bg-orange-500" },
   { label: "Unavailable", className: "bg-tertiary/30" },
 ];
@@ -56,7 +56,7 @@ const SeatMap = ({
     if (!seat.available) return "border-tertiary/30 bg-tertiary/25";
     if (!isChosenType(seat)) return "border-transparent bg-transparent";
     if (blocked) return "border-tertiary/25 bg-tertiary/10";
-    return "border-green-600 bg-green-500/45 hover:bg-green-500/65";
+    return "border-green-500 bg-green-300/35 hover:bg-green-400/50";
   };
 
   const legend =

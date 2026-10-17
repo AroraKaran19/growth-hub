@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { createPortal } from "react-dom";
 import { Check, ChevronDown, type LucideIcon } from "lucide-react";
 import type { SelectOption } from "@/types/search";
 import { cn } from "@/utils";
@@ -23,6 +24,24 @@ type SelectFieldProps = {
   required?: boolean;
 };
 
+const MENU_GAP = 8;
+const MENU_MAX_HEIGHT = 224;
+const MIN_ROOM_BELOW = 160;
+
+/** Fixed under the field, or above it when the screen has more room there. */
+export const placeMenu =(field: DOMRect, compact: boolean): CSSProperties => {
+  const below = window.innerHeight - field.bottom - MENU_GAP * 2;
+  const above = field.top - MENU_GAP * 2;
+  const openUp = below < MIN_ROOM_BELOW && above > below;
+  return {
+    position: "fixed",
+    left: field.left,
+    ...(compact ? { minWidth: field.width } : { width: field.width }),
+    maxHeight: Math.min(MENU_MAX_HEIGHT, openUp ? above : below),
+    ...(openUp ? { bottom: window.innerHeight - field.top + MENU_GAP } : { top: field.bottom + MENU_GAP }),
+  };
+};
+
 // Custom listbox: a native <select>'s popup can't be themed.
 const SelectField = ({
   label,
@@ -39,7 +58,9 @@ const SelectField = ({
   const [isOpen, setIsOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const containerRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
+  const [menuStyle, setMenuStyle] = useState<CSSProperties | null>(null);
   const labelId = useId();
   const listboxId = useId();
 
@@ -69,7 +90,8 @@ const SelectField = ({
     if (!isOpen) return;
 
     const handlePointerDown = (event: PointerEvent) => {
-      if (!containerRef.current?.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (!containerRef.current?.contains(target) && !listRef.current?.contains(target)) {
         setIsOpen(false);
       }
     };
@@ -78,6 +100,21 @@ const SelectField = ({
     return () =>
       document.removeEventListener("pointerdown", handlePointerDown);
   }, [isOpen]);
+
+  // The menu lives on <body>, so a modal or card that scrolls or clips can't cut it off.
+  useLayoutEffect(() => {
+    if (!isOpen) return;
+    const measure = () => {
+      if (buttonRef.current) setMenuStyle(placeMenu(buttonRef.current.getBoundingClientRect(), compact));
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    window.addEventListener("scroll", measure, true);
+    return () => {
+      window.removeEventListener("resize", measure);
+      window.removeEventListener("scroll", measure, true);
+    };
+  }, [isOpen, compact]);
 
   useEffect(() => {
     if (!isOpen || activeIndex < 0) return;
@@ -137,6 +174,7 @@ const SelectField = ({
       </span>
 
       <button
+        ref={buttonRef}
         type="button"
         role="combobox"
         aria-haspopup="listbox"
@@ -177,15 +215,18 @@ const SelectField = ({
         />
       </button>
 
-      {isOpen && (
+      {isOpen && menuStyle && createPortal(
         <ul
           ref={listRef}
           id={listboxId}
           role="listbox"
           aria-labelledby={labelId}
+          style={menuStyle}
+          // Keeps focus on the field, so typing and Escape still reach it.
+          onMouseDown={(event) => event.preventDefault()}
           className={cn(
-            "absolute top-full z-30 mt-2 max-h-56 overflow-y-auto rounded-xl border border-tertiary/10 bg-secondary p-1.5 shadow-xl shadow-tertiary/15",
-            compact ? "left-0 w-max min-w-full" : "inset-x-0",
+            "z-100 overflow-y-auto rounded-xl border border-tertiary/10 bg-secondary p-1.5 shadow-xl shadow-tertiary/15",
+            compact && "w-max",
           )}
         >
           {options.map((option, index) => {
@@ -213,7 +254,8 @@ const SelectField = ({
               </li>
             );
           })}
-        </ul>
+        </ul>,
+        document.body,
       )}
     </div>
   );

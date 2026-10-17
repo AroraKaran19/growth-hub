@@ -36,6 +36,8 @@ export interface InvoiceJobDoc {
   skipEmail: boolean;
   /** The purchase or renewal email carries this invoice; false on jobs queued before that. */
   sendsConfirmation: boolean;
+  /** Whether GST applied when issued; absent on invoices from before the GST registration. */
+  taxed?: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -79,6 +81,7 @@ const invoiceJobSchema = new Schema<InvoiceJobDoc>(
     emailedAt: { type: Date, default: null },
     skipEmail: { type: Boolean, default: false },
     sendsConfirmation: { type: Boolean, default: false },
+    taxed: { type: Boolean },
   },
   { timestamps: true },
 );

@@ -39,6 +39,8 @@ export type WorkspaceAnalytics = {
     noShowRate: Kpi;
     cancellations: Kpi;
     revenue?: Kpi;
+    /** Paise approved for refund on cancelled passes, and how many passes had one. */
+    refunds?: Kpi & { passes: number };
     revpad?: Kpi;
   };
   trend: { date: string; occupancy: number | null; bookedHours: number; openHours: number }[];

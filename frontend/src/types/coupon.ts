@@ -9,7 +9,12 @@ export const COUPON_SCOPE_LABELS: Record<CouponScope, string> = {
 
 export type CouponKind = "percent" | "flat";
 
-export type CouponVisibility = "public" | "code-only";
+export type CouponVisibility = "public" | "code-only" | "member";
+
+/** Snapshot of the one customer a "member" coupon belongs to. */
+export type CouponAssignee = { memberId: string; name: string; phone: string };
+
+export type CouponCustomer = { id: string; name: string; email: string | null; phone: string };
 
 /** Where a coupon stands for this member, worked out by the server in India time. */
 export type CouponState = "available" | "upcoming" | "used" | "expired" | "inactive";
@@ -36,9 +41,11 @@ export type AdminCoupon = CouponTerms & {
   perMemberLimit: number;
   totalLimit: number | null;
   visibility: CouponVisibility;
+  assignedTo: CouponAssignee | null;
   active: boolean;
   redemptionCount: number;
   createdAt: string;
 };
 
-export type CouponInput = Omit<AdminCoupon, "id" | "redemptionCount" | "createdAt">;
+/** memberId is sent only with the "member" visibility. */
+export type CouponInput = Omit<AdminCoupon, "id" | "redemptionCount" | "createdAt" | "assignedTo"> & { memberId?: string };

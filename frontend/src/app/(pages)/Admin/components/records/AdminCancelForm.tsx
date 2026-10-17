@@ -5,10 +5,9 @@ import RequiredMark from "@/app/components/ui/form/RequiredMark";
 import SelectField from "@/app/components/ui/form/SelectField";
 import { cancelAsAdmin } from "@/libs/api/cancellations";
 import { readApiError } from "@/libs/api/errors";
-import { CUSTOMER_REASONS, REASON_LABELS, type CancellationReason, type RequestKind } from "@/types/cancellation";
+import { REASON_LABELS, STAFF_REASONS, type RequestKind, type StaffReason } from "@/types/cancellation";
 import { refundPaise, rupees } from "../../../Partner/requestRules";
 
-const REASONS: CancellationReason[] = ["venue-cancelled", ...CUSTOMER_REASONS];
 const CANCEL_NOUNS: Record<RequestKind, string> = { booking: "booking", membership: "plan", "addon-order": "add-on order" };
 
 type AdminCancelFormProps = {
@@ -22,15 +21,18 @@ type AdminCancelFormProps = {
 
 /** Cancels outright with a reason, the refund the venue pays and a note for the member. */
 const AdminCancelForm = ({ kind, recordRef, paid, hasOpenRequest, onDone }: AdminCancelFormProps) => {
-  const [reason, setReason] = useState<CancellationReason>("venue-cancelled");
+  const [reason, setReason] = useState<StaffReason>("customer-asked");
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  // "Other" has no wording of its own, so the typed reason becomes the member's note.
+  const needsReason = !hasOpenRequest && reason === "other";
 
   const submit = async () => {
     const refund = refundPaise(amount, paid);
     if (refund.error) return setError(refund.error);
+    if (needsReason && !note.trim()) return setError("Type the reason for cancelling.");
     setIsSaving(true);
     setError(null);
     try {
@@ -55,8 +57,11 @@ const AdminCancelForm = ({ kind, recordRef, paid, hasOpenRequest, onDone }: Admi
         <SelectField
           label="Reason"
           value={reason}
-          onChange={(value) => setReason(value as CancellationReason)}
-          options={REASONS.map((value) => ({ value, label: REASON_LABELS[value] }))}
+          onChange={(value) => {
+            setReason(value as StaffReason);
+            setError(null);
+          }}
+          options={STAFF_REASONS.map((value) => ({ value, label: REASON_LABELS[value] }))}
           required
         />
       )}
@@ -91,15 +96,20 @@ const AdminCancelForm = ({ kind, recordRef, paid, hasOpenRequest, onDone }: Admi
       </div>
       <div>
         <label htmlFor={`${kind}-note`} className="text-sm font-medium text-tertiary">
-          Note for the member
+          {needsReason ? "Reason" : "Note for the member"}
+          {needsReason && <RequiredMark />}
         </label>
         <textarea
           id={`${kind}-note`}
           value={note}
           maxLength={500}
           rows={2}
-          onChange={(event) => setNote(event.target.value)}
-          placeholder="Why it was cancelled and what happens next"
+          aria-required={needsReason || undefined}
+          onChange={(event) => {
+            setNote(event.target.value);
+            setError(null);
+          }}
+          placeholder={needsReason ? "Type why it's being cancelled. The member sees this." : "Why it was cancelled and what happens next"}
           className="mt-2 w-full resize-none rounded-lg border border-tertiary/15 bg-secondary px-3 py-2.5 text-sm text-tertiary outline-none transition-colors hover:border-tertiary/30 focus-visible:border-primary"
         />
       </div>

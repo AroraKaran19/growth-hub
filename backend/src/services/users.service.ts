@@ -1,3 +1,4 @@
+import { env } from "../config/env";
 import mongoose, { Types, type PipelineStage } from "mongoose";
 import { AppError } from "../middlewares/error.middleware";
 import { Member, Membership, Venue, type MemberDoc, type MembershipDoc, type VenueDoc } from "../models";
@@ -17,6 +18,8 @@ export type UserRow = {
   name: string | null;
   email: string | null;
   phone: string | null;
+  countryCode: string | null;
+  phoneNumber: string | null;
   venueSlug: string | null;
   venueName: string | null;
   permissions: string[];
@@ -32,11 +35,15 @@ type RawRow = {
   name: string | null;
   email: string | null;
   phone: string | null;
+  countryCode: string | null;
+  phoneNumber: string | null;
   venueSlug: string | null;
   permissions: string[];
   status: AccountStatus;
   createdAt: Date;
 };
+
+const NO_PHONE = { phone: { $literal: null }, countryCode: { $literal: null }, phoneNumber: { $literal: null } };
 
 const SHAPE = {
   name: { $ifNull: ["$name", null] },
@@ -47,11 +54,21 @@ const SHAPE = {
 
 // Admins saved before roles existed count as super admins, as everywhere else.
 const UNION: PipelineStage[] = [
-  { $project: { ...SHAPE, kind: { $literal: "customer" }, phone: "$phoneE164", venueSlug: { $literal: null }, permissions: { $literal: [] } } },
+  {
+    $project: {
+      ...SHAPE,
+      kind: { $literal: "customer" },
+      phone: "$phoneE164",
+      countryCode: 1,
+      phoneNumber: 1,
+      venueSlug: { $literal: null },
+      permissions: { $literal: [] },
+    },
+  },
   {
     $unionWith: {
       coll: "partner_staff",
-      pipeline: [{ $project: { ...SHAPE, kind: { $literal: "partner" }, phone: { $literal: null }, venueSlug: 1, permissions: { $literal: [] } } }],
+      pipeline: [{ $project: { ...SHAPE, ...NO_PHONE, kind: { $literal: "partner" }, venueSlug: 1, permissions: { $literal: [] } } }],
     },
   },
   {
@@ -61,8 +78,8 @@ const UNION: PipelineStage[] = [
         {
           $project: {
             ...SHAPE,
+            ...NO_PHONE,
             kind: { $ifNull: ["$role", "super-admin"] },
-            phone: { $literal: null },
             venueSlug: { $literal: null },
             permissions: { $cond: [{ $eq: ["$role", "admin"] }, { $ifNull: ["$permissions", []] }, []] },
           },
@@ -119,6 +136,8 @@ const toRows = async (raw: RawRow[]): Promise<UserRow[]> => {
       name: row.name,
       email: row.email,
       phone: row.phone,
+      countryCode: row.countryCode ?? null,
+      phoneNumber: row.phoneNumber ?? null,
       venueSlug: row.venueSlug,
       venueName: row.venueSlug ? (venueNames.get(row.venueSlug) ?? null) : null,
       permissions: row.permissions,
@@ -173,6 +192,18 @@ export const listUsers = async ({ kind, status, q, page }: ListUsersQuery) => {
 
 const notFound = () => new AppError("That customer no longer exists.", 404, "CUSTOMER_NOT_FOUND");
 
+const phoneTaken = () =>
+  new AppError("That number already has a Growth Hub account.", 409, "PHONE_TAKEN", {
+    fields: { phone: "That number already has a Growth Hub account." },
+  });
+
+/** 404s unless the customer still has an account. */
+export const requireCustomer = async (id: string) => {
+  const member = Types.ObjectId.isValid(id) ? await Member.exists({ _id: id }) : null;
+  if (!member) throw notFound();
+  return member._id;
+};
+
 const stopEveryRenewal = async (memberId: Types.ObjectId) => {
   const plans = await Membership.find({ memberId, ...renewingFilter }).lean<MembershipDoc[]>();
   let stopped = 0;
@@ -191,23 +222,37 @@ export const updateCustomer = async (id: string, change: UpdateCustomerInput) =>
   const member = Types.ObjectId.isValid(id) ? await Member.findById(id).lean<MemberDoc>() : null;
   if (!member) throw notFound();
 
-  const updated = await Member.findByIdAndUpdate(
-    member._id,
-    {
-      $set: {
-        ...(change.name !== undefined && { name: change.name }),
-        ...(change.email !== undefined && { email: change.email }),
-        ...(change.status && { status: change.status }),
+  const phone = change.phone && change.phone.e164 !== member.phoneE164 ? change.phone : null;
+  if (phone && (await Member.exists({ phoneE164: phone.e164, _id: { $ne: member._id } }))) throw phoneTaken();
+  // The review sign-in skips the SMS check, so no real customer may hold that number.
+  if (phone && phone.e164 === env().authTestPhone) throw phoneTaken();
+
+  let updated: MemberDoc | null;
+  try {
+    updated = await Member.findByIdAndUpdate(
+      member._id,
+      {
+        $set: {
+          ...(change.name !== undefined && { name: change.name }),
+          ...(change.email !== undefined && { email: change.email }),
+          ...(change.status && { status: change.status }),
+          ...(phone && { phoneE164: phone.e164, countryCode: phone.countryCode, phoneNumber: phone.phoneNumber }),
+        },
       },
-    },
-    { returnDocument: "after" },
-  ).lean<MemberDoc>();
+      { returnDocument: "after" },
+    ).lean<MemberDoc>();
+  } catch (error) {
+    if ((error as { code?: number }).code === 11000) throw phoneTaken();
+    throw error;
+  }
   if (!updated) throw notFound();
 
   let stoppedMemberships = 0;
   if (change.status === "disabled" && member.status !== "disabled") {
     await revokeAccountSessions("member", member._id, "disabled");
     stoppedMemberships = await stopEveryRenewal(member._id);
+  } else if (phone) {
+    await revokeAccountSessions("member", member._id, "details-changed");
   }
 
   const [user] = await toRows([
@@ -217,13 +262,15 @@ export const updateCustomer = async (id: string, change: UpdateCustomerInput) =>
       name: updated.name,
       email: updated.email,
       phone: updated.phoneE164,
+      countryCode: updated.countryCode,
+      phoneNumber: updated.phoneNumber,
       venueSlug: null,
       permissions: [],
       status: updated.status,
       createdAt: updated.createdAt,
     },
   ]);
-  return { user, stoppedMemberships };
+  return { user, stoppedMemberships, signedOut: Boolean(phone) || change.status === "disabled" };
 };
 
 /** Removes the account; a snapshot keeps their bookings, invoices and payouts readable. */

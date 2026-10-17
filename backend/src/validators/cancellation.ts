@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CANCELLATION_REASONS, CUSTOMER_REASONS, MAX_DETAILS } from "../constants/cancellation";
+import { CUSTOMER_REASONS, MAX_DETAILS, STAFF_REASONS } from "../constants/cancellation";
 
 const note = z.string().trim().max(MAX_DETAILS);
 
@@ -17,11 +17,16 @@ export const decisionSchema = z.discriminatedUnion("decision", [
   z.object({ decision: z.literal("reject"), note: note.min(1, "Tell the member why.") }),
 ]);
 
-export const adminCancelSchema = z.object({
-  reason: z.enum(CANCELLATION_REASONS),
-  refundAmount: paise,
-  note: note.default(""),
-});
+export const adminCancelSchema = z
+  .object({
+    reason: z.enum(STAFF_REASONS),
+    refundAmount: paise,
+    note: note.default(""),
+  })
+  .refine((input) => input.reason !== "other" || input.note.length > 0, {
+    message: "Type the reason for cancelling.",
+    path: ["note"],
+  });
 
 export type RequestInput = z.infer<typeof requestInputSchema>;
 export type DecisionInput = z.input<typeof decisionSchema>;

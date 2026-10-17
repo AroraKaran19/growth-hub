@@ -1,7 +1,7 @@
 "use client";
 
 import type { ApiBooking, ApiCheckout } from "@/types/apiBooking";
-import type { AdminCoupon, CouponInput, WalletCoupon } from "@/types/coupon";
+import type { AdminCoupon, CouponCustomer, CouponInput, WalletCoupon } from "@/types/coupon";
 import type { ApiMembership, ApiMembershipCheckout } from "@/types/membership";
 import { adminApi, memberApi } from "./client";
 
@@ -36,3 +36,6 @@ export const createAdminCoupon = async (input: CouponInput) =>
 
 export const updateAdminCoupon = async (id: string, patch: Partial<Omit<CouponInput, "code">>) =>
   (await data<{ coupon: AdminCoupon }>(adminApi.patch(`/admin/coupons/${id}`, patch))).coupon;
+
+export const searchCouponCustomers = async (q: string) =>
+  (await data<{ customers: CouponCustomer[] }>(adminApi.get("/admin/coupons/customers", { params: { q } }))).customers;

@@ -196,12 +196,25 @@ const settledPasses = (ids: Types.ObjectId[], period: Period, now: Date) =>
   ]);
 
 const cancellations = async (ids: Types.ObjectId[], at: Instants) => {
-  const rows = await CancellationRequest.aggregate<{ _id: string; count: number }>([
+  const rows = await CancellationRequest.aggregate<{ _id: string; count: number; refunded: number; refundedCount: number }>([
     { $match: { kind: "booking", status: "approved", venueId: { $in: ids }, decidedAt: { $gte: at.start, $lte: at.now } } },
-    { $group: { _id: periodField("$decidedAt", at), count: { $sum: 1 } } },
+    {
+      $group: {
+        _id: periodField("$decidedAt", at),
+        count: { $sum: 1 },
+        refunded: { $sum: { $ifNull: ["$refundAmount", 0] } },
+        refundedCount: { $sum: { $cond: [{ $gt: [{ $ifNull: ["$refundAmount", 0] }, 0] }, 1, 0] } },
+      },
+    },
   ]);
-  const of = (key: PeriodKey) => rows.find((row) => row._id === key)?.count ?? 0;
-  return { current: of("current"), previous: of("previous") };
+  const row = (key: PeriodKey) => rows.find((item) => item._id === key);
+  // A cancellation can carry no refund, so the count and the money are kept apart.
+  return {
+    current: row("current")?.count ?? 0,
+    previous: row("previous")?.count ?? 0,
+    refunded: { current: row("current")?.refunded ?? 0, previous: row("previous")?.refunded ?? 0 },
+    refundedPasses: row("current")?.refundedCount ?? 0,
+  };
 };
 
 /** Memberships whose first cycle was paid in the current period. */
@@ -354,7 +367,8 @@ export const workspaceAnalytics = async (account: AccountSummary, query: Analyti
     cancellations: countKpi(cancelled.current, cancelled.previous),
     ...(revenue && {
       revenue: countKpi(revenue.current, revenue.previous),
-      revpad: countKpi(perSeatDay(revenue.current, measured.current), perSeatDay(revenue.previous, measured.previous)),
+      refunds: { ...countKpi(cancelled.refunded.current, cancelled.refunded.previous), passes: cancelled.refundedPasses },
+      revpad:countKpi(perSeatDay(revenue.current, measured.current), perSeatDay(revenue.previous, measured.previous)),
     }),
   };
 

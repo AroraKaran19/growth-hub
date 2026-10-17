@@ -210,7 +210,8 @@ export const invoiceSummary = async (job: InvoiceJobDoc) => {
 
 export const invoiceDataFor = async (job: InvoiceJobDoc, issuer: InvoiceIssuer = INVOICE_ISSUER): Promise<InvoiceData> => {
   const [source, member] = await Promise.all([LOADERS[job.source.kind](job), job.billedTo ? null : findMember(job.memberId)]);
-  const taxInvoice = Boolean(issuer.gstin);
+  // Decided at issue, so re-rendering an invoice from before registration never adds GST to it.
+  const taxInvoice = Boolean(issuer.gstin) && job.taxed === true;
   const figures = invoiceFigures({
     lines: source.lines,
     discount: source.discount,

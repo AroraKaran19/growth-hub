@@ -8,6 +8,7 @@ import PhoneSignIn from "@/app/components/shared/PhoneSignIn";
 import { useRazorpay, type RazorpaySuccess } from "@/hooks/useRazorpay";
 import { confirmBooking, createBooking, extendHold, releaseHoldOnLeave } from "@/libs/api/bookings";
 import { rememberCompanyDetails } from "@/libs/api/billing";
+import { attemptKeyFor, forgetAttempt } from "./checkoutAttempt";
 import { applyBookingCoupon, removeBookingCoupon } from "@/libs/api/coupons";
 import { readApiError } from "@/libs/api/errors";
 import { useSession } from "@/stores/session";
@@ -43,7 +44,9 @@ const PassCheckout = ({ venue }: { venue: VenueDetail }) => {
   const router = useRouter();
   const { selection, setSelection, clear, isHydrated, isConfigured, isScheduled, isSeatingComplete, isInvoiceReady } =
     useBookingSelection(venue);
-  const { session, isReady: isSessionReady } = useSession();
+  const { session: signedIn, account, isReady: isSessionReady } = useSession();
+  // Name and email come first: confirmations and invoices go to that email.
+  const session = account?.needsOnboarding ? null : signedIn;
   const razorpay = useRazorpay();
 
   const [booking, setBooking] = useState<ApiBooking | null>(null);
@@ -82,14 +85,20 @@ const PassCheckout = ({ venue }: { venue: VenueDetail }) => {
   const start = useEffectEvent(async () => {
     if (started.current) return;
     started.current = true;
-    attemptKey.current ??= crypto.randomUUID();
+    const request = requestFrom(selection, venue.slug);
+    attemptKey.current ??= attemptKeyFor("pass", request);
     setIsStarting(true);
     try {
-      const result = await createBooking(requestFrom(selection, venue.slug), attemptKey.current);
+      const result = await createBooking(request, attemptKey.current);
       held.current.ref = result.booking.ref;
       void rememberCompanyDetails(selection.invoice);
       if (result.booking.status === "upcoming") {
         settle(result.booking);
+        return;
+      }
+      if (result.booking.status === "expired") {
+        held.current.settled = true;
+        setFailure(failureFor("HOLD_EXPIRED", "Your seat hold has run out. Pick your seat again to start over."));
         return;
       }
       setBooking(result.booking);
@@ -142,18 +151,19 @@ const PassCheckout = ({ venue }: { venue: VenueDetail }) => {
     };
   }, [ref]);
 
-  // Leaving without paying frees the seat for others straight away.
-  useEffect(() => {
-    const leave = () => {
+  // Leaving checkout frees the seat at once. A refresh keeps the hold; a closed tab lapses within minutes.
+  useEffect(
+    () => () => {
       const { ref: heldRef, settled } = held.current;
       if (heldRef && !settled) releaseHoldOnLeave(heldRef);
-    };
-    window.addEventListener("pagehide", leave);
-    return () => {
-      window.removeEventListener("pagehide", leave);
-      leave();
-    };
-  }, []);
+      forgetAttempt("pass");
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (failure || confirmed) forgetAttempt("pass");
+  }, [failure, confirmed]);
 
   const left = secondsLeft(booking?.holdCapAt ?? null, now);
 
@@ -315,7 +325,10 @@ const PassCheckout = ({ venue }: { venue: VenueDetail }) => {
                       </div>
                     )}
                     <div className="flex items-baseline justify-between gap-3 border-t border-tertiary/10 pt-3">
-                      <dt className="text-sm text-tertiary/60">Total</dt>
+                      <dt className="text-sm text-tertiary/60">
+                        Total
+                        <span className="block text-xs text-tertiary/45">Inclusive of 18% GST</span>
+                      </dt>
                       <dd className="text-2xl font-bold text-tertiary">{rupees(price.payable)}</dd>
                     </div>
                     {price.minimumApplied && (

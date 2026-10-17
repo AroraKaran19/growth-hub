@@ -1,5 +1,6 @@
 import type { ClientSession, Types } from "mongoose";
 import { gstStateName } from "../constants/gstStates";
+import { INVOICE_ISSUER } from "../constants/invoiceIssuer";
 import { InvoiceJob, Member, type BilledTo, type BillingDetails, type InvoiceSourceKind, type MemberDoc } from "../models";
 import { nextInvoiceNumber } from "./invoiceNumber.service";
 
@@ -29,6 +30,7 @@ export const issueInvoice = async (
   const invoiceNumber = await nextInvoiceNumber(date, session);
   const member = await Member.findById(memberId).session(session).lean<MemberDoc>();
   const billedTo = member ? billedToFrom(member, company) : undefined;
-  await InvoiceJob.create([{ source: { kind, id }, memberId, invoiceNumber, billedTo, sendsConfirmation: true }], { session });
+  const taxed = Boolean(INVOICE_ISSUER.gstin);
+  await InvoiceJob.create([{ source: { kind, id }, memberId, invoiceNumber, billedTo, sendsConfirmation: true, taxed }], { session });
   return invoiceNumber;
 };

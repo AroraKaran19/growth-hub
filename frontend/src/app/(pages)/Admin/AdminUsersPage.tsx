@@ -187,7 +187,7 @@ const AdminUsersPage = () => {
   };
 
   const saveEdit = async (user: UserRow, change: AccountChange) => {
-    if (user.kind === "customer") await updateCustomer(user.id, { name: change.name, email: change.email });
+    if (user.kind === "customer") await updateCustomer(user.id, { name: change.name, email: change.email, phone: change.phone });
     else await adminApi.patch(pathFor(user), change);
     await mutate();
   };
@@ -369,7 +369,14 @@ const AdminUsersPage = () => {
       {editing && (
         <EditAccountModal
           portal={editing.kind === "customer" ? "member" : editing.kind === "partner" ? "partner" : "admin"}
-          account={{ id: editing.id, name: editing.name ?? "", email: editing.email ?? "", phone: editing.phone ?? undefined }}
+          account={{
+            id: editing.id,
+            name: editing.name ?? "",
+            email: editing.email ?? "",
+            phone: editing.phone ?? undefined,
+            countryCode: editing.countryCode ?? undefined,
+            phoneNumber: editing.phoneNumber ?? undefined,
+          }}
           canEditDetails
           venue={editing.kind === "partner" && editing.venueSlug ? { slug: editing.venueSlug, options: data?.venues ?? [] } : undefined}
           access={

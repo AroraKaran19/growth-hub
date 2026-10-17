@@ -1,7 +1,14 @@
 import type { Request, Response } from "express";
 import { asyncHandler, sendSuccessResponse } from "../middlewares/error.middleware";
 import { setBookingCoupon } from "../services/booking.service";
-import { addToWallet, createCoupon, listAdminCoupons, updateCoupon, walletFor } from "../services/coupon.service";
+import {
+  addToWallet,
+  createCoupon,
+  listAdminCoupons,
+  searchCouponCustomers,
+  updateCoupon,
+  walletFor,
+} from "../services/coupon.service";
 import { setMembershipCoupon } from "../services/membership.service";
 import { parseBody } from "../utils/validate";
 import { applyCouponSchema, createCouponSchema, patchCouponSchema, walletCodeSchema } from "../validators/coupon";
@@ -15,7 +22,11 @@ export const getAdminCoupons = asyncHandler(async (_req: Request, res: Response)
   sendSuccessResponse(res, { coupons: await listAdminCoupons() }, "Coupons");
 });
 
-export const postAdminCoupon = asyncHandler(async (req: Request, res: Response) => {
+export const getCouponCustomers = asyncHandler(async (req: Request, res: Response) => {
+  sendSuccessResponse(res, { customers: await searchCouponCustomers(req.query.q) }, "Customers");
+});
+
+export const postAdminCoupon =asyncHandler(async (req: Request, res: Response) => {
   const coupon = await createCoupon(parseBody(createCouponSchema, req.body), bylineOf(req));
   sendSuccessResponse(res, { coupon }, "Coupon created", 201);
 });

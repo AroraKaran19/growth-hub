@@ -51,9 +51,21 @@ const KpiBand = ({ analytics, style }: { analytics: WorkspaceAnalytics; style?: 
     { key: "bookings", label: "Bookings made", value: (kpis.bookings.value ?? 0).toLocaleString("en-IN"), kpi: kpis.bookings, direction: "up" },
     { key: "length", label: "Average booking", value: lengthLabel(kpis.averageMinutes.value), kpi: kpis.averageMinutes, direction: "neutral" },
     { key: "no-show", label: "No-show rate", value: percent(kpis.noShowRate.value, 1), kpi: kpis.noShowRate, direction: "down" },
-    { key: "cancelled", label: "Passes cancelled", value: (kpis.cancellations.value ?? 0).toLocaleString("en-IN"), kpi: kpis.cancellations, direction: "down" },
+    { key: "cancelled", label: "Cancelled", hint: "passes", value: (kpis.cancellations.value ?? 0).toLocaleString("en-IN"), kpi: kpis.cancellations, direction: "down" },
     ...(kpis.revenue
       ? [{ key: "revenue", label: "Collected", value: rupees(kpis.revenue.value ?? 0), kpi: kpis.revenue, direction: "up" as const }]
+      : []),
+    ...(kpis.refunds
+      ? [
+          {
+            key: "refunds",
+            label: "Refunds approved",
+            hint: `on ${kpis.refunds.passes} pass${kpis.refunds.passes === 1 ? "" : "es"}`,
+            value: rupees(kpis.refunds.value ?? 0),
+            kpi: kpis.refunds,
+            direction: "down" as const,
+          },
+        ]
       : []),
     ...(kpis.revpad
       ? [
@@ -95,7 +107,7 @@ const KpiBand = ({ analytics, style }: { analytics: WorkspaceAnalytics; style?: 
           </div>
         </div>
 
-        <dl className={cn("grid grid-cols-2 gap-3", tiles.length > 4 ? "sm:grid-cols-3" : "sm:grid-cols-2")}>
+        <dl className={cn("grid grid-cols-2 gap-3", tiles.length > 6 ? "sm:grid-cols-3 xl:grid-cols-4" : tiles.length > 4 ? "sm:grid-cols-3" : "sm:grid-cols-2")}>
           {tiles.map((tile) => (
             <div
               key={tile.key}

@@ -1,5 +1,7 @@
 import { Types } from "mongoose";
+import PizZip from "pizzip";
 import { AppError } from "../middlewares/error.middleware";
+import { addDays, instantOf, isIsoDate } from "../utils/indiaTime";
 import {
   AddonOrder,
   Booking,
@@ -13,14 +15,14 @@ import {
 } from "../models";
 import { billedToBlock, invoiceSummary } from "./invoiceData.service";
 import { findMember, findMembers } from "./accountSnapshot.service";
-import { signedInvoiceUrl } from "./invoiceStorage.service";
+import { invoiceFileName, readInvoicePdf, signedInvoiceUrl } from "./invoiceStorage.service";
 
 const LIST_LIMIT = 200;
 const DOWNLOAD_LINK_SECONDS = 300;
 
 const notFound = () => new AppError("We couldn't find that invoice.", 404, "INVOICE_NOT_FOUND");
 
-const summarised = async (job: InvoiceJobDoc) => {
+export const summarised = async (job: InvoiceJobDoc) => {
   try {
     return await invoiceSummary(job);
   } catch {
@@ -50,6 +52,17 @@ export const invoiceDownloadUrl = async (memberId: string, id: string) => {
     throw new AppError("Your invoice is still being prepared. Try again in a minute.", 409, "INVOICE_PREPARING");
   }
   return signedInvoiceUrl(job.pdfKey, job.invoiceNumber, DOWNLOAD_LINK_SECONDS);
+};
+
+/** A short-lived link that opens a finished invoice in the browser, for admins; optionally one member's only. */
+export const adminInvoiceViewUrl = async (id: string, memberId?: Types.ObjectId) => {
+  const filter = { _id: id, ...(memberId && { memberId }) };
+  const job = Types.ObjectId.isValid(id) ? await InvoiceJob.findOne(filter).lean<InvoiceJobDoc>() : null;
+  if (!job) throw notFound();
+  if (job.status !== "done" || !job.pdfKey) {
+    throw new AppError("This invoice is still being prepared. Try again in a minute.", 409, "INVOICE_PREPARING");
+  }
+  return signedInvoiceUrl(job.pdfKey, job.invoiceNumber, DOWNLOAD_LINK_SECONDS, "inline");
 };
 
 export const listInvoiceJobs = async (status?: string) => {
@@ -115,4 +128,44 @@ export const queueMissingInvoices = async () => {
     );
   }
   return { queued: missing.length };
+};
+
+const BUNDLE_MAX_DAYS = 366;
+const BUNDLE_MAX_FILES = 500;
+
+const bundleRange = (from: unknown, to: unknown) => {
+  const start = typeof from === "string" ? from : "";
+  const end = typeof to === "string" && to ? to : start;
+  const field = (message: string) => new AppError("Check the dates.", 400, "VALIDATION_FAILED", { fields: { from: message } });
+  if (!isIsoDate(start) || !isIsoDate(end)) throw field("Pick a date, or a start and end date.");
+  if (end < start) throw field("The end date can't be before the start date.");
+  if (addDays(start, BUNDLE_MAX_DAYS - 1) < end) throw field("Pick a range of up to one year.");
+  return { from: start, to: end, filter: { createdAt: { $gte: instantOf(start, 0), $lt: instantOf(addDays(end, 1), 0) } } };
+};
+
+/** How many invoices issued in the range are ready to download, and how many aren't yet. */
+export const invoiceBundleSummary = async (from: unknown, to: unknown) => {
+  const range = bundleRange(from, to);
+  const [ready, notReady] = await Promise.all([
+    InvoiceJob.countDocuments({ ...range.filter, status: "done", pdfKey: { $ne: null } }),
+    InvoiceJob.countDocuments({ ...range.filter, $or: [{ status: { $ne: "done" } }, { pdfKey: null }] }),
+  ]);
+  return { from: range.from, to: range.to, ready, notReady, limit: BUNDLE_MAX_FILES };
+};
+
+/** A zip of every ready invoice PDF issued in the India-date range. */
+export const invoiceBundle = async (from: unknown, to: unknown) => {
+  const range = bundleRange(from, to);
+  const jobs = await InvoiceJob.find({ ...range.filter, status: "done", pdfKey: { $ne: null } }, { invoiceNumber: 1, pdfKey: 1 })
+    .sort({ createdAt: 1 })
+    .limit(BUNDLE_MAX_FILES + 1)
+    .lean<Pick<InvoiceJobDoc, "invoiceNumber" | "pdfKey">[]>();
+  if (!jobs.length) throw new AppError("No invoices are ready for those dates.", 404, "NO_INVOICES");
+  if (jobs.length > BUNDLE_MAX_FILES) {
+    throw new AppError(`That's more than ${BUNDLE_MAX_FILES} invoices. Pick a shorter range.`, 422, "TOO_MANY_INVOICES");
+  }
+  const zip = new PizZip();
+  for (const job of jobs) zip.file(invoiceFileName(job.invoiceNumber), await readInvoicePdf(job.pdfKey!));
+  const name = range.from === range.to ? range.from : `${range.from} to ${range.to}`;
+  return { fileName: `Growth Hub invoices ${name}.zip`, zip: zip.generate({ type: "nodebuffer", compression: "STORE" }), count: jobs.length };
 };

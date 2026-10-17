@@ -16,7 +16,7 @@ export const INVOICE_ISSUER: InvoiceIssuer = {
   legalName: "GrowthHub Connect",
   address: "4th Floor, Orion Business Centre 27, 80 Feet Road, 6th Block Koramangala, Bengaluru, Karnataka 560095",
   email: "hello@growthhub.in",
-  gstin: null,
+  gstin: "29IYIPS1653H1ZT",
   state: "Karnataka",
   stateCode: "29",
   sac: "997212",

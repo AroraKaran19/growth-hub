@@ -16,13 +16,19 @@ export const storeInvoicePdf = async (invoiceNumber: string, pdf: Buffer) => {
   return key;
 };
 
-export const signedInvoiceUrl = async (key: string, invoiceNumber: string, seconds: number) =>
+export const readInvoicePdf = async (key: string) => {
+  const object = await (await getS3Client()).send(new GetObjectCommand({ Bucket: getBucketName(), Key: key }));
+  return Buffer.from(await object.Body!.transformToByteArray());
+};
+
+export const signedInvoiceUrl =async (key: string, invoiceNumber: string, seconds: number, disposition: "attachment" | "inline" = "attachment") =>
   getSignedUrl(
     await getS3Client(),
     new GetObjectCommand({
       Bucket: getBucketName(),
       Key: key,
-      ResponseContentDisposition: `attachment; filename="${invoiceFileName(invoiceNumber)}"`,
+      ResponseContentDisposition: `${disposition}; filename="${invoiceFileName(invoiceNumber)}"`,
+      ResponseContentType: "application/pdf",
     }),
     { expiresIn: seconds },
   );

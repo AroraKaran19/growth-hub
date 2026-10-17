@@ -111,6 +111,8 @@ const Footer = () => {
 
         <div className="mt-12 border-t border-tertiary/10 pt-6 text-center text-sm text-tertiary/60">
           &copy; {new Date().getFullYear()} Growth Hub
+          <span className="mx-2 text-tertiary/30" aria-hidden="true">·</span>
+          GSTIN 29IYIPS1653H1ZT
         </div>
       </div>
     </footer>

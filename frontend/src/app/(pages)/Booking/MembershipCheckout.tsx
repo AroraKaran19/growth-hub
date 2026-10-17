@@ -9,6 +9,7 @@ import PhoneSignIn from "@/app/components/shared/PhoneSignIn";
 import { useRazorpay, type RazorpaySubscriptionSuccess } from "@/hooks/useRazorpay";
 import { usePlanQuote } from "@/hooks/useVenuePlans";
 import { rememberCompanyDetails } from "@/libs/api/billing";
+import { attemptKeyFor, forgetAttempt } from "./checkoutAttempt";
 import { readApiError } from "@/libs/api/errors";
 import {
   confirmMembership,
@@ -63,7 +64,9 @@ const MembershipCheckout = ({ venue }: { venue: VenueDetail }) => {
   const isStaff = useIsStaff();
   const { selection, setSelection, clear, isHydrated, plan, isConfigured, isScheduled, isSeatingComplete, isInvoiceReady } =
     useBookingSelection(venue);
-  const { session, isReady: isSessionReady } = useSession();
+  const { session: signedIn, account, isReady: isSessionReady } = useSession();
+  // Name and email come first: confirmations and invoices go to that email.
+  const session = account?.needsOnboarding ? null : signedIn;
   const razorpay = useRazorpay();
 
   const [membership, setMembership] = useState<ApiMembership | null>(null);
@@ -108,13 +111,19 @@ const MembershipCheckout = ({ venue }: { venue: VenueDetail }) => {
   const start = useEffectEvent(async () => {
     if (started.current || !request) return;
     started.current = true;
-    attemptKey.current ??= crypto.randomUUID();
+    const body = { ...request, billing: billingInputFrom(selection.invoice) };
+    attemptKey.current ??= attemptKeyFor("membership", body);
     try {
-      const result = await createMembership({ ...request, billing: billingInputFrom(selection.invoice) }, attemptKey.current);
+      const result = await createMembership(body, attemptKey.current);
       held.current.ref = result.membership.ref;
       void rememberCompanyDetails(selection.invoice);
       if (result.membership.status === "active") {
         settle(result.membership);
+        return;
+      }
+      if (result.membership.status === "expired") {
+        held.current.settled = true;
+        setFailure(failureFor("HOLD_EXPIRED", "Your seat hold has run out. Pick your seat again to start over."));
         return;
       }
       setMembership(result.membership);
@@ -167,18 +176,19 @@ const MembershipCheckout = ({ venue }: { venue: VenueDetail }) => {
     };
   }, [ref]);
 
-  // Leaving without paying frees every day of the plan for others straight away.
-  useEffect(() => {
-    const leave = () => {
+  // Leaving checkout frees the plan's days at once. A refresh keeps the hold; a closed tab lapses within minutes.
+  useEffect(
+    () => () => {
       const { ref: heldRef, settled } = held.current;
       if (heldRef && !settled) releaseMembershipHoldOnLeave(heldRef);
-    };
-    window.addEventListener("pagehide", leave);
-    return () => {
-      window.removeEventListener("pagehide", leave);
-      leave();
-    };
-  }, []);
+      forgetAttempt("membership");
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (failure || confirmed) forgetAttempt("membership");
+  }, [failure, confirmed]);
 
   const left = secondsLeft(membership?.holdCapAt ?? null, now);
 
@@ -355,7 +365,10 @@ const MembershipCheckout = ({ venue }: { venue: VenueDetail }) => {
                   </div>
                 )}
                 <div className="flex items-baseline justify-between gap-3 border-t border-tertiary/10 pt-3">
-                  <dt className="text-sm text-tertiary/60">Due today</dt>
+                  <dt className="text-sm text-tertiary/60">
+                    Due today
+                    <span className="block text-xs text-tertiary/45">Inclusive of 18% GST</span>
+                  </dt>
                   <dd className="text-2xl font-bold text-tertiary">{dueToday !== null ? rupees(dueToday) : "..."}</dd>
                 </div>
               </dl>

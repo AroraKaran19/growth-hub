@@ -9,7 +9,7 @@ export type CouponScope = (typeof COUPON_SCOPES)[number];
 /** What an order counts as when a coupon is checked against it. */
 export type OrderScope = Exclude<CouponScope, "any">;
 
-export const COUPON_VISIBILITY = ["public", "code-only"] as const;
+export const COUPON_VISIBILITY = ["public", "code-only", "member"] as const;
 export type CouponVisibility = (typeof COUPON_VISIBILITY)[number];
 
 export const COUPON_REASONS = [
@@ -21,6 +21,7 @@ export const COUPON_REASONS = [
   "min-spend",
   "member-limit",
   "total-limit",
+  "not-yours",
 ] as const;
 export type CouponReason = (typeof COUPON_REASONS)[number];
 

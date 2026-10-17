@@ -144,6 +144,37 @@ const isDuplicateOf = (error: unknown, field: string) =>
   (error as { code?: unknown }).code === DUPLICATE_KEY &&
   Boolean((error as { keyPattern?: Record<string, unknown> }).keyPattern?.[field]);
 
+const sameSet = (a: string[], b: string[]) => a.length === b.length && [...a].sort().join("|") === [...b].sort().join("|");
+
+const billingKey = (billing: object | null | undefined) =>
+  billing ? JSON.stringify(Object.entries(billing).filter(([key]) => key !== "_id").sort(([a], [b]) => a.localeCompare(b))) : "";
+
+/** A reload or second tab with the same choices keeps the member's live hold and its end time. */
+const continueOwnHold = async (memberId: string, venueId: Types.ObjectId, input: BookingInput, window: { start: number; end: number }) => {
+  const holds = await Booking.find({
+    memberId,
+    venueId,
+    date: input.date,
+    status: "pending-payment",
+    holdCapAt: { $gt: new Date() },
+  }).lean<BookingDoc[]>();
+  for (const hold of holds) {
+    const same =
+      hold.passType === input.passType &&
+      hold.startMin === window.start &&
+      hold.endMin === window.end &&
+      hold.people === input.people &&
+      sameSet(hold.seats.map((seat) => seat.id), input.seatIds) &&
+      sameSet(hold.addons.map((line) => line.key), input.addonKeys) &&
+      billingKey(hold.billing) === billingKey(input.billing);
+    if (same && hold.payment?.orderId) return hold;
+    // Changed choices on the same seat: the member's old attempt gives way to the new one.
+    const overlaps = hold.startMin < window.end && hold.endMin > window.start && hold.seats.some((seat) => input.seatIds.includes(seat.id));
+    if (overlaps) await expireBooking(hold._id);
+  }
+  return null;
+};
+
 export const createBooking = async (memberId: string, input: BookingInput, requestKey: string) => {
   const repeat = await Booking.findOne({ memberId, requestKey }).lean<BookingDoc>();
   if (repeat) return withCheckout(repeat);
@@ -152,6 +183,9 @@ export const createBooking = async (memberId: string, input: BookingInput, reque
   const window = scheduleFor(venue, input);
   checkSeats(venue, map, input, window);
   const { price, addons } = await priceFor(venue, input);
+
+  const continued = await continueOwnHold(memberId, venue._id, input, window);
+  if (continued) return withCheckout(continued);
 
   const now = Date.now();
   const isFree = price.payable === 0;

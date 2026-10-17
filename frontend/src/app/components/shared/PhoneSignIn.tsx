@@ -65,14 +65,17 @@ const PhoneSignIn = ({
     return isRestorable(attempt, "member") ? attempt : null;
   });
 
+  const signedIn = useAuthStore("member", (state) => state.account);
+  // Signed in without a name or email yet, such as after a refresh mid-way.
+  const unfinished = signedIn?.needsOnboarding ? signedIn : null;
   const [step, setStep] = useState<"phone" | "otp" | "onboarding">(
-    restored ? "otp" : "phone",
+    unfinished ? "onboarding" : restored ? "otp" : "phone",
   );
   const [countryCode, setCountryCode] = useState(restored?.countryCode ?? "+91");
   const [mobile, setMobile] = useState(restored?.identifier ?? "");
   const [code, setCode] = useState<string[]>(() => emptyCode(OTP_LENGTH));
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const [name, setName] = useState(unfinished?.name ?? "");
+  const [email, setEmail] = useState(unfinished?.email ?? "");
   const [error, setError] = useState<string | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(() =>
     restored ? secondsUntil(restored.cooldownEndsAt) : 0,

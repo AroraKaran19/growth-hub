@@ -46,7 +46,7 @@ import {
 import { getAdminMemberships } from "../controllers/membership.controller";
 import { getAdminBookings } from "../controllers/staffBookings.controller";
 import type { AdminPermission } from "../constants/permissions";
-import { getAdminCoupons, patchAdminCoupon, postAdminCoupon } from "../controllers/coupon.controller";
+import { getAdminCoupons, getCouponCustomers, patchAdminCoupon, postAdminCoupon } from "../controllers/coupon.controller";
 import {
   deleteAdjustment,
   getPayoutStatement,
@@ -124,6 +124,7 @@ adminPartnerRoutes.post("/:id/reset-link", requirePermission("users.manage"), po
 
 export const adminCouponRoutes = guarded("coupons");
 adminCouponRoutes.get("/", getAdminCoupons);
+adminCouponRoutes.get("/customers", getCouponCustomers);
 adminCouponRoutes.post("/", postAdminCoupon);
 adminCouponRoutes.patch("/:id", patchAdminCoupon);
 

@@ -12,6 +12,8 @@ export type UserRow = {
   name: string | null;
   email: string | null;
   phone: string | null;
+  countryCode: string | null;
+  phoneNumber: string | null;
   venueSlug: string | null;
   venueName: string | null;
   permissions: string[];
@@ -32,7 +34,9 @@ type Listing = {
   pageSize: number;
 };
 
-export type CustomerChange = { name?: string; email?: string; status?: "active" | "disabled" };
+export type PhoneChange = { countryCode: string; phoneNumber: string };
+
+export type CustomerChange = { name?: string; email?: string; phone?: PhoneChange; status?: "active" | "disabled" };
 
 const fetchUsers = async ([, query]: [string, UsersQuery]) =>
   (
@@ -47,7 +51,12 @@ const fetchUsers = async ([, query]: [string, UsersQuery]) =>
   ).data.data;
 
 export const updateCustomer = async (id: string, change: CustomerChange) =>
-  (await adminApi.patch<{ data: { user: UserRow; stoppedMemberships: number } }>(`/admin/users/customers/${id}`, change)).data.data;
+  (
+    await adminApi.patch<{ data: { user: UserRow; stoppedMemberships: number; signedOut: boolean } }>(
+      `/admin/users/customers/${id}`,
+      change,
+    )
+  ).data.data;
 
 export const useUsers = (query: UsersQuery) => {
   const { data, error, isLoading, isValidating, mutate } = useSWR(["admin/users", query], fetchUsers, {

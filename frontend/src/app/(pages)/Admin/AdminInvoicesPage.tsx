@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { CircleAlert, MailCheck, RotateCcw } from "lucide-react";
+import { CircleAlert, Download, FileText, MailCheck, RotateCcw } from "lucide-react";
+import InvoiceBundleModal from "./components/InvoiceBundleModal";
 import SelectField from "@/app/components/ui/form/SelectField";
 import { useAdminInvoices } from "@/hooks/useInvoices";
-import { retryInvoice } from "@/libs/api/invoices";
+import { retryInvoice, viewAdminInvoice } from "@/libs/api/invoices";
 import { readApiError } from "@/libs/api/errors";
 import { toastDone, toastFailed } from "@/libs/toast";
 import type { AdminInvoice, InvoiceJobStatus, InvoiceKind } from "@/types/invoice";
@@ -65,6 +66,7 @@ const RetryButton = ({ invoice, onDone }: { invoice: AdminInvoice; onDone: () =>
 /** Invoice PDFs made by the background worker; failed ones can be queued again. */
 const AdminInvoicesPage = () => {
   const [status, setStatus] = useState("");
+  const [isBundleOpen, setIsBundleOpen] = useState(false);
   const { invoices, error, isLoading, mutate } = useAdminInvoices(status);
   const failedCount = invoices.filter((invoice) => invoice.status === "failed").length;
 
@@ -75,8 +77,21 @@ const AdminInvoicesPage = () => {
       <PageHeader
         title="Invoices"
         description="Every paid pass, membership payment and add-on order gets a PDF invoice, made in the background and emailed to the member."
-        actions={<SelectField label="Show" hideLabel value={status} onChange={setStatus} options={FILTERS} className="w-48" />}
+        actions={
+          <div className="flex flex-wrap items-center gap-2.5">
+            <button
+              type="button"
+              onClick={() => setIsBundleOpen(true)}
+              className="inline-flex items-center gap-2 rounded-lg border border-tertiary/15 bg-secondary px-4 py-2.5 text-sm font-medium text-tertiary shadow-sm transition-all hover:-translate-y-0.5 hover:border-tertiary/30 hover:shadow-md motion-reduce:transition-none motion-reduce:hover:translate-y-0"
+            >
+              <Download aria-hidden="true" className="size-4 text-primary" />
+              Download in bulk
+            </button>
+            <SelectField label="Show" hideLabel value={status} onChange={setStatus} options={FILTERS} className="w-48" />
+          </div>
+        }
       />
+      {isBundleOpen && <InvoiceBundleModal onClose={() => setIsBundleOpen(false)} />}
 
       {failedCount > 0 && status !== "failed" && (
         <p role="alert" className="mt-5 flex items-center gap-2 rounded-xl bg-primary/8 px-4 py-3 text-sm text-tertiary">
@@ -132,6 +147,17 @@ const AdminInvoicesPage = () => {
                   </td>
                   <td className="px-5 py-3.5 text-right">
                     {invoice.status === "failed" && <RetryButton invoice={invoice} onDone={mutate} />}
+                    {invoice.status === "done" && (
+                      <button
+                        type="button"
+                        onClick={() => void viewAdminInvoice(invoice.id)}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-tertiary/15 bg-secondary px-3 py-1.5 text-sm font-medium text-tertiary shadow-sm transition-all hover:-translate-y-0.5 hover:border-tertiary/30 hover:shadow-md motion-reduce:transition-none motion-reduce:hover:translate-y-0"
+                      >
+                        <FileText aria-hidden="true" className="size-3.5 text-primary" />
+                        View PDF
+                        <span className="sr-only"> for {invoice.number}</span>
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}

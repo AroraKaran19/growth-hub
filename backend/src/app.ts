@@ -18,7 +18,13 @@ if (config.trustProxy !== null) app.set("trust proxy", config.trustProxy);
 app.use(favicon(path.join(__dirname, "../public/favicon.ico")));
 const allowedOrigins = new Set(config.corsOrigins);
 // Requests without an Origin header (server to server, webhooks) aren't subject to CORS.
-app.use(cors({ origin: (origin, done) => done(null, !origin || allowedOrigins.has(origin)) }));
+app.use(
+  cors({
+    origin: (origin, done) => done(null, !origin || allowedOrigins.has(origin)),
+    // Lets the browser read a download's file name, such as the invoice zip.
+    exposedHeaders: ["Content-Disposition"],
+  }),
+);
 app.use(
   express.json({
     limit: "100mb",
